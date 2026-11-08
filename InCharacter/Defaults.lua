@@ -8,7 +8,8 @@ IC.Icons = {
 IC.AddonIcon = I .. "Ability_Warrior_RallyingCry"
 IC.Defaults = {}
 function IC.Defaults.Pool(id, name)
-    return { id = id, name = name, icon = IC.Icons[1], mode = "shuffle", channel = "SAY", lines = {}, lineIDs = {}, nextLineID = 1, revision = 1 }
+    local icons = { greetings = IC.EmoteIcons.wave, farewells = IC.EmoteIcons.bye, quotes = IC.Icons[2] }
+    return { id = id, name = name, icon = icons[id] or IC.Icons[1], mode = "shuffle", channel = "SAY", lines = {}, lineIDs = {}, lineIcons = {}, nextLineID = 1, revision = 1 }
 end
 function IC.Defaults.Profile()
     return {
@@ -20,7 +21,8 @@ function IC.Defaults.Profile()
         poolOrder = { "greetings", "quotes", "farewells" },
         favorites = { "emote:wave", "emote:cheer", "emote:laugh", "emote:dance", "emote:charge", "emote:healme",
             "pool:greetings", "pool:quotes", "pool:farewells" },
-        wheel = { mode = "click", radius = 165 },
+        wheel = { mode = "click", radius = 180, buttonSize = 42, pageSize = 8, deadZone = 62, hiddenActions = {}, hiddenCategories = {} },
+        menu = { hiddenActions = {}, hiddenCategories = {}, pageSize = 12 },
         emoteFilter = "all", hideUnverified = false,
         installedPacks = {},
         shortcuts = {},
@@ -29,7 +31,7 @@ function IC.Defaults.Profile()
 end
 function IC.Defaults.Bar(index)
     return { name = "Quick bar " .. (index or 1), source = "favorites", vertical = false,
-        size = 36, columns = 12, locked = false, hidden = false, collapsed = false, page = 1,
+        size = 36, columns = 12, rows = 0, labels = true, hiddenActions = {}, locked = false, hidden = false, collapsed = false, page = 1,
         x = 0, y = -160 - ((index or 1) - 1) * 70 }
 end
 function IC.Defaults.Launcher()

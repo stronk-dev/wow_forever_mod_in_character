@@ -59,7 +59,7 @@ function A.Resolve(id)
         local pool = IC.Profile().pools[linePool]
         local text = pool and IC.Dialogue.Line(pool, lineID)
         if text then return { id = id, type = "line", payload = linePool, lineID = lineID,
-            label = IC.DisplayText(IC.ShortText(text, 72)), icon = pool.icon } end
+            label = IC.DisplayText(IC.ShortText(text, 72)), icon = pool.lineIcons and pool.lineIcons[lineID] or pool.icon } end
         return nil
     end
     local mode, playPool = id:match("^play:(%a+):(.+)$")
@@ -72,6 +72,20 @@ function A.Resolve(id)
     local poolID = type(id) == "string" and id:match("^pool:(.+)$")
     local pool = poolID and IC.Profile().pools[poolID]
     if pool then return { id = id, type = "pool", label = pool.name, icon = pool.icon, payload = poolID } end
+end
+function A.SetIcon(id, icon)
+    local action = A.Resolve(id)
+    if not action then return false end
+    if icon ~= nil and type(icon) ~= "string" and type(icon) ~= "number" then return false end
+    local profile = IC.Profile()
+    if action.type == "emote" then
+        profile.emoteOverrides[action.id] = profile.emoteOverrides[action.id] or {}
+        profile.emoteOverrides[action.id].icon = icon
+    elseif action.type == "line" then
+        local pool = profile.pools[action.payload]; pool.lineIcons = pool.lineIcons or {}; pool.lineIcons[action.lineID] = icon
+    elseif action.type == "pool" then profile.pools[action.payload].icon = icon or IC.Icons[1]
+    else return false end
+    IC.Changed(); return true
 end
 function A.IsFavorite(id)
     id = A.CanonicalID(id)
@@ -103,7 +117,7 @@ function A.Lines(pool)
     local result = {}
     for index, lineID in ipairs(pool.lineIDs) do
         result[#result + 1] = { id = "line:" .. pool.id .. ":" .. lineID, type = "line", payload = pool.id,
-            lineID = lineID, label = IC.DisplayText(IC.ShortText(pool.lines[index], 72)), icon = pool.icon }
+            lineID = lineID, label = IC.DisplayText(IC.ShortText(pool.lines[index], 72)), icon = pool.lineIcons and pool.lineIcons[lineID] or pool.icon }
     end
     return result
 end
@@ -132,13 +146,13 @@ function A.RoleplayGroups()
     end
     return result
 end
-function A.List(source)
+function A.List(source, raw)
     source = source or "favorites"
     local result, profile = {}, IC.Profile()
     if source == "favorites" then
         for _, id in ipairs(profile.favorites) do
             local action = A.Resolve(id)
-            if action and (action.type ~= "emote" or IC.Emotes.Visible(action, profile)) then result[#result + 1] = action end
+            if action and (raw or action.type ~= "emote" or IC.Emotes.Visible(action, profile)) then result[#result + 1] = action end
         end
     elseif source == "pools" then
         for _, id in ipairs(profile.poolOrder) do
@@ -154,7 +168,7 @@ function A.List(source)
     else
         local emotes = source == "all" and IC.Emotes.list or IC.Emotes.byCategory[source] or {}
         for _, action in ipairs(emotes) do
-            if IC.Emotes.Visible(action, profile) then result[#result + 1] = A.Resolve(action.id) end
+            if raw or IC.Emotes.Visible(action, profile) then result[#result + 1] = A.Resolve(action.id) end
         end
     end
     return result

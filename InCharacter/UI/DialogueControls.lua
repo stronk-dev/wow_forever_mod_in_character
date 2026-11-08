@@ -96,6 +96,8 @@ local function updateMessageControls(frame)
     frame.pin:SetEnabled(saved ~= nil and not dirty)
     frame.bar:SetEnabled(saved ~= nil and not dirty)
     frame.pin:SetText(saved and A.IsFavorite("line:" .. frame.poolID .. ":" .. frame.lineID) and "Unpin message" or "Pin message")
+    local action = messageAction(frame)
+    frame.icon:SetEnabled(action ~= nil); frame.icon:SetIcon(action and action.icon or IC.Icons[1])
 end
 local function selectMessage(frame, lineID)
     storeMessage(frame)
@@ -151,7 +153,19 @@ local function createMessages()
         local pool = poolFor(frame); if pool and frame.lineID then storeMessage(frame); D.MoveLine(pool, frame.lineID, 1); syncPoolForm(frame); refreshMessages(frame, frame.lineID) end
     end)
     U.Label(frame, "Selected message (wraps visually; one message per entry)", 290, -90, 456)
-    frame.edit = U.TextArea(frame, 290, -112, 456, 132)
+    frame.edit = U.TextArea(frame, 290, -112, 404, 132)
+    frame.icon = U.IconButton(frame, 36, false); frame.icon:SetPoint("TOPLEFT", 708, -112)
+    frame.icon:SetScript("OnClick", function()
+        local action = messageAction(frame); if not action then return end
+        local profile, id = frame.profile, action.id
+        E.PickIcon(action.icon, function(icon)
+            if profile == IC.Profile() then A.SetIcon(id, icon); updateMessageControls(frame) end
+        end)
+    end)
+    U.Muted(frame, "Icon", 708, -154, 38)
+    U.Button(frame, "Reset", 702, -180, 44, function()
+        local action = messageAction(frame); if action then A.SetIcon(action.id, nil); updateMessageControls(frame) end
+    end)
     frame.count = U.Muted(frame, "", 290, -252, 456)
     frame.edit.changed = function() if frame.profile then updateMessageControls(frame) end end
     U.Button(frame, "Save message", 290, -276, 222, function()

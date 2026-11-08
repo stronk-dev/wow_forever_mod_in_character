@@ -97,7 +97,7 @@ local function addEmote(command, aliases, animated, voice, fromCatalog)
         animated = animated, audible = voice, kind = fromCatalog and kindOf(animated, voice) or "unknown",
         catalog = fromCatalog, categories = {}, verified = false,
     }
-    action.icon = icons[command] and (I .. icons[command]) or E.KindInfo[action.kind].icon
+    action.icon = IC.EmoteIcons and IC.EmoteIcons[command] or (icons[command] and (I .. icons[command])) or "Interface\\Icons\\INV_Misc_Note_01"
     E.byID[action.id] = action
     E.list[#E.list + 1] = action
     return action
@@ -119,7 +119,7 @@ for _, category in ipairs(E.categories) do
         local action = E.byID["emote:" .. command]
         if action then
             action.categories[category] = true
-            if not action.category then action.category = category; action.icon = icons[command] and action.icon or E.CategoryInfo[category].icon end
+            if not action.category then action.category = category end
             table.insert(E.byCategory[category], action)
         end
     end

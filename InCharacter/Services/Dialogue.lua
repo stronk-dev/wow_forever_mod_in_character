@@ -44,6 +44,7 @@ function D.StateKey(pool, mode) return mode and (pool.id .. "\031" .. mode) or p
 local function cleanPins(pool)
     local profile = IC.Profile()
     local valid = {}; for _, id in ipairs(pool.lineIDs) do valid[id] = true end
+    for id in pairs(pool.lineIcons or {}) do if not valid[id] then pool.lineIcons[id] = nil end end
     local removed = 0
     for i = #profile.favorites, 1, -1 do
         local poolID, lineID = profile.favorites[i]:match("^line:(.*):([^:]+)$")

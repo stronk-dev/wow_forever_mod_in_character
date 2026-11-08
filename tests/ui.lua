@@ -29,11 +29,13 @@ end
 local function page(IC, tab) IC.Editor.Open(tab); return IC.Editor.pages[tab] end
 local function point(Stub, IC, dx, dy)
     local cx, cy = IC.Wheel.frame:GetCenter()
-    Stub.cursorX, Stub.cursorY = cx + dx, cy + dy
+    local scale = IC.Wheel.frame:GetEffectiveScale()
+    Stub.cursorX, Stub.cursorY = (cx + dx) * scale, (cy + dy) * scale
     IC.Wheel.Track()
 end
 local function pointAt(Stub, IC, slot)
-    local x, y = slot:GetCenter(); Stub.cursorX, Stub.cursorY = x, y; IC.Wheel.Track()
+    local x, y = slot:GetCenter(); local scale = slot:GetEffectiveScale()
+    Stub.cursorX, Stub.cursorY = x * scale, y * scale; IC.Wheel.Track()
 end
 
 test("load registers commands, Settings page and shows the launcher without sending", function(IC, Stub, env)
@@ -112,21 +114,21 @@ test("launcher menu lists favorites and categories, uses an emote and pins witho
     for i, entry in ipairs(root.entries) do if entry.label == IC.Emotes.CategoryInfo.Combat.label then combat = i end end
     assert(combat and combat <= 16)
     root.rows[combat]:Fire("OnEnter")
-    local flyout = IC.Menu.levels[2]; assert(flyout:IsShown()); eq(flyout.entries[1].label, "< Back"); eq(flyout.entries[2].action.command, "charge")
-    flyout.rows[2]:Click("RightButton"); assert(IC.Menu.IsOpen()); assert(flyout:IsShown())
-    flyout.rows[2]:Click("LeftButton"); assert(not IC.Menu.IsOpen()); eq(Stub.emotes[1], "CHARGE")
+    local flyout = IC.Menu.levels[2]; assert(flyout:IsShown()); assert(flyout.back:IsShown()); eq(flyout.entries[1].action.command, "charge")
+    flyout.rows[1]:Click("RightButton"); assert(IC.Menu.IsOpen()); assert(flyout:IsShown())
+    flyout.rows[1]:Click("LeftButton"); assert(not IC.Menu.IsOpen()); eq(Stub.emotes[1], "CHARGE")
 end)
 
-test("wheel: inner ring switches categories, outer ring uses the action, hub cancels", function(IC, Stub)
-    IC.Wheel.Open(false); assert(IC.Wheel.open); eq(IC.Wheel.category, 1)
+test("wheel starts with categories, requires explicit navigation and leaves the hub neutral", function(IC, Stub)
+    IC.Wheel.Open(false); assert(IC.Wheel.open); eq(#IC.Wheel.stack, 0)
     point(Stub, IC, 0, 0); eq(IC.Wheel.hover, nil)
-    local combat = IC.Wheel.inner[2]
-    pointAt(Stub, IC, combat); eq(IC.Wheel.categories[IC.Wheel.category].id, "Combat")
+    local combat = IC.Wheel.outer[2]
+    pointAt(Stub, IC, combat); eq(#IC.Wheel.stack, 0); eq(IC.Wheel.hover.action.id, "Combat")
+    IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(IC.Wheel.Current().id, "Combat")
     eq(#IC.Wheel.items, 1); eq(IC.Wheel.items[1].command, "charge")
     pointAt(Stub, IC, IC.Wheel.outer[1]); eq(IC.Wheel.hover, IC.Wheel.outer[1])
-    -- Crossing back through the inner ring changes category but never executes.
-    pointAt(Stub, IC, IC.Wheel.inner[3]); eq(#Stub.emotes, 0)
-    pointAt(Stub, IC, IC.Wheel.inner[2]); pointAt(Stub, IC, IC.Wheel.outer[1])
+    point(Stub, IC, 0, 0); eq(IC.Wheel.hover, nil); eq(#Stub.emotes, 0)
+    pointAt(Stub, IC, IC.Wheel.outer[1])
     IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(Stub.emotes[1], "CHARGE"); assert(not IC.Wheel.open)
     IC.Wheel.Open(false); point(Stub, IC, 0, 0); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
     assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
@@ -136,6 +138,8 @@ end)
 test("wheel hold mode uses the action under the cursor on release only", function(IC, Stub)
     IC.Profile().wheel.mode = "hold"
     IC.Wheel.Binding("down"); assert(IC.Wheel.open)
+    pointAt(Stub, IC, IC.Wheel.outer[1]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
+    point(Stub, IC, 0, 0)
     pointAt(Stub, IC, IC.Wheel.outer[1]); local expected = IC.Wheel.items[1]
     Stub.clock = Stub.clock + 0.2
     eq(#Stub.emotes + #Stub.sends, 0)
@@ -151,10 +155,11 @@ test("wheel pages long categories with the mouse wheel and opens in combat", fun
     for i = 1, 14 do IC.Dialogue.Create("Line pool " .. i) end
     Stub.combat = true; event("PLAYER_REGEN_DISABLED")
     IC.Wheel.Open(false); assert(IC.Wheel.open)
-    pointAt(Stub, IC, IC.Wheel.inner[#IC.Wheel.categories]); eq(IC.Wheel.categories[IC.Wheel.category].id, "Roleplay")
+    pointAt(Stub, IC, IC.Wheel.outer[#IC.Wheel.categories]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
+    eq(IC.Wheel.Current().id, "Roleplay")
     eq(#IC.Wheel.items, 1); pointAt(Stub, IC, IC.Wheel.outer[1]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
-    eq(#IC.Wheel.items, 12); IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2); eq(#IC.Wheel.items, 5)
-    IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 1)
+    eq(#IC.Wheel.items, 8); IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2); eq(#IC.Wheel.items, 8)
+    IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 3); eq(#IC.Wheel.items, 1)
     IC.Wheel.Close()
 end)
 
@@ -227,7 +232,7 @@ test("wheel geometry: sectors start at the top and go clockwise; hub is a dead z
     eq(M.Sector(M.Angle(-1, 10), 4), 1)
     local g = M.Geometry(160)
     eq(M.Hit(5, 5, g, 7, 12), "hub")
-    local kind, index = M.Hit(0, g.inner, g, 7, 12); eq(kind, "inner"); eq(index, 1)
+    local kind, index = M.Hit(0, g.hub + 4, g, 7, 12); eq(kind, "gap"); eq(index, nil)
     kind, index = M.Hit(g.outer, 0, g, 7, 12); eq(kind, "outer"); eq(index, 4)
     eq(M.Hit(0, 400, g, 7, 0), "outside")
     for i = 1, 12 do local x, y = M.Position(i, 12, g.outer); local _, hit = M.Hit(x, y, g, 7, 12); eq(hit, i) end
@@ -251,4 +256,5 @@ test("review fixes: mouse-button wheel key, unmoved hold release, Esc closes fly
 end)
 assert(loadfile("tests/ui_enhancements.lua"))()(test, eq, page, point, pointAt)
 assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_layouts.lua"))()(test, eq, page, point, pointAt)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

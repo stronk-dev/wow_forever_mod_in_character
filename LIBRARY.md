@@ -1,6 +1,6 @@
 # Community preset library
 
-Presets are optional data packs. Nothing is installed into a player's profile or sent to chat automatically. In `/ic` → **Dialogue Pools**, cycle the library selector, read the content/source notes, and click **Copy preset**. Each click makes new editable copies with unique IDs. **Copy + greet/quote/bye** also maps available shortcuts to those copies. Installing a pack containing only Quotes leaves Greetings and Farewells mappings unchanged.
+Presets are optional data packs. Nothing is installed into a player's profile or sent to chat automatically. In `/ic` → **Dialogue & messages**, choose a pack from the library dropdown, read the content/source notes, and click **Copy preset**. Each click makes new editable copies with unique IDs. **Copy + use for /ic greet, quote, bye** also maps available shortcuts to those copies. Installing a pack containing only Quotes leaves Greetings and Farewells mappings unchanged.
 
 | Pack ID | Contents | Provenance |
 | --- | --- | --- |

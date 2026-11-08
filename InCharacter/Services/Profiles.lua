@@ -1,5 +1,5 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 4 }
+IC.Profiles = { VERSION = 5 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)

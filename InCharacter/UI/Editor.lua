@@ -26,17 +26,35 @@ function E.PickIcon(current, done)
     if not picker then
         picker = CreateFrame("Frame", "InCharacterIconPicker", UIParent, "BackdropTemplate")
         E.picker = picker; U.Backdrop(picker, C.bg, C.accent)
-        picker:SetSize(PICK_COLS * 40 + 24, PICK_ROWS * 40 + 120); picker:SetPoint("CENTER"); picker:SetFrameStrata("FULLSCREEN_DIALOG")
+        picker:SetSize(PICK_COLS * 40 + 24, PICK_ROWS * 40 + 162); picker:SetPoint("CENTER"); picker:SetFrameStrata("FULLSCREEN_DIALOG")
         picker:EnableMouse(true); picker:EnableMouseWheel(true)
         U.Heading(picker, "Choose an icon", 12, -10)
+        U.Button(picker, "Close", 338, -6, 72, function() picker:Hide() end)
+        picker.search = U.Input(picker, 12, -38, 260)
+        picker.category = U.Dropdown(picker, 282, -38, 128, U.Options({ "All", "Combat", "Social", "Reactions", "Idle", "Voice/Fun" }), function() picker:Filter() end)
         picker.slots = {}
         for i = 1, PICK_COLS * PICK_ROWS do
             local slot = U.IconButton(picker, 36, false)
-            slot:SetPoint("TOPLEFT", 12 + ((i - 1) % PICK_COLS) * 40, -36 - math.floor((i - 1) / PICK_COLS) * 40)
+            slot:SetPoint("TOPLEFT", 12 + ((i - 1) % PICK_COLS) * 40, -78 - math.floor((i - 1) / PICK_COLS) * 40)
             slot:SetScript("OnClick", function(self) picker.path:SetText(iconText(self.value)); picker.preview:SetIcon(self.value) end)
+            slot:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(picker.names[self.value] or tostring(self.value)); GameTooltip:Show()
+            end)
+            slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
             picker.slots[i] = slot
         end
         picker.page = 0
+        function picker:Filter()
+            if not self.allIcons then return end
+            self.icons, self.page = {}, 0
+            local query = IC.Trim(self.search:GetText()):lower()
+            for _, icon in ipairs(self.allIcons) do
+                if (self.category.value == "All" or (self.groups[icon] and self.groups[icon][self.category.value]))
+                    and (query == "" or ((self.names[icon] or "") .. " " .. tostring(icon)):lower():find(query, 1, true)) then self.icons[#self.icons + 1] = icon end
+            end
+            self:Render()
+        end
+        picker.search:SetScript("OnTextChanged", function() picker:Filter() end)
         function picker:Render()
             local per = PICK_COLS * PICK_ROWS
             local pages = math.max(1, math.ceil(#self.icons / per))
@@ -49,7 +67,7 @@ function E.PickIcon(current, done)
             self.pageText:SetText("Page " .. (self.page + 1) .. " / " .. pages .. "  (scroll to browse)")
         end
         picker:SetScript("OnMouseWheel", function(self, delta) self.page = self.page - delta; self:Render() end)
-        local y = -42 - PICK_ROWS * 40
+        local y = -84 - PICK_ROWS * 40
         picker.pageText = U.Muted(picker, "", 12, y)
         U.Button(picker, "<", PICK_COLS * 40 - 76, y + 4, 40, function() picker.page = picker.page - 1; picker:Render() end)
         U.Button(picker, ">", PICK_COLS * 40 - 30, y + 4, 40, function() picker.page = picker.page + 1; picker:Render() end)
@@ -62,16 +80,23 @@ function E.PickIcon(current, done)
         U.Muted(picker, "Click an icon, or paste a texture path such as Interface\\Icons\\INV_Misc_Book_09.", 12, y - 62, PICK_COLS * 40)
         table.insert(UISpecialFrames, "InCharacterIconPicker")
     end
-    if not picker.icons then
-        picker.icons = {}
-        for _, icon in ipairs(IC.Icons) do picker.icons[#picker.icons + 1] = icon end
+    if not picker.allIcons then
+        picker.allIcons, picker.names, picker.groups = {}, {}, {}
+        for _, icon in ipairs(IC.Icons) do picker.allIcons[#picker.allIcons + 1] = icon end
         for _, name in ipairs({ "GetMacroIcons", "GetMacroItemIcons" }) do
             local fn = _G[name]
-            if type(fn) == "function" then pcall(fn, picker.icons) end
+            if type(fn) == "function" then pcall(fn, picker.allIcons) end
+        end
+        local seen = {}; for _, icon in ipairs(picker.allIcons) do seen[icon] = true end
+        for _, choice in ipairs(IC.IconChoices) do
+            if not seen[choice.path] then picker.allIcons[#picker.allIcons + 1] = choice.path; seen[choice.path] = true end
+            local name = choice.label .. " · " .. choice.search
+            picker.names[choice.path] = picker.names[choice.path] and (picker.names[choice.path] .. "; " .. name) or name
+            picker.groups[choice.path] = picker.groups[choice.path] or {}; picker.groups[choice.path][choice.category] = true
         end
     end
     picker.done = done; picker.path:SetText(iconText(current)); picker.preview:SetIcon(current)
-    picker:Render(); picker:Show(); picker:Raise()
+    picker.search:SetText(""); picker.category:SetValue("All"); picker:Filter(); picker:Show(); picker:Raise()
 end
 
 -- Home --------------------------------------------------------------------------------------------
@@ -486,6 +511,8 @@ function E.RefreshLayouts()
     local launcher, wheel = IC.Layout().launcher, IC.Profile().wheel
     p.lShown:SetChecked(launcher.shown); p.lClick:SetValue(launcher.click); p.lSize:Set(launcher.size)
     p.wMode:SetValue(wheel.mode); p.wRadius:Set(wheel.radius); p.wKey.Refresh(); p.mKey.Refresh()
+    p.wButtonSize:Set(wheel.buttonSize); p.wPageSize:Set(wheel.pageSize); p.wDeadZone:Set(wheel.deadZone)
+    p.mPageSize:Set(IC.Profile().menu.pageSize)
     local bars = IC.Layout().bars
     E.barIndex = math.max(1, math.min(#bars, E.barIndex))
     local options = {}
@@ -496,6 +523,8 @@ function E.RefreshLayouts()
     if not bar then return end
     p.bName:SetText(bar.name); p.bSource:SetOptions(barSources()); p.bSource:SetValue(bar.source)
     p.bSize:Set(bar.size); p.bColumns:Set(bar.columns or 12)
+    p.bRows:Set(bar.rows or 0); p.bLabels:SetChecked(bar.labels == true)
+    p.bSummary:SetText(#IC.Presentation.BarActions(bar) .. " shown / " .. #IC.Presentation.BarActions(bar, true) .. " source entries")
     p.bOrientation:SetValue(bar.vertical and "vertical" or "horizontal")
     for key, check in pairs(p.bChecks) do check:SetChecked(bar[key] == true) end
     p.bDelete.confirming = nil; p.bDelete:SetText("Delete bar")
@@ -506,8 +535,11 @@ local function section(parent, title, x, y, width, height)
     return frame
 end
 local function createLayouts(p)
-    local half = (PAGE_W - 10) / 2
-    local s = section(p, "Launcher button", 0, 0, half, 150)
+    p.layoutScroll = U.Scroll(p, 0, 0, PAGE_W, PAGE_H)
+    p.layoutScroll:SetContentHeight(760)
+    local canvas = p.layoutScroll.content
+    local half = (PAGE_W - 34) / 2
+    local s = section(canvas, "Launcher button & dropdown menu", 0, 0, half, 270)
     p.lShown = U.Check(s, "Show the launcher button", 12, -32, function(value) IC.Layout().launcher.shown = value; changed() end)
     p.lClick = U.Dropdown(s, 12, -62, half - 24, {
         { value = "menu", label = "Left-click opens the emote menu" }, { value = "wheel", label = "Left-click opens the radial wheel" },
@@ -517,22 +549,28 @@ local function createLayouts(p)
         local launcher = IC.Layout().launcher; local default = IC.Defaults.Launcher()
         launcher.x, launcher.y = default.x, default.y; changed()
     end)
-    s = section(p, "Radial wheel and menu keys", half + 10, 0, half, 150)
+    p.mPageSize = U.Slider(s, "Menu rows per page", 12, -150, half - 24, 6, 20, 1, function(value) IC.Profile().menu.pageSize = value; changed() end)
+    p.editMenu = U.Button(s, "Edit menu categories / items", 12, -204, half - 24, function() IC.LayoutUI.Open("menu") end)
+    s = section(canvas, "Radial wheel · categories first", half + 10, 0, half, 270)
     p.wKey = U.KeyCapture(s, 12, -32, (half - 30) / 2, "INCHARACTER_WHEEL", "Wheel")
     p.mKey = U.KeyCapture(s, 18 + (half - 30) / 2, -32, (half - 30) / 2, "INCHARACTER_MENU", "Menu")
     p.wMode = U.Dropdown(s, 12, -62, half - 24, {
         { value = "click", label = "Press key, then click an action" }, { value = "hold", label = "Hold / release (experimental)" },
     }, function(value) IC.Profile().wheel.mode = value end)
-    p.wRadius = U.Slider(s, "Wheel size", 12, -96, half - 120, 130, 220, 5, function(value) IC.Profile().wheel.radius = value end)
+    p.wRadius = U.Slider(s, "Ring radius", 12, -96, half - 120, 130, 260, 5, function(value) IC.Profile().wheel.radius = value end)
     U.Button(s, "Try wheel", half - 100, -112, 88, function() E.frame:Hide(); IC.Wheel.Open(false) end)
-    s = section(p, "Action bars", 0, -160, PAGE_W, PAGE_H - 170)
+    p.wButtonSize = U.Slider(s, "Icon size", 12, -150, (half - 36) / 2, 28, 64, 2, function(value) IC.Profile().wheel.buttonSize = value end)
+    p.wPageSize = U.Slider(s, "Items per ring", half / 2 + 6, -150, (half - 36) / 2, 4, 12, 1, function(value) IC.Profile().wheel.pageSize = value end)
+    p.wDeadZone = U.Slider(s, "Neutral centre", 12, -206, (half - 36) / 2, 30, 100, 2, function(value) IC.Profile().wheel.deadZone = value end)
+    p.editWheel = U.Button(s, "Edit wheel items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
+    s = section(canvas, "Action bars", 0, -282, PAGE_W - 24, 460)
     p.which = U.Dropdown(s, 12, -32, 260, {}, function(value) E.barIndex = value; E.RefreshLayouts() end)
     U.Button(s, "+ Add bar", 280, -32, 110, function()
         local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.Bar(#bars + 1); E.barIndex = #bars; changed(); E.RefreshLayouts()
     end, "accent")
     U.Button(s, "Bars per category", 396, -32, 150, function() categoryBars(not hasCategoryBars()); E.RefreshLayouts() end)
     p.noBars = U.Muted(s, "No bars yet. Add one, or create one bar per category.", 12, -70, PAGE_W - 24)
-    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W, 300)
+    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W - 24, 380)
     local b = p.barForm
     U.Muted(b, "Name", 12, 0); p.bName = U.Input(b, 12, -14, 260)
     U.Button(b, "Rename", 280, -14, 110, function()
@@ -542,23 +580,27 @@ local function createLayouts(p)
         if currentBar() then U.Confirm(self, "Delete bar", function() table.remove(IC.Layout().bars, E.barIndex); changed(); E.RefreshLayouts() end) end
     end)
     U.Muted(b, "Shows", 12, -46)
-    p.bSource = U.Dropdown(b, 12, -60, 378, {}, function(value) local bar = currentBar(); if bar then bar.source = value; changed() end end)
+    p.bSource = U.Dropdown(b, 12, -60, 378, {}, function(value) local bar = currentBar(); if bar then bar.source = value; bar.page = 1; changed(); E.RefreshLayouts() end end)
     p.bOrientation = U.Dropdown(b, 396, -60, 150, {
-        { value = "horizontal", label = "Horizontal" }, { value = "vertical", label = "Vertical" },
+        { value = "horizontal", label = "Fill rows first" }, { value = "vertical", label = "Fill columns first" },
     }, function(value) local bar = currentBar(); if bar then bar.vertical = value == "vertical"; changed() end end)
     p.bSize = U.Slider(b, "Button size", 12, -96, 250, 24, 64, 2, function(value) local bar = currentBar(); if bar then bar.size = value; changed() end end)
-    p.bColumns = U.Slider(b, "Buttons per row", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; changed() end end)
+    p.bColumns = U.Slider(b, "Columns", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; bar.page = 1; changed() end end)
+    p.bRows = U.Slider(b, "Rows (0 = automatic)", 12, -144, 250, 0, 12, 1, function(value) local bar = currentBar(); if bar then bar.rows = value; bar.page = 1; changed() end end)
+    p.bLabels = U.Check(b, "Show action names", 296, -150, function(value) local bar = currentBar(); if bar then bar.labels = value; changed() end end)
     p.bChecks = {}
     for n, definition in ipairs({ { "collapsed", "Collapsed" }, { "locked", "Locked (no title strip)" }, { "hidden", "Hidden" } }) do
         local key = definition[1]
-        p.bChecks[key] = U.Check(b, definition[2], 12 + (n - 1) * 210, -140, function(value)
+        p.bChecks[key] = U.Check(b, definition[2], 12 + (n - 1) * 210, -194, function(value)
             local bar = currentBar(); if bar then bar[key] = value; changed() end
         end)
     end
-    U.Button(b, "Reset position", 12, -174, 140, function()
+    U.Button(b, "Reset position", 12, -234, 140, function()
         local bar = currentBar(); if bar then local default = IC.Defaults.Bar(E.barIndex); bar.x, bar.y = default.x, default.y; changed() end
     end)
-    U.Muted(b, "Drag a bar by its title strip. Click the title to collapse it; right-click it to open these settings.", 160, -178, PAGE_W - 180)
+    U.Muted(b, "Drag the title to move; click to collapse. Right-click a button to edit this bar's items.", 160, -238, PAGE_W - 210)
+    p.editBar = U.Button(b, "Edit shown / hidden items", 12, -282, 230, function() if currentBar() then IC.LayoutUI.Open("bar", E.barIndex) end end, "accent")
+    p.bSummary = U.Muted(b, "", 260, -288, PAGE_W - 300)
 end
 
 -- Profiles ----------------------------------------------------------------------------------------
@@ -598,6 +640,7 @@ function E.SelectTab(name)
     if E.picker then E.picker:Hide() end
     if E.messages then E.messages:Hide() end
     if E.preview then E.preview:Hide() end
+    if IC.LayoutUI and IC.LayoutUI.frame then IC.LayoutUI.frame:Hide() end
     E.tab = name
     for tab, page in pairs(E.pages) do page:SetShown(tab == name) end
     for _, button in ipairs(E.nav) do button:SetSelected(button.tab == name) end
@@ -632,6 +675,7 @@ function E.Create()
         if E.picker then E.picker:Hide() end
         if E.messages then E.messages:Hide() end
         if E.preview then E.preview:Hide() end
+        if IC.LayoutUI and IC.LayoutUI.frame then IC.LayoutUI.frame:Hide() end
     end)
 end
 function E.Open(tab, barIndex)
