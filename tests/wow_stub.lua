@@ -10,6 +10,7 @@ for _, name in ipairs({ "SetJustifyH", "SetFontObject", "SetWordWrap", "SetAutoF
     "SetToplevel", "Raise", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag",
     "SetPushedTexture", "SetClampRectInsets", "SetBlendMode", "SetAlpha" }) do methods[name] = noop end
 function methods:GetRight() local x = self:GetCenter(); return x + self:GetWidth() / 2 end
+function methods:GetTop() local _, y = self:GetCenter(); return y + self:GetHeight() / 2 end
 local widget
 function methods:SetSize(w, h) self.width, self.height = w, h end
 function methods:SetWidth(w) self.width = w end
@@ -23,12 +24,13 @@ function methods:SetPoint(point, relative, relativePoint, x, y)
 end
 function methods:ClearAllPoints() self.x, self.y, self.relative = 0, 0, nil end
 function methods:SetAllPoints(relative) self.relative = type(relative) == "table" and relative or self.parent; self.x, self.y = 0, 0 end
--- Centers are modelled for CENTER anchors only (the wheel and bars), which is what the tests measure.
+-- Only CENTER and the bars' TOP-to-CENTER anchors are modelled for geometry assertions.
 function methods:GetCenter()
     if self == UIParent then return 960, 540 end
     local parent = self.relative or self.parent or UIParent
     local x, y = parent:GetCenter()
     if self.relativePoint == "BOTTOMLEFT" and parent == UIParent then x, y = 0, 0 end
+    if self.point == "TOP" and self.relativePoint == "CENTER" then y = y - self:GetHeight() / 2 end
     return x + (self.x or 0), y + (self.y or 0)
 end
 function methods:SetScale(value) self.scale = value end

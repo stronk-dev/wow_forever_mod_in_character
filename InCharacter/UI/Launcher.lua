@@ -1,5 +1,5 @@
 local _, IC = ...
--- One draggable round button: left-click opens the emote menu (or the wheel), right-click opens settings.
+-- One draggable button: left-click toggles quick access, right-click opens settings.
 IC.Launcher = {}
 local L, U = IC.Launcher, IC.UI
 
@@ -23,7 +23,7 @@ function L.Create()
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText("In Character", 1, 1, 1)
-        GameTooltip:AddLine("Left-click: " .. (config().click == "menu" and "emote menu" or "quick actions"), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Left-click: " .. (config().click == "menu" and "emote menu" or "toggle quick access / RP bar"), 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Right-click: settings", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Shift-drag: move", 0.8, 0.8, 0.8)
         GameTooltip:Show()

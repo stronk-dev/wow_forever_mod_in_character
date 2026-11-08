@@ -48,6 +48,7 @@ return function(test, eq, page, point, pointAt)
         eq(IC.Bars.frames[1].buttons[1].action.name, "MY CUSTOM WAVE"); eq(#Stub.sends, 0)
     end)
     test("all bar entries remain reachable beyond 48 with visible paging and mouse wheel", function(IC, Stub)
+        IC.Layout().bars[1].source = "favorites" -- Exercise the mixed-favorites source explicitly.
         IC.Profile().favorites = {}
         for n = 1, 101 do local p = IC.Dialogue.Create("Many " .. n); IC.Profile().favorites[n] = "pool:" .. p.id end
         IC.Refresh(); local frame = IC.Bars.frames[1]
@@ -162,7 +163,7 @@ return function(test, eq, page, point, pointAt)
     test("bar page capacity fits smaller screens in both orientations", function(IC, Stub, env)
         env.UIParent:SetSize(640, 480); IC.Profile().favorites = {}
         for i = 1, 70 do local p = IC.Dialogue.Create("Screen " .. i); IC.Profile().favorites[i] = "pool:" .. p.id end
-        local config = IC.Layout().bars[1]; config.size, config.columns = 64, 12
+        local config = IC.Layout().bars[1]; config.size, config.columns, config.source = 64, 12, "favorites"
         for _, vertical in ipairs({ false, true }) do
             config.vertical = vertical; IC.Bars.Refresh(); local frame = IC.Bars.frames[1]
             assert(frame:GetWidth() <= env.UIParent:GetWidth()); assert(frame:GetHeight() <= env.UIParent:GetHeight())

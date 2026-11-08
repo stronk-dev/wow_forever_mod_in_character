@@ -189,7 +189,9 @@ function D.Delete(id)
     for _, layout in ipairs({ IC.Profiles.Character().layout, IC.Profiles.db.sharedLayout }) do
         for _, bar in ipairs(layout.bars) do
             local source = bar.source or ""
-            if source == "pool:" .. id or source == "lines:" .. id or source:match("^line:(.*):[^:]+$") == id or source:match("^play:%a+:(.+)$") == id then bar.source = "favorites" end
+            if source == "pool:" .. id or source == "lines:" .. id or source:match("^line:(.*):[^:]+$") == id or source:match("^play:%a+:(.+)$") == id then
+                if bar.catalogCompanion then bar.hidden = true else bar.source = "favorites" end
+            end
         end
     end
     IC.Changed()

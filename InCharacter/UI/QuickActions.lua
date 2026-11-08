@@ -153,6 +153,7 @@ function Q.Open()
 end
 function Q.Toggle()
     if not IC.db then return end
+    if IC.Profile().quick.style == "bars" then Q.Close(); IC.Wheel.Close(); IC.Menu.Close(); IC.Bars.ToggleCatalog(); return end
     if IC.Profile().quick.style == "ring" then Q.Close(); IC.Wheel.Toggle(); return end
     if Q.open then Q.Close() else Q.Open() end
 end
@@ -163,4 +164,4 @@ function Q.Binding(state)
     -- Releasing a key never executes a panel action.
 end
 _G.InCharacter_WheelBinding = Q.Binding
-BINDING_NAME_INCHARACTER_WHEEL = "Quick actions"
+BINDING_NAME_INCHARACTER_WHEEL = "Toggle quick access / RP bar"

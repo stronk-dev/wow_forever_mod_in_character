@@ -7,6 +7,7 @@ return function(test, eq, page)
         local result = IC.Dialogue.Create(name); IC.Dialogue.Save(result, name, "SAY", mode or "sequential", result.icon, lines); return result
     end
     test("quick panel opens from the launcher and old binding without consuming typing or key release", function(IC, Stub, env)
+        IC.Profile().quick.style = "panel" -- Explicitly test the optional popup.
         IC.Launcher.button:Click(); assert(IC.QuickActions.open); assert(not IC.Wheel.open)
         assert(Stub.KeyDown("W")); env.InCharacter_WheelBinding("up"); assert(IC.QuickActions.open)
         eq(#Stub.emotes + #Stub.sends, 0); IC.QuickActions.catcher:Hide(); assert(not IC.QuickActions.open)

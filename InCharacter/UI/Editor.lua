@@ -123,7 +123,10 @@ local function categoryBars(create)
 end
 local function hasCategoryBars() for _, bar in ipairs(IC.Layout().bars) do if bar.auto then return true end end end
 local function favoritesBar()
-    for _, bar in ipairs(IC.Layout().bars) do if bar.source == "favorites" then return bar end end
+    for _, bar in ipairs(IC.Layout().bars) do if bar.source == "favorites" or bar.source == "favoriteEmotes" then return bar end end
+end
+local function catalogBar()
+    for _, bar in ipairs(IC.Layout().bars) do if bar.catalog then return bar end end
 end
 function E.RefreshHome()
     local p = E.pages.Home
@@ -134,41 +137,44 @@ function E.RefreshHome()
     p.wheelKey.Refresh(); p.wheelMode:SetValue(IC.Profile().quick.style)
     local fav = favoritesBar()
     p.favToggle:SetText(fav and not fav.hidden and "Hide favorites bar" or "Show favorites bar")
-    p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Actions.List("favorites") .. " visible pins.") or "|cff999999Off|r")
-    local auto = hasCategoryBars()
-    p.catToggle:SetText(auto and "Remove category bars" or "Create category bars")
-    p.cat.state:SetText(auto and "|cff66dd66On|r - drag each bar's title to place it; right-click a title for settings." or "|cff999999Off|r")
+    p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Presentation.BarActions(fav) .. " visible pins.") or "|cff999999Off|r")
+    local rp = catalogBar()
+    p.rpToggle:SetText(rp and not rp.hidden and "Hide Roleplay bar" or "Show Roleplay bar")
+    p.rp.state:SetText(rp and not rp.hidden and "|cff66dd66On|r - stays on screen between clicks." or "|cff999999Off|r")
 end
 local function createHome(p)
     U.Heading(p, "Your actions, one press away", 0, 0)
     U.Muted(p, "Start small. Pin what you use, keep useful emotes, and write any named pools you want.", 0, -22, PAGE_W)
     local half = (PAGE_W - 12) / 2 + 12
-    p.launcher = card(p, 0, -48, IC.AddonIcon, "Quick actions",
-        "Labeled buttons for your pins, everyday emotes and any named dialogue pools. Click a pool to use it; ... chooses a specific line.")
+    p.launcher = card(p, 0, -48, IC.AddonIcon, "Launcher button",
+        "A small show / hide button for the Roleplay bar. Your actions stay on screen; opening a menu is optional.")
     p.launcherToggle = U.Button(p.launcher, "", 66, -104, 150, function()
         local launcher = IC.Layout().launcher; launcher.shown = not launcher.shown; changed(); E.RefreshHome()
     end, "accent")
     p.launcherClick = U.Dropdown(p.launcher, 224, -104, 150, {
-        { value = "quick", label = "Quick actions" }, { value = "menu", label = "Dropdown menu" }, { value = "wheel", label = "Quick actions (old key)" },
+        { value = "quick", label = "Show / hide RP bar" }, { value = "menu", label = "Dropdown menu" }, { value = "wheel", label = "Quick access (old key)" },
     }, function(value) IC.Layout().launcher.click = value; E.RefreshHome() end)
-    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Open with a key",
-        "Keep familiar actions in a stable order. The panel opens without capturing typing or selecting anything. Release never sends a panel action.")
+    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Show / hide with a key",
+        "Toggle the persistent RP bar. No typing is captured and no action is sent just by opening it. Other styles are optional.")
     p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Quick key", function() E.RefreshHome() end)
     p.wheelMode = U.Dropdown(p.wheel, 66, -128, 200, {
-        { value = "panel", label = "Labeled action panel" }, { value = "ring", label = "Legacy circle" },
+        { value = "bars", label = "Persistent RP bar" }, { value = "panel", label = "Optional popup panel" }, { value = "ring", label = "Legacy circle" },
     }, function(value) IC.Profile().quick.style = value end)
     U.Button(p.wheel, "Try it", 274, -128, 100, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
-    p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Favorites bar",
-        "One action bar with the emotes and lines you pinned. Pin things in the Emote library or with right-click in the menu.")
+    p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Pinned emote bar",
+        "Your familiar emote hotbar. New installs keep pinned emotes here, separate from RP. Its source can include all favorites if you prefer.")
     p.favToggle = U.Button(p.fav, "", 66, -104, 170, function()
         local bar = favoritesBar()
-        if not bar then bar = IC.Defaults.Bar(#IC.Layout().bars + 1); bar.name = "Favorites"; table.insert(IC.Layout().bars, bar)
+        if not bar then bar = IC.Defaults.Bar(#IC.Layout().bars + 1); bar.name, bar.source = "Emotes", "favoriteEmotes"; table.insert(IC.Layout().bars, bar)
         else bar.hidden = not bar.hidden end
         changed(); E.RefreshHome()
     end, "accent")
-    p.cat = card(p, half, -238, IC.Emotes.CategoryInfo.Combat.icon, "A bar per category",
-        "Separate bars for your enabled Combat, Social, Reaction, Idle and Playful emotes. Trim them further with each bar's item controls.")
-    p.catToggle = U.Button(p.cat, "", 66, -104, 190, function() categoryBars(not hasCategoryBars()); E.RefreshHome() end, "accent")
+    p.rp = card(p, half, -238, "Interface\\Icons\\INV_Misc_Book_09", "Roleplay action bar",
+        "Labeled buttons for any named pools. Click to play; right-click for a bar of specific lines. Visible tabs switch your preset sets.")
+    p.rpToggle = U.Button(p.rp, "", 66, -104, 190, function() IC.Bars.ToggleCatalog(); E.RefreshHome() end, "accent")
+    U.Button(p.rp, "Edit", 264, -104, 100, function()
+        local _, index = IC.Bars.EnsureCatalog(); E.Open("Layouts", index)
+    end)
     local legend = U.Panel(p, PAGE_W, 112, C.panel); legend:SetPoint("TOPLEFT", 0, -428)
     U.Label(legend, "Keep everyday use small", 12, -10, nil, "GameFontNormal")
     U.Muted(legend, "The emote list starts trimmed. All commands remain available in the editor; nothing is deleted.", 12, -34, PAGE_W - 24)
@@ -504,7 +510,7 @@ end
 -- Layouts -----------------------------------------------------------------------------------------
 local function currentBar() return IC.Layout().bars[E.barIndex] end
 local function barSources()
-    local sources = { { value = "favorites", label = "Favorites" } }
+    local sources = { { value = "favoriteEmotes", label = "Pinned emotes only" }, { value = "favorites", label = "All favorites" } }
     for _, id in ipairs(IC.Emotes.categories) do sources[#sources + 1] = { value = id, label = "Emotes: " .. IC.Emotes.CategoryInfo[id].label } end
     sources[#sources + 1] = { value = "pools", label = "All dialogue pools" }
     for _, id in ipairs(IC.Profile().poolOrder) do sources[#sources + 1] = { value = "pool:" .. id, label = "Pool: " .. IC.Profile().pools[id].name } end
@@ -529,7 +535,8 @@ function E.RefreshLayouts()
     p.qStyle:SetValue(IC.Profile().quick.style); p.qColumns:Set(IC.Profile().quick.columns)
     local ring = IC.Profile().quick.style == "ring"
     for _, widget in ipairs({ p.wRadius, p.wButtonSize, p.wPageSize, p.wDeadZone }) do widget:SetShown(ring); widget.caption:SetShown(ring) end
-    p.wMode:SetShown(ring); p.qColumns:SetShown(not ring); p.qColumns.caption:SetShown(not ring)
+    local panel = IC.Profile().quick.style == "panel"
+    p.wMode:SetShown(ring); p.qColumns:SetShown(panel); p.qColumns.caption:SetShown(panel)
     local bars = IC.Layout().bars
     E.barIndex = math.max(1, math.min(#bars, E.barIndex))
     local options = {}
@@ -541,6 +548,9 @@ function E.RefreshLayouts()
     p.bName:SetText(bar.name); p.bSource:SetOptions(barSources()); p.bSource:SetValue(bar.source)
     p.bSize:Set(bar.size); p.bColumns:Set(bar.columns or 12)
     p.bRows:Set(bar.rows or 0); p.bLabels:SetChecked(bar.labels == true)
+    p.bStyle:SetValue(bar.buttonStyle); p.bWidth:Set(bar.buttonWidth)
+    p.bPlayback:SetValue(bar.poolMode); p.bCatalog:SetChecked(bar.catalog == true); p.bHideEmpty:SetChecked(bar.hideEmpty == true)
+    p.bWidth:SetShown(bar.buttonStyle == "text"); p.bWidth.caption:SetShown(bar.buttonStyle == "text")
     p.bSummary:SetText(#IC.Presentation.BarActions(bar) .. " shown / " .. #IC.Presentation.BarActions(bar, true) .. " source entries")
     p.bOrientation:SetValue(bar.vertical and "vertical" or "horizontal")
     for key, check in pairs(p.bChecks) do check:SetChecked(bar[key] == true) end
@@ -553,13 +563,13 @@ local function section(parent, title, x, y, width, height)
 end
 local function createLayouts(p)
     p.layoutScroll = U.Scroll(p, 0, 0, PAGE_W, PAGE_H)
-    p.layoutScroll:SetContentHeight(810)
+    p.layoutScroll:SetContentHeight(950)
     local canvas = p.layoutScroll.content
     local half = (PAGE_W - 34) / 2
     local s = section(canvas, "Launcher button & dropdown menu", 0, 0, half, 270)
     p.lShown = U.Check(s, "Show the launcher button", 12, -32, function(value) IC.Layout().launcher.shown = value; changed() end)
     p.lClick = U.Dropdown(s, 12, -62, half - 24, {
-        { value = "quick", label = "Left-click opens quick actions" }, { value = "menu", label = "Left-click opens the dropdown menu" }, { value = "wheel", label = "Quick actions (old wheel setting)" },
+        { value = "quick", label = "Toggle quick access (RP bar by default)" }, { value = "menu", label = "Left-click opens the dropdown menu" }, { value = "wheel", label = "Quick access (old wheel setting)" },
     }, function(value) IC.Layout().launcher.click = value end)
     p.lSize = U.Slider(s, "Size", 12, -96, half - 120, 28, 64, 2, function(value) IC.Layout().launcher.size = value; changed() end)
     U.Button(s, "Reset", half - 100, -112, 88, function()
@@ -572,7 +582,7 @@ local function createLayouts(p)
     p.wKey = U.KeyCapture(s, 12, -32, (half - 30) / 2, "INCHARACTER_WHEEL", "Quick")
     p.mKey = U.KeyCapture(s, 18 + (half - 30) / 2, -32, (half - 30) / 2, "INCHARACTER_MENU", "Menu")
     p.qStyle = U.Dropdown(s, 12, -62, half - 24, {
-        { value = "panel", label = "Labeled action panel (default)" }, { value = "ring", label = "Legacy circle" },
+        { value = "bars", label = "Persistent Roleplay bar (default)" }, { value = "panel", label = "Optional popup panel" }, { value = "ring", label = "Legacy circle" },
     }, function(value) IC.Profile().quick.style = value; E.RefreshLayouts() end)
     p.wMode = U.Dropdown(s, 12, -264, half - 24, {
         { value = "click", label = "Press key, then click an action" }, { value = "hold", label = "Hold / release (experimental)" },
@@ -584,14 +594,14 @@ local function createLayouts(p)
     p.wPageSize = U.Slider(s, "Items per ring", half / 2 + 6, -150, (half - 36) / 2, 4, 12, 1, function(value) IC.Profile().wheel.pageSize = value end)
     p.wDeadZone = U.Slider(s, "Neutral centre", 12, -206, (half - 36) / 2, 30, 100, 2, function(value) IC.Profile().wheel.deadZone = value end)
     p.editWheel = U.Button(s, "Edit quick items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
-    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 460)
+    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 600)
     p.which = U.Dropdown(s, 12, -32, 260, {}, function(value) E.barIndex = value; E.RefreshLayouts() end)
     U.Button(s, "+ Add bar", 280, -32, 110, function()
         local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.Bar(#bars + 1); E.barIndex = #bars; changed(); E.RefreshLayouts()
     end, "accent")
     U.Button(s, "Bars per category", 396, -32, 150, function() categoryBars(not hasCategoryBars()); E.RefreshLayouts() end)
     p.noBars = U.Muted(s, "No bars yet. Add one, or create one bar per category.", 12, -70, PAGE_W - 24)
-    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W - 24, 380)
+    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W - 24, 526)
     local b = p.barForm
     U.Muted(b, "Name", 12, 0); p.bName = U.Input(b, 12, -14, 260)
     U.Button(b, "Rename", 280, -14, 110, function()
@@ -601,7 +611,12 @@ local function createLayouts(p)
         if currentBar() then U.Confirm(self, "Delete bar", function() table.remove(IC.Layout().bars, E.barIndex); changed(); E.RefreshLayouts() end) end
     end)
     U.Muted(b, "Shows", 12, -46)
-    p.bSource = U.Dropdown(b, 12, -60, 378, {}, function(value) local bar = currentBar(); if bar then bar.source = value; bar.page = 1; changed(); E.RefreshLayouts() end end)
+    p.bSource = U.Dropdown(b, 12, -60, 378, {}, function(value)
+        local bar = currentBar(); if not bar then return end
+        bar.source, bar.page = value, 1
+        if value ~= "pools" then bar.catalog, bar.catalogGroup = false, "all" end
+        changed(); E.RefreshLayouts()
+    end)
     p.bOrientation = U.Dropdown(b, 396, -60, 150, {
         { value = "horizontal", label = "Fill rows first" }, { value = "vertical", label = "Fill columns first" },
     }, function(value) local bar = currentBar(); if bar then bar.vertical = value == "vertical"; changed() end end)
@@ -610,18 +625,39 @@ local function createLayouts(p)
     p.bRows = U.Slider(b, "Rows (0 = automatic)", 12, -144, 250, 0, 12, 1, function(value) local bar = currentBar(); if bar then bar.rows = value; bar.page = 1; changed() end end)
     p.bLabels = U.Check(b, "Show action names", 296, -150, function(value) local bar = currentBar(); if bar then bar.labels = value; changed() end end)
     p.bChecks = {}
-    for n, definition in ipairs({ { "collapsed", "Collapsed" }, { "locked", "Locked (no title strip)" }, { "hidden", "Hidden" } }) do
+    for n, definition in ipairs({ { "collapsed", "Collapsed" }, { "locked", "Lock position" }, { "hidden", "Hidden" } }) do
         local key = definition[1]
         p.bChecks[key] = U.Check(b, definition[2], 12 + (n - 1) * 210, -194, function(value)
             local bar = currentBar(); if bar then bar[key] = value; changed() end
         end)
     end
     U.Button(b, "Reset position", 12, -234, 140, function()
-        local bar = currentBar(); if bar then local default = IC.Defaults.Bar(E.barIndex); bar.x, bar.y = default.x, default.y; changed() end
+        local bar = currentBar(); if bar then local default = bar.catalog and IC.Defaults.CatalogBar(E.barIndex) or IC.Defaults.Bar(E.barIndex); bar.x, bar.y = default.x, default.y; changed() end
     end)
     U.Muted(b, "Drag the title to move; click to collapse. Right-click a button to edit this bar's items.", 160, -238, PAGE_W - 210)
     p.editBar = U.Button(b, "Edit shown / hidden items", 12, -282, 230, function() if currentBar() then IC.LayoutUI.Open("bar", E.barIndex) end end, "accent")
     p.bSummary = U.Muted(b, "", 260, -288, PAGE_W - 300)
+    U.Muted(b, "Button appearance", 12, -314); U.Muted(b, "Pool playback on this bar", 296, -314)
+    p.bStyle = U.Dropdown(b, 12, -330, 250, {
+        { value = "icons", label = "Icons with optional names" }, { value = "text", label = "Wide labeled buttons" },
+    }, function(value) local bar = currentBar(); if bar then bar.buttonStyle = value; changed(); E.RefreshLayouts() end end)
+    p.bPlayback = U.Dropdown(b, 296, -330, 250, {
+        { value = "pool", label = "Each pool's saved mode" }, { value = "random", label = "Random" },
+        { value = "shuffle", label = "Shuffle" }, { value = "sequential", label = "In order" },
+    }, function(value) local bar = currentBar(); if bar then bar.poolMode = value; changed() end end)
+    p.bWidth = U.Slider(b, "Labeled button width", 12, -376, 250, 100, 320, 4, function(value)
+        local bar = currentBar(); if bar then bar.buttonWidth = value; changed() end
+    end)
+    p.bCatalog = U.Check(b, "Show preset / custom tabs", 296, -382, function(value)
+        local bar = currentBar(); if not bar then return end
+        bar.catalog, bar.catalogGroup, bar.page = value, "all", 1
+        if value then bar.source, bar.buttonStyle = "pools", "text" end
+        changed(); E.RefreshLayouts()
+    end)
+    p.bHideEmpty = U.Check(b, "Hide empty pools", 296, -416, function(value)
+        local bar = currentBar(); if bar then bar.hideEmpty = value; bar.page = 1; changed() end
+    end)
+    U.Muted(b, "RP buttons: click to play once. Right-click a pool to put its exact lines on a second bar; Shift-right-click edits shown items. Both bars stay open after playing.", 12, -466, PAGE_W - 60)
 end
 
 -- Profiles ----------------------------------------------------------------------------------------

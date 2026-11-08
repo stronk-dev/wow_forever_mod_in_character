@@ -149,10 +149,10 @@ end
 function A.List(source, raw)
     source = source or "favorites"
     local result, profile = {}, IC.Profile()
-    if source == "favorites" then
+    if source == "favorites" or source == "favoriteEmotes" then
         for _, id in ipairs(profile.favorites) do
             local action = A.Resolve(id)
-            if action and (raw or action.type ~= "emote" or IC.Emotes.Visible(action, profile)) then result[#result + 1] = action end
+            if action and (source ~= "favoriteEmotes" or action.type == "emote") and (raw or action.type ~= "emote" or IC.Emotes.Visible(action, profile)) then result[#result + 1] = action end
         end
     elseif source == "pools" then
         for _, id in ipairs(profile.poolOrder) do

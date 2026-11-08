@@ -1,20 +1,32 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 6 }
+IC.Profiles = { VERSION = 7 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
+    local initializeCatalog = not layout.catalogBarInitialized
     IC.Merge(layout, IC.Defaults.Layout())
     for index, bar in ipairs(layout.bars) do IC.Merge(bar, IC.Defaults.Bar(index)) end
+    if initializeCatalog and #layout.bars > 0 then
+        local found
+        for _, bar in ipairs(layout.bars) do if bar.catalog then found = true end end
+        if not found then layout.bars[#layout.bars + 1] = IC.Defaults.CatalogBar(#layout.bars + 1) end
+    end
+    layout.catalogBarInitialized = true
     return layout
 end
 
 local function CompleteProfile(profile, database)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
     local defaults = IC.Defaults.Profile()
+    local introduceBars = not (profile.quick and profile.quick.barsIntroduced)
     local pools = profile.pools
     defaults.pools = nil
     if pools ~= nil then defaults.poolOrder = nil end
     IC.Merge(profile, defaults)
+    if profile.quick.style == "panel" and introduceBars then
+        profile.quick.previousStyle, profile.quick.style = "panel", "bars"
+    end
+    profile.quick.barsIntroduced = true
     local filters = { all = true, heard = true, observed = true, textChecked = true }
     if not filters[profile.emoteFilter] then profile.emoteFilter = "all" end
     if profile.emoteScope ~= "all" and profile.emoteScope ~= "essentials" then profile.emoteScope = "essentials" end
@@ -76,7 +88,8 @@ function P.Open(database, characterDatabase, legacyKeys)
         end
     end
     -- Keep all legacy records intact so other characters can migrate when they log in.
-    IC.Merge(character, { scope = "account", layoutScope = "character", layout = IC.Defaults.Layout(), emoteObservations = {} })
+    IC.Merge(character, { scope = "account", layoutScope = "character", emoteObservations = {} })
+    character.layout = character.layout or IC.Defaults.Layout()
     CompleteLayout(character.layout)
     if character.profile then CompleteProfile(character.profile, db) end
     if character.scope == "character" and not character.profile then character.profile = IC.Copy(db.profiles.account) end

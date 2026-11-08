@@ -5,13 +5,56 @@ function P.Filter(actions, config)
     local result = {}
     local hidden = config and config.hiddenActions or {}
     for _, action in ipairs(actions) do
-        if not hidden[IC.Actions.CanonicalID(action.id)] then result[#result + 1] = action end
+        if not hidden[IC.Actions.CanonicalID(action.id)] and not (action.sourceID and hidden[action.sourceID]) then result[#result + 1] = action end
     end
     return result
 end
 function P.BarActions(config, raw)
     local actions = IC.Actions.List(config.source or "favorites", raw)
-    return raw and actions or P.Filter(actions, config)
+    if raw then return actions end
+    actions = P.Filter(actions, config)
+    local result = {}
+    for _, action in ipairs(actions) do
+        local pool = action.type == "pool" and IC.Profile().pools[action.payload]
+        local group = pool and pool.provenance and pool.provenance.pack or "custom"
+        if (not config.catalog or not config.catalogGroup or config.catalogGroup == "all" or config.catalogGroup == group)
+            and (not config.hideEmpty or not pool or #pool.lines > 0) then
+            if pool and config.poolMode and config.poolMode ~= "pool" then
+                local override = IC.Actions.Resolve("play:" .. config.poolMode .. ":" .. pool.id)
+                if override then override.sourceID, override.label, override.name = action.id, pool.name, pool.name; action = override end
+            end
+            if config.catalog and pool and pool.provenance then
+                local pack = IC.Library and IC.Library.packs[pool.provenance.pack]
+                local prefix = pack and (pack.title .. " / ")
+                if prefix and pool.name:sub(1, #prefix) == prefix then
+                    local label = pool.name:sub(#prefix + 1)
+                    if not config.catalogGroup or config.catalogGroup == "all" then
+                        label = (pack.title:match(":%s*(.+)$") or pack.title) .. " · " .. label
+                    end
+                    action = IC.Copy(action); action.label, action.name, action.fullName = label, label, pool.name
+                end
+            end
+            result[#result + 1] = action
+        end
+    end
+    return P.Filter(result, config)
+end
+function P.CatalogGroups(config)
+    local groups, byID = {}, {}
+    for _, action in ipairs(P.Filter(IC.Actions.List("pools"), config)) do
+        local pool = IC.Profile().pools[action.payload]
+        if not config.hideEmpty or #pool.lines > 0 then
+            local id = pool.provenance and pool.provenance.pack or "custom"
+            if not byID[id] then
+                local pack = IC.Library and IC.Library.packs[id]
+                local title = pack and pack.title or (id == "custom" and "My lines" or id)
+                byID[id] = { id = id, title = title, label = title:match(":%s*(.+)$") or title, count = 0 }
+                groups[#groups + 1] = byID[id]
+            end
+            byID[id].count = byID[id].count + 1
+        end
+    end
+    return groups
 end
 function P.Tree(nodes, config)
     local result = {}

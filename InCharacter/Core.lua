@@ -56,7 +56,7 @@ function IC.Changed()
 end
 
 function IC.Help()
-    IC.Print("/ic opens settings; /ic quick opens quick actions; /ic review checks emotes; /ic emotes; /ic menu; /ic wheel.")
+    IC.Print("/ic bars shows the Roleplay bar; /ic opens settings; /ic review checks emotes; /ic quick toggles quick access.")
     IC.Print("/ic <pool name>; /ic play random|shuffle|sequential <pool name>; /ic message <pool ID> <message ID>.")
 end
 
@@ -67,6 +67,7 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
+    elseif command == "bars" then IC.Bars.ShowCatalog()
     elseif command == "wheel" or command == "quick" then
         IC.QuickActions.Toggle()
     elseif command == "review" then

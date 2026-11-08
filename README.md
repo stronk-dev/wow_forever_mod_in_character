@@ -1,20 +1,23 @@
 # In Character
 
-A native Lua emote and dialogue launcher for **WoW Forever, interface 16001**. Quick actions put labeled, one-click buttons for your pins, everyday emotes and named dialogue pools near the cursor. Dialogue can be a **specific message**, a random line, a shuffled line or the next line in order.
+A native Lua emote and dialogue launcher for **WoW Forever, interface 16001**. Persistent bars put your emotes and named RP pools one click away. A separate **Roleplay bar** has readable pool buttons and visible tabs for your preset sets and custom lines. Dialogue can be a **specific message**, a random line, a shuffled line or the next line in order.
 
 ## Install
 
 [GitHub Releases and installable ZIPs](https://github.com/stronk-dev/wow_forever_mod_in_character/releases)
 
-Download the named **InCharacter-0.7.0.zip** asset, rather than GitHub's generated source archive. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` so `AddOns/InCharacter/InCharacter.toc` exists. Enable it at character select. For a local build, run `python3 scripts/package.py`; the ZIP is written to `dist/`.
+Download the named **InCharacter-0.8.0.zip** asset, rather than GitHub's generated source archive. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` so `AddOns/InCharacter/InCharacter.toc` exists. Enable it at character select. For a local build, run `python3 scripts/package.py`; the ZIP is written to `dist/`.
 
 This is a **test release**. Automated logic and UI callback tests pass; rendering and client behavior still need testing in Forever. Before upgrading, close WoW and back up both account and character `WTF/.../SavedVariables/InCharacter.lua` files.
 
 ## Get started
 
-- Type **`/ic quick`** for the new action panel. It opens on your pins in a stable order. Tabs switch to **Emotes** or **My lines**. A pool button plays in its configured mode; its **...** control opens specific lines, with separate Random and Next controls. Opening, hovering and releasing the key never send anything.
-- New installations open quick actions from the round **In Character** button. Existing launcher choices are preserved; choose **Quick actions** under **Home / setup** to change yours. Shift-drag moves the button. Right-click opens settings; `/ic` and **Options → AddOns → In Character** open the same controls.
-- **Home / setup** assigns the quick-action key, offers the legacy circle as an optional style, toggles a favorites bar, and creates category bars. No fixed number of emotes or pools is required.
+- Type **`/ic bars`** to show the **Roleplay bar**. It stays on screen after playing. **Left-click a pool** to play one line. **Right-click a pool** to open a second, persistent bar of its specific lines; click any line to send exactly that message. Opening bars and switching tabs send nothing.
+- The RP bar's visible tabs select **All pools**, **My lines**, or an installed preset set such as **Stanley Hudson** or **Michael Nicht**. The playback button in its title cycles **Random → Shuffle → In order → Pool mode**. Pool mode uses each pool's own saved setting. Empty pools are hidden by default.
+- **Drag a bar's title** to move it; click the title to collapse it. **×** hides the bar. **…** opens that bar's settings: rows, columns, size, labeled-button width, icon/text appearance, playback and shown/hidden items. Specific-line bars have their own grid and reuse the same window when you choose a different pool, keeping your placement.
+- New installations also show a separate **pinned emote bar**. Pin the emotes you actually use; RP pools do not crowd this bar. Existing custom bars keep their sources and positions. You can use mixed favorites or any other source in bar settings.
+- The round **In Character** button and the quick-access key toggle the RP bar by default. Shift-drag moves the button; right-click opens settings. `/ic` and **Options → AddOns → In Character** open the same controls. Existing launcher menu choices are preserved. On upgrading from 0.7's popup style, quick access switches to the persistent bar once; optional popup/circle styles remain selectable.
+- **Home / setup** shows and hides the RP and emote bars and assigns the quick-access key. **Bars, wheel & button** adds other bars, including category bars. There is no fixed number of emotes, pools or messages.
 - **Emote library** starts with **Everyday emotes**, a smaller suggested selection plus commands you keep or pin. **All emotes** retains every definition so you can restore or try others. The quick lists can be switched to all commands explicitly. Sound and animation filters use your recorded observations, not reference guesses.
 - **Dialogue & messages** manages named pools and their individual messages. Use any pool names you like. Greetings, Quotes and Farewells are empty starter examples, not a limit on the addon.
 - **Favorite actions** reorders pins and offers Preview, Play, Unpin and Create bar. The first four visible favorites also have key bindings.
@@ -57,19 +60,20 @@ Pool and message drafts survive switching items/pages and closing the window unt
 
 The launcher menu shows favorites, emote categories and dialogue groups. Larger emote categories split into purpose-based groups such as **Orders & movement**, **Greetings & farewells**, **Affection** and **Jokes & music**. **All emotes · A–Z** uses alphabetical ranges. Each flyout has its own title, Back and visible paging arrows; mouse-wheel scrolling also works. Dialogue follows **group → pool → playback choices → Choose a specific message**. Hover or click opens a submenu. Right-click a playable action to pin/unpin it; Shift-right-click hides it from this menu. Restore it in **Edit menu categories / items**. Clicking outside or Escape closes the menu.
 
-Quick actions are the default replacement for the wheel. They show a compact button grid rather than nested circles. **My lines** uses the actual pool names and optional preset groups: jokes, different farewell tones, or any other pools you create work identically. Pins remain in the order you chose. Pool counts have no fixed limit; pages keep all enabled actions reachable. Labels and explicit pool-mode text provide recognition even while icons are being reviewed.
+The **persistent Roleplay bar** is the default quick-access presentation. Your pool names determine its buttons: jokes, different farewell tones and any other named pools work identically. Preset tabs come from the copied preset's provenance, and **My lines** collects custom pools. On **All pools**, labels include the preset name to distinguish similarly named pools; selecting one preset shortens its labels. Full names remain in tooltips.
 
-In **Bars, wheel & button**, choose panel columns or opt into the **Legacy circle**. Its existing radius, size, page and neutral-centre controls remain available in that style. **Edit quick items** controls per-action visibility for either style, independently of menu/bar visibility. The legacy circle starts on labeled categories with a neutral centre and explicit navigation.
+The former popup panel and radial circle remain optional under **Bars, wheel & button → Quick actions**. Panel columns apply only to the popup; ring radius, button size, paging and neutral-centre settings apply only to the circle. Their **Edit quick items** controls are independent of each bar's item choices.
 
-The panel always uses click confirmation. Legacy-circle experimental hold/release requires moving the cursor, then pausing over a playable action for at least 0.15 seconds before releasing the bound key. Releasing over a submenu, immediately after a page/context change, in the centre, or outside the circle sends nothing. `/ic wheel` is retained as an alias for quick actions. Hold/release behavior still needs a live-client test.
+The optional panel always uses click confirmation. Legacy-circle experimental hold/release requires moving the cursor, then pausing over a playable action for at least 0.15 seconds before releasing the bound key. Releasing over a submenu, immediately after a page/context change, in the centre, or outside the circle sends nothing. `/ic wheel` remains an alias for the chosen quick-access style. Hold/release behavior still needs a live-client test.
 
-Bars support favorites, categories, all pools, one pool, a random-pool action, all messages in a pool, or one exact message. Visible arrows and mouse-wheel paging make every enabled entry reachable; page capacity adapts to the screen and grid settings. Columns and rows are physical dimensions; fill direction controls row-first or column-first placement. Titles move/collapse bars; right-click a title opens settings, and right-click a button edits that bar's items. Layout rebuilding waits until after combat; bar paging is unavailable during combat. Existing actions, the launcher menu and wheel remain available subject to client restrictions.
+Bars support pinned emotes only, mixed favorites, categories, all pools, one pool, a random-pool action, all messages in a pool, or one exact message. Visible arrows and mouse-wheel paging make every enabled entry reachable; page capacity adapts to the screen and grid settings. Columns and rows are physical dimensions; fill direction controls row-first or column-first placement. Titles move/collapse bars; right-click a title opens settings, and right-click a button edits that bar's items. On the RP bar, right-click instead opens specific lines; use Shift-right-click for the item editor. Layout rebuilding waits until after combat; bar paging, preset switching, playback-mode changes and opening a new specific-line bar are unavailable during combat. Already visible action buttons remain usable subject to client chat restrictions. Existing actions, the launcher menu and wheel remain available subject to client restrictions.
 
 ## Commands and keys
 
 ```text
 /ic                         setup and editor
-/ic quick                   labeled quick-action panel (or chosen legacy style)
+/ic bars                    show and expand the persistent RP bar
+/ic quick                   toggle the RP bar (or chosen optional style)
 /ic review                  check emotes one at a time
 /ic emotes                  emote library
 /ic menu                    categorized menu at cursor
@@ -89,7 +93,7 @@ Bars support favorites, categories, all pools, one pool, a random-pool action, a
 
 ## Data, metadata and safety
 
-- Shared data is `InCharacterDB`; character settings/layouts are `InCharacterCharDB`. Schema 6 adds curation and per-character observations while keeping positions, layouts, message IDs, text, pins and custom artwork. Old reference-based filters reset to All. Legacy realm-keyed originals remain available for recovery.
+- Shared data is `InCharacterDB`; character settings/layouts are `InCharacterCharDB`. Schema 7 adds the persistent RP bar once to existing nonempty layouts, retaining their bars and settings. Deleted bars and deliberately empty layouts stay deleted/empty on reload; `/ic bars` can recreate an RP bar explicitly. Curation and per-character observations, message IDs, text, pins and custom artwork are retained. Old reference-based filters reset to All. Legacy realm-keyed originals remain available for recovery.
 - Stored quotes have no addon length/count limit. Sending is conservatively limited to **255 UTF-8 bytes after literal pipe escaping**, with no control characters. Long messages remain editable and previewable; nothing is truncated or split into spam.
 - Chat predicates are checked before selection. Known restrictions and reported send failures leave playback unchanged; nothing is queued. A silent server rejection may remain undetectable.
 - Quick-use badges describe recorded checks on this character; untested actions say **Not checked**. Nearby-audio markers require an explicit **Another player heard it** observation. The Retail reference metadata is kept only as context in the review tool. Client token recognition establishes availability only. No custom addon audio is broadcast.
@@ -99,7 +103,7 @@ Bars support favorites, categories, all pools, one pool, a random-pool action, a
 
 ## Verification and contributions
 
-Local results: **78 logic/library tests and 76 isolated mocked UI tests** pass under Lua 5.5.1 and LuaJIT 2.1, plus manifest/XML/Lua syntax and ZIP checks. Mocks do not establish visual quality, artwork availability or client compatibility. Test rendering, input, chat restrictions and saved-data persistence in the live client before relying on a release.
+Local results: **83 logic/library tests and 90 isolated mocked UI tests** pass under Lua 5.5.1 and LuaJIT 2.1, plus manifest/XML/Lua syntax and ZIP checks. Mocks do not establish visual quality, artwork availability or client compatibility. Test rendering, input, chat restrictions and saved-data persistence in the live client before relying on a release.
 
 ```sh
 lua tests/run.lua && lua tests/ui.lua
@@ -107,6 +111,8 @@ luajit tests/run.lua && luajit tests/ui.lua
 python3 scripts/verify.py && python3 scripts/package.py
 ```
 
-GitHub Actions runs tests and uploads the installable ZIP on pushes/PRs. A version tag (`v0.7.0`) publishes the ZIP as a GitHub prerelease after CI passes. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute code or presets. Original code is MIT; quotes and game assets retain their owners' rights.
+GitHub Actions runs tests and uploads the installable ZIP on pushes/PRs. A version tag (`v0.8.0`) publishes the ZIP as a GitHub prerelease after CI passes. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute code or presets. Original code is MIT; quotes and game assets retain their owners' rights.
 
 The interaction choices draw on [OPie's documented quick/click modes and small-ring guidance](https://www.townlong-yak.com/addons/opie/guide), [first-hand requests for readable controls and personal messages in Stryk's](https://www.reddit.com/r/wowaddons/comments/1vi2gc8/stryks_emote_wheel/), and [SpeakEasy feedback about indistinguishable reused icons](https://www.reddit.com/r/wowaddons/comments/1x49kwb/speakeasy_emote_wheel_quick_chat_roleplay_lines/). These are design references and individual reports, not a representative user survey. No code or artwork from these additional projects was imported.
+
+The persistent toolbar approach also follows [Total RP 3’s native movable toolbar](https://github.com/Total-RP/Total-RP-3/blob/main/totalRP3/Modules/Toolbar/Toolbar.lua): direct buttons, movable placement and saved visibility. The RP bar here uses this addon’s own widgets and dispatcher; no toolbar code was copied.

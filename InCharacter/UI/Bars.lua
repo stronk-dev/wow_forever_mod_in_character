@@ -4,22 +4,33 @@ local _, IC = ...
 IC.Bars = { frames = {} }
 local B, U = IC.Bars, IC.UI
 local C = U.Colors
+local unpack = unpack or table.unpack
 local GAP, HEADER, MAX = 4, 16, 48
+local modes = { "random", "shuffle", "sequential", "pool" }
+local modeNames = { random = "Random", shuffle = "Shuffle", sequential = "In order", pool = "Pool mode" }
+function B.GroupRows(config, width)
+    if not config.catalog or config.collapsed then return 0 end
+    local count = 1 + #IC.Presentation.CatalogGroups(config)
+    return math.max(1, math.ceil(count / math.max(1, math.floor((width - GAP) / 112))))
+end
 function B.Capacity(config)
     local size = math.max(24, math.min(64, tonumber(config.size) or 36))
+    local width = config.buttonStyle == "text" and math.max(100, math.min(320, tonumber(config.buttonWidth) or 148)) or size
+    local cellHeight = size + GAP + (config.buttonStyle ~= "text" and config.labels and 14 or 0)
     local requested = math.max(1, math.min(12, math.floor(tonumber(config.columns) or 12)))
-    local across = math.max(1, math.floor((UIParent:GetWidth() - 20) / (size + GAP)))
-    local cellHeight = size + GAP + (config.labels and 14 or 0)
-    local down = math.max(1, math.floor((UIParent:GetHeight() - HEADER - 48) / cellHeight))
+    local across = math.max(1, math.floor((UIParent:GetWidth() - 20) / (width + GAP)))
     local columns = math.min(requested, across)
+    local reserved = config.catalog and (24 + B.GroupRows(config, columns * (width + GAP) + GAP) * 26) or HEADER
+    local down = math.max(1, math.floor((UIParent:GetHeight() - reserved - 48) / cellHeight))
     local rows = math.floor(tonumber(config.rows) or 0)
     rows = rows > 0 and math.min(rows, down, 12) or down
-    return math.max(1, math.min(MAX, columns * rows)), size, columns, rows
+    return math.max(1, math.min(MAX, columns * rows)), size, columns, rows, width, cellHeight
 end
 
 local function tooltip(button)
     local action = button.action
-    GameTooltip:SetOwner(button, "ANCHOR_RIGHT"); GameTooltip:SetText(action.name or action.label, 1, 1, 1)
+    if button.textStyle then button:SetBackdropColor(unpack(C.hover)) end
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT"); GameTooltip:SetText(action.fullName or action.name or action.label, 1, 1, 1)
     if action.type == "emote" then
         local badge, info = IC.Emotes.Badge(action)
         GameTooltip:AddLine("/" .. action.command .. "   " .. badge, 0.8, 0.8, 0.8)
@@ -28,7 +39,8 @@ local function tooltip(button)
     else
         GameTooltip:AddLine(IC.Actions.Description(action), 0.75, 0.75, 0.75, true)
     end
-    GameTooltip:AddLine("Right-click: edit this bar's shown / hidden items", 0.7, 0.8, 0.7, true)
+    GameTooltip:AddLine(button.catalogPool and "Click: play once · Right-click: put specific lines on a bar · Shift-right-click: settings"
+        or "Right-click: edit this bar's shown / hidden items", 0.7, 0.8, 0.7, true)
     GameTooltip:Show()
 end
 
@@ -48,7 +60,8 @@ local function header(frame)
     bar:SetScript("OnDragStop", function()
         frame:StopMovingOrSizing()
         local x, y = frame:GetCenter(); local px, py = UIParent:GetCenter()
-        frame.config.x, frame.config.y = x - px, y - py
+        frame.config.x = x - px
+        frame.config.y = ((frame.config.catalog or frame.config.catalogCompanion) and frame:GetTop() or y) - py
     end)
     bar:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP"); GameTooltip:SetText(frame.config.name, 1, 1, 1)
@@ -64,15 +77,63 @@ local function createFrame(index)
     local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     U.Backdrop(frame, { 0.04, 0.04, 0.06, 0.55 }, { 0.2, 0.2, 0.25, 0.8 })
     frame:SetClampedToScreen(true); frame:SetMovable(true); frame:EnableMouse(true)
-    frame.index, frame.buttons = index, {}
+    frame.index, frame.buttons, frame.iconButtons, frame.textButtons, frame.catalogTabs = index, {}, {}, {}, {}
     frame.header = header(frame)
     frame.previous = U.Button(frame, "<", nil, nil, 28, function() B.Page(frame.index, -1) end)
     frame.next = U.Button(frame, ">", nil, nil, 28, function() B.Page(frame.index, 1) end)
     frame.pageLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     frame.previous:SetPoint("BOTTOMLEFT", 2, 2); frame.next:SetPoint("BOTTOMRIGHT", -2, 2)
     frame.pageLabel:SetPoint("BOTTOM", 0, 8)
+    frame.close = U.Button(frame, "×", nil, nil, 20, function() frame.config.hidden = true; IC.Changed() end)
+    frame.close:SetHeight(20); frame.close:SetPoint("TOPRIGHT", -2, -2)
+    frame.edit = U.Button(frame, "…", nil, nil, 24, function() IC.Editor.Open("Layouts", frame.index) end)
+    frame.edit:SetHeight(20); frame.edit:SetPoint("TOPRIGHT", -26, -2); frame.edit.tooltip = "Bar settings: size, rows, columns, playback and shown / hidden actions."
+    frame.mode = U.Button(frame, "", nil, nil, 100, function()
+        if IC.InCombat() then IC.Print("Change playback mode after combat."); return end
+        local current = 0; for i, mode in ipairs(modes) do if mode == frame.config.poolMode then current = i; break end end
+        frame.config.poolMode = modes[current % #modes + 1]; IC.Changed()
+    end)
+    frame.mode:SetHeight(20); frame.mode:SetPoint("TOPRIGHT", -54, -2)
+    frame.mode.tooltip = "Change this bar's playback: Random, Shuffle, In order, or each pool's own mode. Changing mode sends nothing."
+    frame.empty = U.Label(frame, "", 6, -54, 310, "GameFontHighlightSmall")
     frame:EnableMouseWheel(true); frame:SetScript("OnMouseWheel", function(_, delta) B.Page(frame.index, -delta) end)
     return frame
+end
+function B.EnsureCatalog()
+    local bars = IC.Layout().bars
+    for index, config in ipairs(bars) do if config.catalog then return config, index end end
+    local config = IC.Defaults.CatalogBar(#bars + 1); bars[#bars + 1] = config
+    return config, #bars, true
+end
+function B.ShowCatalog()
+    local config = B.EnsureCatalog(); config.hidden, config.collapsed = false, false; IC.Changed()
+end
+function B.ToggleCatalog()
+    local config, _, created = B.EnsureCatalog()
+    if created then config.hidden = false else config.hidden = not config.hidden end
+    IC.Changed()
+end
+function B.SelectCatalog(index, group)
+    if IC.InCombat() then IC.Print("Switch catalogues after combat."); return end
+    local config = IC.Layout().bars[index]; if not config then return end
+    config.catalogGroup, config.page = group, 1; IC.Changed()
+end
+function B.OpenLines(index, poolID)
+    if IC.InCombat() then IC.Print("Open the specific-line bar after combat."); return end
+    local pool = IC.Profile().pools[poolID]; local parent = IC.Layout().bars[index]
+    if not pool or not parent then return end
+    local bars, config = IC.Layout().bars
+    for _, bar in ipairs(bars) do if bar.catalogCompanion then config = bar; break end end
+    if not config then
+        config = IC.Defaults.Bar(#bars + 1); config.catalogCompanion = true
+        config.buttonStyle, config.buttonWidth, config.size = "text", 260, 40
+        config.columns, config.rows, config.poolMode = 2, 2, "pool"
+        config.x, config.y = parent.x, parent.y - ((B.frames[index] and B.frames[index]:GetHeight()) or 100) - 16
+        bars[#bars + 1] = config
+    end
+    config.name, config.source = pool.name .. " · specific lines", "lines:" .. poolID
+    config.hidden, config.collapsed, config.page = false, false, 1
+    IC.Changed()
 end
 function B.Page(index, delta)
     if IC.InCombat() then IC.Print("Bar page changes wait until after combat; the wheel can browse all actions now."); return end
@@ -89,22 +150,32 @@ function B.Pin(action)
     bars[#bars + 1] = config; IC.Changed(); return true
 end
 
-local function button(frame, n)
-    local slot = frame.buttons[n]
+local function click(frame, self, mouse)
+    if mouse == "RightButton" and self.catalogPool and not IsShiftKeyDown() then B.OpenLines(frame.index, self.action.payload)
+    elseif mouse == "RightButton" then IC.LayoutUI.Open("bar", frame.index)
+    else IC.Actions.Dispatch(self.action) end
+end
+local function button(frame, n, text)
+    local list = text and frame.textButtons or frame.iconButtons
+    local slot = list[n]
     if slot then return slot end
-    slot = U.IconButton(frame, 36, false)
+    if text then
+        slot = U.Button(frame, "", nil, nil, 148); slot.label:Hide()
+        slot.icon = slot:CreateTexture(nil, "ARTWORK"); slot.icon:SetPoint("LEFT", 6, 0)
+        function slot:SetIcon(path, fallback) U.SetIcon(self.icon, path, fallback) end
+    else slot = U.IconButton(frame, 36, false) end
+    slot.textStyle = text
     slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    slot:SetScript("OnClick", function(self, mouse)
-        if mouse == "RightButton" then IC.LayoutUI.Open("bar", frame.index)
-        else IC.Actions.Dispatch(self.action) end
-    end)
+    slot:SetScript("OnClick", function(self, mouse) click(frame, self, mouse) end)
     slot:SetScript("OnEnter", tooltip)
-    slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    slot:SetScript("OnLeave", function(self) if self.textStyle then self:SetSelected(false) end; GameTooltip:Hide() end)
     slot.kind = slot:CreateTexture(nil, "OVERLAY"); slot.kind:SetSize(8, 8); slot.kind:SetPoint("TOPRIGHT", -2, -2)
     slot.kind:SetTexture("Interface\\Buttons\\WHITE8X8")
-    slot.caption = slot:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    slot.caption:SetPoint("TOP", slot, "BOTTOM", 0, -2); slot.caption:SetWordWrap(false)
-    frame.buttons[n] = slot
+    slot.caption = slot:CreateFontString(nil, "OVERLAY", text and "GameFontHighlight" or "GameFontHighlightSmall")
+    if text then slot.caption:SetPoint("LEFT", 36, 0); slot.caption:SetPoint("RIGHT", -6, 0); slot.caption:SetJustifyH("LEFT")
+    else slot.caption:SetPoint("TOP", slot, "BOTTOM", 0, -2) end
+    slot.caption:SetWordWrap(text == true)
+    list[n] = slot
     return slot
 end
 
@@ -114,9 +185,14 @@ function B.Refresh()
     for index, config in ipairs(IC.Layout().bars) do
         local frame = B.frames[index] or createFrame(index); B.frames[index] = frame
         frame.config, frame.index = config, index
+        local groups = config.catalog and IC.Presentation.CatalogGroups(config) or {}
+        if config.catalogGroup and config.catalogGroup ~= "all" then
+            local exists; for _, group in ipairs(groups) do if group.id == config.catalogGroup then exists = true end end
+            if not exists then config.catalogGroup = "all" end
+        end
         local actions = IC.Presentation.BarActions(config)
         frame.missing = config.source and config.source:match("^line:") and not IC.Actions.Resolve(config.source)
-        local capacity, size, columns, rowLimit = B.Capacity(config)
+        local capacity, size, columns, rowLimit, buttonWidth, cellHeight = B.Capacity(config)
         local pages = math.max(1, math.ceil(#actions / capacity))
         config.page = math.max(1, math.min(pages, config.page or 1))
         local offset = (config.page - 1) * capacity
@@ -124,34 +200,59 @@ function B.Refresh()
         local cols = math.min(columns, math.max(1, count))
         local rows = math.max(1, math.min(rowLimit, math.ceil(count / columns)))
         if (config.rows or 0) > 0 then rows, cols = rowLimit, columns end
-        local cellHeight = size + GAP + (config.labels and 14 or 0)
-        local width = math.max(90, cols * (size + GAP) + GAP)
-        local showHeader = not config.locked or config.collapsed or frame.missing
-        local top = showHeader and HEADER or 0
+        if config.catalog then cols = columns end
+        local width = math.max(config.catalog and 320 or 90, cols * (buttonWidth + GAP) + GAP)
+        width = math.min(width, UIParent:GetWidth() - 20)
+        local showHeader = config.catalog or config.catalogCompanion or not config.locked or config.collapsed or frame.missing
+        local headerHeight = (config.catalog or config.catalogCompanion) and 24 or HEADER
+        local top = showHeader and headerHeight or 0
+        local tabRows = B.GroupRows(config, width); top = top + tabRows * 26
         frame.header:SetShown(showHeader)
+        frame.header:SetHeight(headerHeight)
+        frame.header.text:SetPoint("RIGHT", config.catalog and -160 or ((config.catalogCompanion and -54) or -4), 0)
         frame.header.text:SetText((config.collapsed and "+ " or "") .. config.name .. (frame.missing and " (message removed)" or ""))
         local paged = pages > 1 and not config.collapsed
-        frame:SetSize(width, config.collapsed and HEADER or (top + rows * cellHeight + GAP + (paged and 28 or 0)))
+        frame:SetSize(width, config.collapsed and headerHeight or (top + rows * cellHeight + GAP + (paged and 28 or 0)))
+        frame.mode:SetShown(config.catalog == true); frame.mode:SetText(modeNames[config.poolMode] or "Pool mode")
+        frame.close:SetShown(config.catalog or config.catalogCompanion)
+        frame.edit:SetShown(config.catalog or config.catalogCompanion)
+        for _, tab in ipairs(frame.catalogTabs) do tab:Hide() end
+        if config.catalog and not config.collapsed then
+            local tabs = { { id = "all", label = "All pools" } }; for _, group in ipairs(groups) do tabs[#tabs + 1] = group end
+            local perRow = math.max(1, math.floor((width - GAP) / 112)); local tabWidth = (width - GAP) / perRow - GAP
+            for n, group in ipairs(tabs) do
+                local tab = frame.catalogTabs[n]
+                if not tab then tab = U.Button(frame, "", 0, 0, 100, function(self) B.SelectCatalog(frame.index, self.groupID) end); frame.catalogTabs[n] = tab end
+                tab.groupID = group.id; tab:SetText(group.label); tab.tooltip = (group.title or group.label) .. " · click to show these pools; nothing is sent."
+                tab:ClearAllPoints(); tab:SetPoint("TOPLEFT", GAP + ((n - 1) % perRow) * (tabWidth + GAP), -headerHeight - math.floor((n - 1) / perRow) * 26)
+                tab:SetSize(tabWidth, 22); tab:SetSelected(group.id == (config.catalogGroup or "all")); tab:Show()
+            end
+        end
         frame.previous:SetShown(paged); frame.next:SetShown(paged); frame.pageLabel:SetShown(paged)
         frame.pageLabel:SetText(config.page .. "/" .. pages)
-        frame:ClearAllPoints(); frame:SetPoint("CENTER", UIParent, "CENTER", config.x, config.y)
-        for _, slot in ipairs(frame.buttons) do slot:Hide() end
+        frame:ClearAllPoints(); frame:SetPoint((config.catalog or config.catalogCompanion) and "TOP" or "CENTER", UIParent, "CENTER", config.x, config.y)
+        for _, list in ipairs({ frame.iconButtons, frame.textButtons }) do for _, slot in ipairs(list) do slot:Hide() end end
+        local text = config.buttonStyle == "text"; frame.buttons = text and frame.textButtons or frame.iconButtons
+        frame.empty:SetShown((config.catalog or config.catalogCompanion) and #actions == 0 and not config.collapsed)
+        frame.empty:ClearAllPoints(); frame.empty:SetPoint("TOPLEFT", 6, -top - 6); frame.empty:SetWidth(width - 12)
+        frame.empty:SetText(config.catalogCompanion and "This pool has no saved lines." or "Add lines to any pool, or copy a preset in /ic. Its buttons appear here.")
         if not config.collapsed then
             for n = 1, count do
                 local action = actions[offset + n]
-                local slot = button(frame, n)
+                local slot = button(frame, n, text)
                 local col, row = (n - 1) % cols, math.floor((n - 1) / cols)
                 if config.vertical then col, row = math.floor((n - 1) / rows), (n - 1) % rows end
                 slot.action = action
-                slot:SetSize(size, size)
-                local normal = slot:GetNormalTexture(); normal:SetSize(size * 1.7, size * 1.7)
-                slot:ClearAllPoints(); slot:SetPoint("TOPLEFT", GAP + col * (size + GAP), -top - GAP - row * cellHeight)
+                slot:SetSize(buttonWidth, size); slot.catalogPool = config.catalog and action.type == "pool"
+                local normal = slot:GetNormalTexture(); if normal then normal:SetSize(size * 1.7, size * 1.7) end
+                if text then slot.icon:SetSize(math.min(24, size - 8), math.min(24, size - 8)); slot.caption:SetHeight(size - 6) end
+                slot:ClearAllPoints(); slot:SetPoint("TOPLEFT", GAP + col * (buttonWidth + GAP), -top - GAP - row * cellHeight)
                 slot:SetIcon(action.icon, IC.Icons[1])
                 slot.icon:SetDesaturated(action.type == "emote" and not action.verified)
                 local audible = action.type == "emote" and IC.Emotes.IsAudible(action)
                 slot.kind:SetShown(audible); slot.kind:SetVertexColor(0.31, 0.76, 0.97, 1)
-                slot.caption:SetText(IC.ShortText(action.name or action.label, 16)); slot.caption:SetWidth(size + GAP)
-                slot.caption:SetShown(config.labels == true)
+                slot.caption:SetText(IC.ShortText(action.name or action.label, text and 120 or 16)); slot.caption:SetWidth(text and (buttonWidth - 42) or (size + GAP))
+                slot.caption:SetShown(text or config.labels == true)
                 slot:Show()
             end
         end
