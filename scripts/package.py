@@ -9,7 +9,7 @@ version = re.search(r"^## Version: (\S+)$", (ROOT / "InCharacter/InCharacter.toc
 output = ROOT / "dist" / f"InCharacter-{version}.zip"
 output.parent.mkdir(exist_ok=True)
 files = {str(path.relative_to(ROOT)): path for path in (ROOT / "InCharacter").rglob("*") if path.is_file()}
-for name in ("README.md", "LICENSE", "CONTRIBUTING.md", "LIBRARY.md", "FOREVER_TEST_CHECKLIST.md"):
+for name in ("README.md", "LICENSE", "CONTRIBUTING.md", "LIBRARY.md"):
     files[f"InCharacter/{name}"] = ROOT / name
 with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for name, path in sorted(files.items()):

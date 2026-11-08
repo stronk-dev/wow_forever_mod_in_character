@@ -2,3 +2,15 @@ dist/
 *.bundle
 .DS_Store
 *.luac
+
+# Local project briefs, research and review notes
+/SPEC.md
+/FOREVER_TEST_CHECKLIST.md
+/docs/RESEARCH.md
+/docs/IMPLEMENTATION_STATUS.md
+/.agents/
+/.codex/
+
+# Python script caches
+__pycache__/
+*.py[cod]

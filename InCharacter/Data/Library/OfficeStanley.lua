@@ -2,7 +2,7 @@ local _, IC = ...
 IC.Library.Register({
     id = "office-stanley", title = "The Office: Stanley Hudson", version = 1,
     culture = "The Office (US)", locale = "enUS", author = "Project owner",
-    source = "Verbatim phrases supplied in SPEC.md and the project-owner conversation (2026-11-08); not independently transcribed.",
+    source = "Verbatim phrases supplied by the project owner (2026-11-08); not independently transcribed.",
     contentNote = "Optional character quotation preset; contains profanity. Text only, no recorded audio.",
     pools = {
         { id = "greetings", name = "Greetings", shortcut = "greetings", mode = "random", channel = "SAY", lines = {

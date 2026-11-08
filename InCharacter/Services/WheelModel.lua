@@ -1,45 +1,56 @@
 local _, IC = ...
-IC.WheelModel = {}
+-- Pure data/geometry for the two-ring wheel: inner ring = categories, outer ring = actions.
+IC.WheelModel = { PAGE = 12 }
 local M = IC.WheelModel
-local function submenu(id, label, children)
-    return { id = id, type = "submenu", label = label, children = children, icon = IC.Icons[1] }
-end
-function M.Tree()
-    local root = submenu("root", "In Character", {})
-    root.children[1] = submenu("favorites", "Favorites", IC.Actions.List("favorites"))
-    for _, category in ipairs(IC.Emotes.categories) do root.children[#root.children + 1] = submenu(category, category, IC.Actions.List(category)) end
-    local roleplay, groups = submenu("roleplay", "Roleplay", {}), {}
-    for _, id in ipairs(IC.Profile().poolOrder) do
-        local pool = IC.Profile().pools[id]
-        local packID = pool.provenance and pool.provenance.pack
-        local groupID = packID or "custom"
-        if not groups[groupID] then
-            local pack = packID and IC.Library.packs[packID]
-            groups[groupID] = submenu(groupID, pack and pack.title or "Custom pools", {})
-            roleplay.children[#roleplay.children + 1] = groups[groupID]
-        end
-        groups[groupID].children[#groups[groupID].children + 1] = IC.Actions.Resolve("pool:" .. id)
+
+local function usable(list)
+    local result = {}
+    for _, action in ipairs(list) do
+        if action.type ~= "emote" or action.verified then result[#result + 1] = action end
     end
-    root.children[#root.children + 1] = roleplay
-    return root
+    return result
 end
-function M.New(tree) return { stack = { tree }, page = 1, favoritePage = 1 } end
-function M.Current(state) return state.stack[#state.stack] end
-function M.Enter(state, action)
-    if action.type ~= "submenu" then return false end
-    state.stack[#state.stack + 1] = action; state.page = 1
-    return true
+function M.Categories()
+    local info = IC.Emotes.CategoryInfo
+    local result = { { id = "Favorites", label = info.Favorites.label, icon = info.Favorites.icon, items = usable(IC.Actions.List("favorites")) } }
+    for _, id in ipairs(IC.Emotes.categories) do
+        result[#result + 1] = { id = id, label = info[id].label, icon = info[id].icon, items = usable(IC.Actions.List(id)) }
+    end
+    result[#result + 1] = { id = "Roleplay", label = info.Roleplay.label, icon = info.Roleplay.icon, items = IC.Actions.RoleplayGroups() }
+    return result
 end
-function M.Back(state)
-    if #state.stack > 1 then table.remove(state.stack); state.page = 1; return true end
-    return false
+function M.Children(node) return node.items or node.children or {} end
+function M.Pages(category) return math.max(1, math.ceil(#M.Children(category) / M.PAGE)) end
+function M.Items(category, page)
+    local result = {}
+    local children = M.Children(category)
+    for i = (page - 1) * M.PAGE + 1, math.min(page * M.PAGE, #children) do result[#result + 1] = children[i] end
+    return result
 end
-function M.Page(state, delta, size)
-    local pages = math.max(1, math.ceil(#M.Current(state).children / size))
-    state.page = math.max(1, math.min(pages, state.page + delta))
+-- Angle in degrees, 0 at the top, increasing clockwise.
+function M.Angle(dx, dy)
+    local angle = math.deg(math.atan2 and math.atan2(dx, dy) or math.atan(dx, dy))
+    return angle < 0 and angle + 360 or angle
 end
-function M.Items(state, size)
-    local result, children = {}, M.Current(state).children
-    for i = (state.page - 1) * size + 1, math.min(state.page * size, #children) do result[#result + 1] = children[i] end
-    return result, math.max(1, math.ceil(#children / size))
+function M.Sector(angle, count)
+    if count < 1 then return nil end
+    local size = 360 / count
+    return math.floor(((angle + size / 2) % 360) / size) + 1
+end
+function M.Position(index, count, radius)
+    local angle = math.rad((index - 1) * 360 / count)
+    return math.sin(angle) * radius, math.cos(angle) * radius
+end
+-- Which ring the cursor points at. The hub is a dead zone; past the split everything is the outer ring.
+function M.Hit(dx, dy, geometry, innerCount, outerCount)
+    local distance = math.sqrt(dx * dx + dy * dy)
+    if distance < geometry.hub then return "hub" end
+    if distance > geometry.outer + 40 then return "outside" end
+    local angle = M.Angle(dx, dy)
+    if distance < geometry.split then return "inner", M.Sector(angle, innerCount) end
+    if outerCount < 1 then return "hub" end
+    return "outer", M.Sector(angle, outerCount)
+end
+function M.Geometry(radius)
+    return { outer = radius, inner = radius * 0.5, hub = radius * 0.27, split = radius * 0.75 }
 end

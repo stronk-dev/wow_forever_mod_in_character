@@ -1,6 +1,6 @@
 local IC = {}
 local function load(path) assert(loadfile("InCharacter/" .. path))("InCharacter", IC) end
-load("Core.lua"); load("Defaults.lua"); load("Data/Emotes.lua")
+load("Core.lua"); load("Defaults.lua"); load("Data/EmoteCatalog.lua"); load("Data/Emotes.lua")
 load("Services/Profiles.lua"); load("Services/Dialogue.lua"); load("Services/Actions.lua")
 local total = 0
 local function test(name, fn)
@@ -68,7 +68,7 @@ end)
 test("v1 migration retains user and unknown data", function()
     local account = IC.Defaults.Profile(); account.pools.quotes.lines = { "old" }
     local db = open({ version = 1, account = account, customFutureKey = "keep" })
-    eq(db.version, 3); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
+    eq(db.version, 4); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
 end)
 test("deleted defaults stay deleted across upgrades", function()
     local db = open(); IC.Dialogue.Delete("quotes"); open(db)
@@ -139,4 +139,5 @@ test("deleting preset pools clears dangling shortcuts", function()
     local id = IC.Profile().shortcuts.greetings; IC.Dialogue.Delete(id); eq(IC.Profile().shortcuts.greetings, nil)
 end)
 assert(loadfile("tests/regressions.lua"))()(IC, test, eq, open)
+assert(loadfile("tests/messages.lua"))()(IC, test, eq, open)
 print("PASS: " .. total .. " tests")

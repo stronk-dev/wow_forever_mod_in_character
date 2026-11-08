@@ -1,13 +1,18 @@
 ## Interface: 16001
 ## Title: In Character
 ## Notes: Emotes, reactions, and roleplay dialogue
-## Version: 0.3.1
+## Version: 0.5.0
 ## SavedVariables: InCharacterDB
 ## SavedVariablesPerCharacter: InCharacterCharDB
+## IconTexture: Interface\Icons\Ability_Warrior_RallyingCry
+## AddonCompartmentFunc: InCharacter_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: InCharacter_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: InCharacter_OnAddonCompartmentLeave
 ## X-License: MIT
 
 Core.lua
 Defaults.lua
+Data/EmoteCatalog.lua
 Data/Emotes.lua
 Services/Profiles.lua
 Services/Dialogue.lua
@@ -17,8 +22,12 @@ Data/Library/OfficeStanley.lua
 Data/Library/DutchMastermovies.lua
 Data/Library/DutchEveryday.lua
 Data/Library/OfficeOthers.lua
+Services/WheelModel.lua
 UI/Widgets.lua
 UI/Bars.lua
-UI/Editor.lua
-Services/WheelModel.lua
+UI/Launcher.lua
+UI/Menu.lua
 UI/Wheel.lua
+UI/Editor.lua
+UI/DialogueControls.lua
+UI/Settings.lua
