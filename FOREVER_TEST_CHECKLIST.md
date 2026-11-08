@@ -16,42 +16,55 @@ Record tester, date, region/locale, race/sex, `GetBuildInfo()` values, interface
 - [ ] In open world and an instance, inspect actual lockdown/account restriction predicates. When they report a block, a pool click explains why and leaves random/shuffle/sequential state unchanged. No send replays when restrictions clear. Record any silent server rejection separately.
 - [ ] Random mode permits repeats; shuffle uses every entry once per cycle (duplicate text entries count separately); sequential loops. Preview does not advance playback. State resets on `/reload`, profile switch/reset and edits affecting the pool.
 
-## Editor, library and bars
+## Look and feel (the main thing to judge)
 
-- [ ] All five tabs fit at common UI scales/screen resolutions. Long names, long quotes, scrolling, UTF-8, apostrophes and input focus work. Escape clears edit focus/closes the relevant window without sending.
-- [ ] Create, rename, reorder and delete pools. Edit/add/delete/reorder lines in the multiline field and Save. Change icon, mode and channel. Verify IDs stay stable when renaming.
-- [ ] Unsaved drafts survive switching pools/tabs, closing/reopening the editor, and entering combat. Switching profile scopes never transfers a draft to another profile. Save persists; Discard draft restores saved text. Unsaved drafts are explicitly session-only.
-- [ ] Copy each library pack, inspect source/content notes, and verify your supplied lines remain verbatim. Copying again preserves edits and creates distinct pools; upgrading addon files does not replace installed copies.
-- [ ] Library copy and preview send nothing. Shortcuts map only to the available pools when using **Copy + greet/quote/bye**. Profiles → Reset mapping restores default pool IDs.
-- [ ] Favorite/unfavorite emotes and pools. Emote labels/icons can be customized without altering tokens. Add a bar pinned to a pool, a category and Favorites.
-- [ ] Add/delete bars, change button size and horizontal/vertical layout, drag their title, collapse/expand, hide/restore and lock positions. Scroll pages containing more than 12 actions; all remain reachable.
-- [ ] Bar positions/settings and dialogue survive `/reload`, normal logout/login and full restart. The beta loading bug was marked fixed in build 70009; this addon still needs verification. Back up both account and character `WTF/.../SavedVariables/InCharacter.lua` files while WoW is closed.
-- [ ] Upgrade a v2 save with character profiles/layouts under both `Argent Dawn:Name` and `ArgentDawn:Name` spellings. Each character migrates once into InCharacterCharDB. Old originals remain intact. Conflicting records produce a notice and are retained for recovery; a later reload never re-imports stale data.
-- [ ] Enable character profile on two characters and verify quotes/favorites differ. Character bar layouts remain separate by default. Explicit account layout scope shares positions. Switching scopes retains both copies.
-- [ ] Copy account to character/reset active profile requires the second confirmation click and changes only the intended scope.
+- [ ] Take screenshots of: the launcher button, its menu with a category flyout open, the radial wheel (click mode and hold mode), each page of the window, and the per-category bars. Note anything that overlaps, is cut off, unreadable or ugly, at your normal UI scale and at a small one.
+- [ ] Icons: every curated emote shows a real icon (not a green square or question mark). List any that fall back. If a missing icon shows as the client's missing-texture square rather than a fallback, report it: the fallback relies on `SetTexture` returning false, which is unverified.
+- [ ] The window appears under **Options > AddOns > In Character** and its buttons work. In Character appears in the addon dropdown next to the minimap; left-click opens the menu, right-click the window.
+- [ ] Screenshot the **Browse / edit messages** window with a long UTF-8 message selected, a dirty edit, and a pinned message. Screenshot **Favorite actions**, a third-level launcher flyout, and the wheel breadcrumb/Back at each dialogue depth. No overlapping buttons, clipped counters or obscured previews at normal and small UI scales.
 
-## Emotes and nearby audio
+## Emote library and nearby audio
 
-- [ ] Client emote tokens are detected, including localized commands. Unrecognized tokens are flagged/disabled or hidden; no arbitrary slash fallback executes.
-- [ ] Test every shipped emote for recognition, target-sensitive text, animation and race/sex-dependent voice. `/joke` may resolve to `SILLY` from the client token table.
-- [ ] Ask a nearby second player to confirm which built-in emotes they can hear. Do not infer audibility from local sound. No custom addon audio is broadcast.
-- [ ] The animated filter shows curated reference entries and labels them accordingly. Check those animations on the actual build before treating them as verified. Audio/text-only filters are absent until supported by evidence.
-- [ ] With PerformEmote available it is preferred, its failure result is reported, and DoEmote is never called as a retry. Verify the legacy DoEmote restriction result only on a build requiring that fallback.
+- [ ] The library lists roughly 250 emotes. Badges/filters visibly mark audio/animation/text-only metadata as reference data. Search finds commands, aliases and custom names. No label implies token recognition verifies nearby audio.
+- [ ] Emotes the client doesn't know are greyed out and can't be used. Any Forever-only emote appears with an "Unlisted" badge.
+- [ ] With a second player nearby, confirm they **hear** a sample of Sound emotes (`/chicken`, `/cheer`, `/laugh`, `/charge`, `/healme`, `/train`) and see but don't hear Animation emotes (`/dance`, `/flex`, `/sit`). Record any mismatch with the wiki-based badge.
+- [ ] Custom names and icons apply on bars, menu and wheel without changing the emote that runs.
 
-## Wheel and bindings
+## Launcher menu
 
-- [ ] `/ic wheel` opens click confirmation. Root shows Favorites, Combat, Reactions, Social, Idle, Voice/Fun and Roleplay. Immediate favorite buttons and their paging work.
-- [ ] Click a category, Roleplay → custom/preset group → pool, Back, and pages with more than 8 actions. No action executes merely on hover or submenu traversal.
-- [ ] Wheel action click sends once; click mode stays open after binding release. The next bound key press toggles it closed. Empty groups and stale/deleted favorites do not error.
-- [ ] Escape or right-click anywhere on the wheel cancels without sending. No key release after cancellation executes a stale action. Tooltip/catcher disappear on close.
-- [ ] Assign editor, wheel and favorite 1–4 bindings in WoW Key Bindings → In Character. Favorite bindings match the first four visible entries in a Favorites bar with the same page, including when unverified entries are hidden. Repeated presses/modifiers/mouse bindings work. No existing binding is reassigned automatically.
-- [ ] Enable experimental release: hold bound key, click submenus, point at an action at least 0.15 seconds, release. Exactly one action executes only if Forever delivers key-up with a permitted hardware context.
-- [ ] Releasing over a submenu, gap, center, a newly entered page, or after right-click/Escape does not execute. Crossing sectors without a click/release sends nothing. `/ic wheel` always uses click confirmation even when release mode is enabled.
-- [ ] On small screens and non-default UI scales, labels/icons remain legible and all targets stay on screen. Point/release uses visible rectangular targets, not infinite angular sectors.
+- [ ] Left-click the button: favorites on top, five categories, All emotes, then roleplay groups. Hovering a category opens its flyout beside the menu; long lists scroll with the mouse wheel.
+- [ ] Clicking an entry uses it once and closes the menu. Right-click pins or unpins without closing. Clicking outside or pressing Esc closes it without sending.
+- [ ] Navigate group → pool → playback choices → specific messages; Back closes one flyout level. Pin an exact message and an explicit Random action. Each invokes the intended behavior; opening/hovering groups sends nothing.
+- [ ] Shift-drag moves the button and the position survives `/reload`. The *Click opens wheel* option works.
+
+## Radial wheel
+
+- [ ] Bind the wheel key on the Home card (click, press a key; right-click clears). It also shows in WoW's Key Bindings.
+- [ ] The wheel opens centred on the cursor and stays on screen near the edges. Favorites are active first. Pointing at an inner icon switches the outer ring, and nothing runs until you click an outer action.
+- [ ] Hold mode: hold the key, point at an outer action, release: it runs once. Releasing in the centre does nothing. Click mode: releasing the key keeps it open, and the next press closes it.
+- [ ] Scroll pages a category with more than 12 entries. Right-click, Esc or clicking the centre cancels. Works in combat.
+- [ ] Open Roleplay → a preset/custom group → pool → Choose a specific message. The breadcrumb follows navigation. Centre means Back in submenus and Cancel at root. Going Back restores the prior page. Nested lists longer than 12 remain reachable.
+- [ ] Inside a submenu, crossing an inner category sector does not leave that context. Explicitly clicking an inner category does. Releasing over a group never enters or sends; dwell is required after every context/page change. Releasing outside the wheel's bounded hit area sends nothing.
+
+## Bars, dialogue and profiles
+
+- [ ] Home > *A bar per category* creates five bars; removing them leaves your other bars alone. Drag titles; click to collapse; right-click opens their settings; locking hides the title strip.
+- [ ] Layouts page: size, buttons per row and vertical layout render correctly; Sound emotes show a small blue corner mark.
+- [ ] Pin more than 48 actions and visit every bar page using arrows and scroll. Try large buttons on a small screen in both orientations; all entries remain reachable. Page arrows remain usable when the title is locked and hide on collapse. Paging is blocked in combat without sending anything.
+- [ ] Dialogue: create, rename, reorder and delete pools; choose the icon from the picker; edit lines; the byte counter warns over 255. Unsaved edits survive switching pools and are marked unsaved; Save and Discard edits work. Preset copies keep your supplied lines verbatim.
+- [ ] Bar positions, launcher, favorites and dialogue survive `/reload`, logout and a full restart. Back up both `WTF/.../SavedVariables/InCharacter.lua` files while WoW is closed.
+- [ ] Upgrading a 0.3.x save keeps pools, favorites and bars; a v2 save under both `Argent Dawn:Name` and `ArgentDawn:Name` spellings migrates once and keeps the originals.
+- [ ] Per-character profile on two characters keeps quotes/favorites separate; layout scope is independent.
+- [ ] Type a pool draft, then create another pool or copy a preset. Return and verify text, name, mode, channel and icon remain. A pending bulk draft cannot be sent by the new Play/Random controls until saved/discarded.
+- [ ] In Browse / edit messages: create, save, preview, explicitly send, pin, make a bar, edit, reorder and delete one selected message. Editing/reordering here preserves its ID/pins; deletion disables the old exact-message action instead of retargeting it. Empty, unsaved and oversized messages have correct controls/counters.
+- [ ] Specific-message sends do not advance normal or overridden pool playback. Random, shuffle and in-order overrides keep separate state. Preview changes no state. Lockdown leaves state intact, displays a local reason and never replays a send later.
+- [ ] Message drafts survive selection changes, closing/reopening and navigation until /reload. Drafts never leak between shared/private profiles or transfer into another pool. Bulk text replacements warn about removed exact-message pins; unchanged/reordered lines retain IDs.
+- [ ] Favorite actions: reorder, preview, play, unpin and create a bar for pool/mode/exact-message actions. Binding 1–4 uses the matching visible favorites. Upgrade a saved `/joke` favorite: it displays canonically and unpins in one click without duplicates.
+- [ ] A rejected key assignment leaves existing bindings intact. Icon selection with no current icon shows a question mark; explicit asset failures use the fallback. Verify actual SetTexture/file availability on this client; mocks only exercise the fallback path.
 
 ## Combat and restrictions
 
-- [ ] Entering combat closes the editor but leaves the unprotected wheel usable. Open/navigate/cancel the wheel in combat and directly use Combat emotes such as OOM. No blocked-action/taint errors occur. The editor still refuses to open in combat.
+- [ ] Entering combat closes the settings window but leaves the wheel, menu and bars usable. Use Combat callouts such as /oom from each of them in combat. No blocked-action/taint errors occur. The editor still refuses to open in combat.
 - [ ] Existing bar/favorite bindings attempt only direct emotes or chat, subject to client restrictions. No spell, item, targeting or secure macro actions occur.
 - [ ] Pending layout refresh runs once after `PLAYER_REGEN_ENABLED`. No chat is replayed at combat end or on any timer/event.
 

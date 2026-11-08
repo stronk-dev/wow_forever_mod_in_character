@@ -1,4 +1,5 @@
 -- Each test loads a fresh addon and WoW globals; no state/order dependencies.
+-- These are mocked callback/data-flow tests, not a live-client or visual test.
 local function chunk(path, environment)
     if setfenv then return setfenv(assert(loadfile(path)), environment) end
     return assert(loadfile(path, "t", environment))
@@ -25,143 +26,228 @@ local function test(name, fn)
     if not ok then error("FAIL " .. name .. ": " .. tostring(err)) end
     tests = tests + 1; print("ok " .. tests .. " - " .. name)
 end
-local function panel(IC, tab)
-    if not IC.Editor.frame then IC.Editor.Toggle() end
-    IC.Editor.SelectTab(tab)
-    return IC.Editor.panels[tab]
+local function page(IC, tab) IC.Editor.Open(tab); return IC.Editor.pages[tab] end
+local function point(Stub, IC, dx, dy)
+    local cx, cy = IC.Wheel.frame:GetCenter()
+    Stub.cursorX, Stub.cursorY = cx + dx, cy + dy
+    IC.Wheel.Track()
 end
-local function cycleTo(button, value)
-    for _ = 1, #button.values do if button.value == value then return end; button:Click() end
-    eq(button.value, value)
+local function pointAt(Stub, IC, slot)
+    local x, y = slot:GetCenter(); Stub.cursorX, Stub.cursorY = x, y; IC.Wheel.Track()
 end
-local function install(IC)
-    local ok, _, id = IC.Library.Install("office-stanley", true); assert(ok)
-    return id
-end
-local function selectWheel(IC, id)
-    for _, button in ipairs(IC.Wheel.buttons) do if button:IsShown() and button.action.id == id then button:Click(); return end end
-    error("Missing wheel action: " .. id)
-end
-local function point(Stub, IC, button)
-    local x, y = button:GetCenter(); local scale = IC.Wheel.frame:GetEffectiveScale()
-    Stub.cursorX, Stub.cursorY = x * scale, y * scale
-    IC.Wheel.frame:Fire("OnUpdate", 0.016)
-    eq(IC.Wheel.hover, button)
-end
-test("TOC initialization preserves existing slash aliases and creates the wheel before use", function(IC, Stub, env)
+
+test("load registers commands, Settings page and shows the launcher without sending", function(IC, Stub, env)
     assert(IC.db); eq(env.SLASH_INCHARACTER1, "/incharacter"); eq(env.SLASH_INCHARACTER2, nil)
-    eq(#Stub.sends, 0); assert(IC.Bars.frames[1]:IsShown()); assert(IC.Wheel.frame); assert(not IC.Wheel.open)
-    eq(env.InCharacterCharDB, IC.Profiles.Character()); eq(IC.Profiles.Character().profile, nil)
+    eq(Stub.settingsCategory.name, "In Character"); assert(Stub.settingsPanel)
+    assert(IC.Launcher.button:IsShown()); assert(IC.Bars.frames[1]:IsShown())
+    eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
-test("all editor tabs construct without FontString-only calls on EditBox", function(IC, Stub)
-    for _, name in ipairs({ "Emotes", "Dialogue Pools", "Bars", "Wheel", "Profiles" }) do assert(panel(IC, name):IsShown()) end
-    eq(#Stub.sends, 0)
+
+test("every page of the window builds and switching pages sends nothing", function(IC, Stub)
+    for _, name in ipairs({ "Home", "Emotes", "Dialogue", "Favorites", "Layouts", "Profiles" }) do
+        page(IC, name); assert(IC.Editor.pages[name]:IsShown())
+        for other, p in pairs(IC.Editor.pages) do if other ~= name then assert(not p:IsShown()) end end
+    end
+    eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
-test("editor copies a preset, saves multiline text and previews without sending", function(IC, Stub)
-    local p = panel(IC, "Dialogue Pools"); cycleTo(p.pack, "office-stanley")
-    Stub.Button(p, "Copy + greet/quote/bye"):Click()
-    local pool = IC.Profile().pools[IC.Editor.poolID]; eq(#pool.lines, 5)
-    p.name:SetText("Custom Stanley"); p.lines:SetText("Hello, 'friend'.\nHé, hoe gaat het?\n" .. string.rep("long", 100))
-    cycleTo(p.mode, "sequential"); cycleTo(p.channel, "SAY"); Stub.Button(p, "Save"):Click()
-    eq(pool.name, "Custom Stanley"); eq(#pool.lines, 3); assert(#pool.lines[3] > 255)
-    Stub.Button(p, "Preview"):Click(); eq(#Stub.sends, 0); assert(IC.Editor.preview:IsShown())
-    IC.Editor.preview:Hide(); IC.Slash("greet"); eq(#Stub.sends, 1); eq(Stub.sends[1][1], "Hello, 'friend'.")
-    Stub.Button(p, "Favorite"):Click(); assert(IC.Actions.IsFavorite("pool:" .. pool.id))
+
+test("home cards turn each layout option on and off", function(IC, Stub)
+    local p = page(IC, "Home")
+    p.launcherToggle:Click(); assert(not IC.Launcher.button:IsShown())
+    p.launcherToggle:Click(); assert(IC.Launcher.button:IsShown())
+    p.catToggle:Click()
+    local auto = 0
+    for _, bar in ipairs(IC.Layout().bars) do if bar.auto then auto = auto + 1 end end
+    eq(auto, #IC.Emotes.categories); eq(#IC.Bars.frames, 1 + auto)
+    p.catToggle:Click(); eq(#IC.Layout().bars, 1)
+    p.favToggle:Click(); assert(IC.Layout().bars[1].hidden); assert(not IC.Bars.frames[1]:IsShown())
+    p.launcherClick:Choose("wheel"); IC.Launcher.button:Click("LeftButton"); assert(IC.Wheel.open)
 end)
-test("pool drafts survive switching pools and tabs without changing saved text", function(IC, Stub)
-    local p = panel(IC, "Dialogue Pools")
-    p.lines:SetText("unsaved greeting"); p.name:SetText("Draft name")
-    p.rows[2]:Click(); p.rows[1]:Click(); eq(p.lines:GetText(), "unsaved greeting"); eq(p.name:GetText(), "Draft name")
-    panel(IC, "Bars"); panel(IC, "Dialogue Pools"); eq(p.lines:GetText(), "unsaved greeting")
-    eq(#IC.Profile().pools.greetings.lines, 0); eq(IC.Profile().pools.greetings.name, "Greetings")
-    Stub.Button(p, "Discard draft"):Click(); eq(p.lines:GetText(), ""); eq(p.name:GetText(), "Greetings"); eq(#Stub.sends, 0)
+
+test("emote library filters by what others can hear, searches, pins and tries emotes", function(IC, Stub)
+    local p = page(IC, "Emotes")
+    IC.Editor.emoteCategory = "all"; IC.Editor.RefreshEmotes()
+    local everything = #p.shown
+    for _, chip in ipairs(p.chips) do if chip.value == "sound" then chip:Click() end end
+    assert(#p.shown > 0 and #p.shown < everything)
+    for _, action in ipairs(p.shown) do assert(IC.Emotes.IsAudible(action)) end
+    for _, chip in ipairs(p.chips) do if chip.value == "silent" then chip:Click() end end
+    for _, action in ipairs(p.shown) do eq(action.kind, "animation") end
+    for _, chip in ipairs(p.chips) do if chip.value == "all" then chip:Click() end end
+    p.search:SetText("chick"); eq(#p.shown, 1); eq(p.shown[1].command, "chicken")
+    p.tiles[1]:Click("RightButton"); assert(IC.Actions.IsFavorite("emote:chicken"))
+    p.tiles[1]:Click("LeftButton"); assert(p.detail:IsShown()); eq(IC.Editor.emote.command, "chicken")
+    p.dTry:Click(); eq(Stub.emotes[1], "CHICKEN")
+    p.search:SetText("")
+    p.hide:SetChecked(true); p.hide:Click()
+    for _, action in ipairs(p.shown) do assert(action.verified) end
 end)
-test("bars select sources through cycle callbacks and dispatch the shared action", function(IC, Stub)
-    local id = install(IC); local pool = IC.Profile().pools[id]; pool.mode = "sequential"; pool.lines = { "one", "two" }
-    local p = panel(IC, "Bars"); Stub.Button(p, "Add bar"):Click(); eq(#IC.Layout().bars, 2)
-    cycleTo(p.source, "pool:" .. id)
-    local bar = IC.Layout().bars[2]; eq(bar.source, "pool:" .. id)
-    IC.Bars.frames[2].buttons[1]:Click(); eq(#Stub.sends, 1); eq(Stub.sends[1][1], "one")
-    IC.Bars.frames[2].header:Click(); assert(bar.collapsed)
-    p.checks.hidden:SetChecked(true); p.checks.hidden:Click(); assert(bar.hidden); assert(not IC.Bars.frames[2]:IsShown())
-    p.checks.hidden:SetChecked(false); p.checks.hidden:Click(); assert(IC.Bars.frames[2]:IsShown())
+
+test("emote library shows client-only emotes and disables unknown ones", function(IC, Stub)
+    local p = page(IC, "Emotes")
+    IC.Editor.emoteCategory = "all"; p.search:SetText("foreveronly"); eq(#p.shown, 1); eq(p.shown[1].kind, "unknown")
+    p.search:SetText("flex"); eq(#p.shown, 1); assert(not p.shown[1].verified); assert(p.tiles[1].icon.desaturated)
+    p.tiles[1]:Click(); IC.Editor.RefreshEmoteDetail(); eq(p.dTry.enabled, false)
 end)
-test("favorite bindings use the same filtered slots as the bar", function(IC, Stub, env)
-    IC.Profile().pools.quotes.lines = { "visible favorite" }
-    IC.Profile().favorites = { "emote:dance", "pool:quotes", "emote:wave" }; IC.Profile().hideUnverified = true
-    IC.Refresh(); eq(IC.Bars.frames[1].buttons[1].action.id, "pool:quotes")
-    env.InCharacter_FavoriteBinding(1); eq(#Stub.sends, 1); eq(Stub.sends[1][1], "visible favorite")
+
+test("dialogue: preset copy, drafts survive switching, save, preview and shortcuts", function(IC, Stub)
+    local p = page(IC, "Dialogue")
+    p.pack:Choose("office-stanley"); Stub.Button(p, "Copy + use for /ic greet, quote, bye"):Click()
+    local first = IC.Editor.poolID; eq(#IC.Profile().pools[first].lines, 5)
+    p.lines:SetText("Hello, 'friend'.\nHé, hoe gaat het?")
+    IC.Editor.SelectPool("quotes"); IC.Editor.SelectPool(first)
+    eq(p.lines:GetText(), "Hello, 'friend'.\nHé, hoe gaat het?"); assert(p.info:GetText():find("unsaved"))
+    eq(#IC.Profile().pools[first].lines, 5)
+    p.mode:Choose("sequential"); Stub.Button(p, "Save"):Click()
+    eq(#IC.Profile().pools[first].lines, 2); assert(not p.info:GetText():find("unsaved"))
+    Stub.Button(p, "Preview"):Click(); eq(#Stub.sends, 0)
+    IC.Slash("greet"); eq(Stub.sends[1][1], "Hello, 'friend'.")
 end)
-test("wheel has direct favorites, nested Roleplay and Back without sending", function(IC, Stub)
-    install(IC); IC.Wheel.Open(false); assert(IC.Wheel.quick[1]:IsShown())
-    selectWheel(IC, "roleplay"); eq(#IC.Wheel.state.stack, 2)
-    selectWheel(IC, "office-stanley"); eq(#IC.Wheel.state.stack, 3); eq(IC.Wheel.buttons[1].action.type, "pool")
-    IC.Wheel.back:Click(); eq(#IC.Wheel.state.stack, 2); eq(#Stub.sends, 0)
-    IC.Wheel.catcher:Hide(); assert(not IC.Wheel.open); eq(#Stub.sends, 0)
+
+test("launcher menu lists favorites and categories, uses an emote and pins without closing", function(IC, Stub)
+    IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen())
+    local root = IC.Menu.levels[1]
+    eq(root.entries[1].label, "Favorites")
+    local combat
+    for i, entry in ipairs(root.entries) do if entry.label == IC.Emotes.CategoryInfo.Combat.label then combat = i end end
+    assert(combat and combat <= 16)
+    root.rows[combat]:Fire("OnEnter")
+    local flyout = IC.Menu.levels[2]; assert(flyout:IsShown()); eq(flyout.entries[1].label, "< Back"); eq(flyout.entries[2].action.command, "charge")
+    flyout.rows[2]:Click("RightButton"); assert(IC.Menu.IsOpen()); assert(flyout:IsShown())
+    flyout.rows[2]:Click("LeftButton"); assert(not IC.Menu.IsOpen()); eq(Stub.emotes[1], "CHARGE")
 end)
-test("wheel click sends once; right-click and Escape frame cancellation send nothing", function(IC, Stub, env)
-    local id = install(IC); IC.Profile().pools[id].lines = { "Click me" }
-    IC.Wheel.Open(false); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    IC.Wheel.buttons[1]:Click("RightButton"); assert(not IC.Wheel.open); eq(#Stub.sends, 0)
-    IC.Wheel.Open(false); env.InCharacterWheelCatcher:Hide(); IC.Wheel.Binding("up"); eq(#Stub.sends, 0)
-    IC.Wheel.Open(false); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    IC.Wheel.buttons[1]:Click(); assert(not IC.Wheel.open); eq(#Stub.sends, 1); eq(Stub.sends[1][1], "Click me")
+
+test("wheel: inner ring switches categories, outer ring uses the action, hub cancels", function(IC, Stub)
+    IC.Wheel.Open(false); assert(IC.Wheel.open); eq(IC.Wheel.category, 1)
+    point(Stub, IC, 0, 0); eq(IC.Wheel.hover, nil)
+    local combat = IC.Wheel.inner[2]
+    pointAt(Stub, IC, combat); eq(IC.Wheel.categories[IC.Wheel.category].id, "Combat")
+    eq(#IC.Wheel.items, 1); eq(IC.Wheel.items[1].command, "charge")
+    pointAt(Stub, IC, IC.Wheel.outer[1]); eq(IC.Wheel.hover, IC.Wheel.outer[1])
+    -- Crossing back through the inner ring changes category but never executes.
+    pointAt(Stub, IC, IC.Wheel.inner[3]); eq(#Stub.emotes, 0)
+    pointAt(Stub, IC, IC.Wheel.inner[2]); pointAt(Stub, IC, IC.Wheel.outer[1])
+    IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(Stub.emotes[1], "CHARGE"); assert(not IC.Wheel.open)
+    IC.Wheel.Open(false); point(Stub, IC, 0, 0); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
+    assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
+    IC.Wheel.Open(false); IC.Wheel.catcher:Fire("OnMouseDown", "RightButton"); assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
 end)
-test("release mode uses cursor hit-testing, dwell and fresh page selection", function(IC, Stub)
-    local id = install(IC); IC.Profile().pools[id].lines = { "Release me" }; IC.Profile().wheel.mode = "hold"
-    local W = IC.Wheel
-    W.Binding("down"); point(Stub, IC, W.buttons[1]); Stub.clock = Stub.clock + 1
-    W.Binding("up"); eq(#Stub.sends, 0); assert(not W.open) -- submenu
-    W.Binding("down"); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    point(Stub, IC, W.buttons[1]); W.Binding("up"); eq(#Stub.sends, 0) -- no dwell
-    W.Binding("down"); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    point(Stub, IC, W.buttons[1]); Stub.clock = Stub.clock + 0.2; W.Binding("up")
-    eq(#Stub.sends, 1); eq(Stub.sends[1][1], "Release me")
-    W.Binding("down"); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    point(Stub, IC, W.buttons[1]); Stub.clock = Stub.clock + 0.2
-    Stub.cursorX, Stub.cursorY = -1000, -1000; W.frame:Fire("OnUpdate", 0.016)
-    eq(W.hover, nil); W.Binding("up"); eq(#Stub.sends, 1) -- gap cancels
-    W.Binding("down"); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    point(Stub, IC, W.buttons[1]); W.back:Click(); eq(W.hover, nil); W.Binding("up"); eq(#Stub.sends, 1)
-end)
-test("click binding remains open on release; slash opening ignores release mode", function(IC, Stub)
+
+test("wheel hold mode uses the action under the cursor on release only", function(IC, Stub)
+    IC.Profile().wheel.mode = "hold"
+    IC.Wheel.Binding("down"); assert(IC.Wheel.open)
+    pointAt(Stub, IC, IC.Wheel.outer[1]); local expected = IC.Wheel.items[1]
+    Stub.clock = Stub.clock + 0.2
+    eq(#Stub.emotes + #Stub.sends, 0)
+    IC.Wheel.Binding("up"); assert(not IC.Wheel.open)
+    if expected.type == "emote" then eq(Stub.emotes[1], expected.payload) else eq(#Stub.sends, 1) end
+    IC.Wheel.Binding("down"); point(Stub, IC, 0, 0); IC.Wheel.Binding("up")
+    assert(not IC.Wheel.open); eq(#Stub.emotes + #Stub.sends, 1)
     IC.Profile().wheel.mode = "click"; IC.Wheel.Binding("down"); IC.Wheel.Binding("up"); assert(IC.Wheel.open)
     IC.Wheel.Binding("down"); assert(not IC.Wheel.open)
-    IC.Profile().wheel.mode = "hold"; IC.Wheel.Open(false); IC.Wheel.Binding("up"); assert(IC.Wheel.open); IC.Wheel.Close()
-    eq(#Stub.sends, 0)
 end)
-test("combat wheel stays usable while editor closes and layout rebuilds defer", function(IC, Stub, env, event)
-    env.EMOTE2_TOKEN, env.EMOTE2_CMD1 = "OOM", "/oom"; IC.Emotes.Validate()
-    IC.Editor.Toggle(); IC.Wheel.Open(false); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
-    assert(IC.Wheel.open); assert(not IC.Editor.frame:IsShown())
-    selectWheel(IC, "Combat"); selectWheel(IC, "emote:oom"); eq(#Stub.emotes, 1); eq(Stub.emotes[1], "OOM")
+
+test("wheel pages long categories with the mouse wheel and opens in combat", function(IC, Stub, env, event)
+    for i = 1, 14 do IC.Dialogue.Create("Line pool " .. i) end
+    Stub.combat = true; event("PLAYER_REGEN_DISABLED")
     IC.Wheel.Open(false); assert(IC.Wheel.open)
+    pointAt(Stub, IC, IC.Wheel.inner[#IC.Wheel.categories]); eq(IC.Wheel.categories[IC.Wheel.category].id, "Roleplay")
+    eq(#IC.Wheel.items, 1); pointAt(Stub, IC, IC.Wheel.outer[1]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
+    eq(#IC.Wheel.items, 12); IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2); eq(#IC.Wheel.items, 5)
+    IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 1)
+    IC.Wheel.Close()
+end)
+
+test("category bars show only their category and dispatch on click", function(IC, Stub)
+    local p = page(IC, "Home"); p.catToggle:Click()
+    local frame
+    for i, bar in ipairs(IC.Layout().bars) do if bar.source == "Voice/Fun" then frame = IC.Bars.frames[i] end end
+    local shown = 0
+    for _, slot in ipairs(frame.buttons) do
+        if slot:IsShown() then shown = shown + 1; assert(slot.action.categories["Voice/Fun"]) end
+    end
+    eq(shown, #IC.Actions.List("Voice/Fun"))
+    for _, slot in ipairs(frame.buttons) do
+        if slot.action.command == "chicken" then slot:Click(); assert(slot.kind:IsShown()) end
+        if slot.action.command == "moo" then assert(slot.icon.desaturated) end
+    end
+    eq(Stub.emotes[1], "CHICKEN")
+    frame.header:Click("LeftButton"); assert(frame.config.collapsed)
+    frame.config.collapsed, frame.config.locked = false, true; IC.Bars.Refresh(); assert(not frame.header:IsShown())
+end)
+
+test("layouts page edits bars with dropdowns and sliders", function(IC, Stub)
+    local p = page(IC, "Layouts")
+    Stub.Button(p, "+ Add bar"):Click(); eq(#IC.Layout().bars, 2); eq(IC.Editor.barIndex, 2)
+    p.bSource:Choose("Combat"); eq(IC.Layout().bars[2].source, "Combat")
+    p.bSize:SetValue(48); eq(IC.Layout().bars[2].size, 48)
+    p.bColumns:SetValue(3); eq(IC.Layout().bars[2].columns, 3)
+    p.bOrientation:Choose("vertical"); assert(IC.Layout().bars[2].vertical)
+    p.which:Choose(1); eq(IC.Editor.barIndex, 1); eq(p.bSource.value, "favorites")
+    p.lSize:SetValue(52); eq(IC.Layout().launcher.size, 52); eq(IC.Launcher.button:GetWidth(), 52)
+    p.wRadius:SetValue(200); eq(IC.Profile().wheel.radius, 200)
+end)
+
+test("key capture binds the wheel with modifiers and right-click clears it", function(IC, Stub)
+    local p = page(IC, "Layouts")
+    p.wKey:Click("LeftButton"); assert(p.wKey.capturing)
+    p.wKey:Fire("OnKeyDown", "LSHIFT"); assert(p.wKey.capturing)
+    Stub.modifiers.shift = true; p.wKey:Fire("OnKeyDown", "F"); Stub.modifiers.shift = nil
+    eq(Stub.bindings["SHIFT-F"], "INCHARACTER_WHEEL"); assert(not p.wKey.capturing); assert(p.wKey:GetText():find("SHIFT%-F"))
+    p.wKey:Click("RightButton"); eq(Stub.bindings["SHIFT-F"], nil); eq(Stub.savedBindings, 2)
+    p.wKey:Click("LeftButton"); p.wKey:Fire("OnKeyDown", "ESCAPE"); assert(not p.wKey.capturing); eq(Stub.savedBindings, 2)
+end)
+
+test("missing icon files fall back instead of showing a blank texture", function(IC, Stub, env)
+    local texture = env.UIParent:CreateTexture()
+    Stub.missing["Interface\\Icons\\Gone"] = true
+    IC.UI.SetIcon(texture, "Interface\\Icons\\Gone", "Interface\\Icons\\INV_Misc_Book_09"); eq(texture.texture, "Interface\\Icons\\INV_Misc_Book_09")
+    local p = page(IC, "Dialogue")
+    IC.Editor.PickIcon(nil, function(icon) IC.Editor.pickedIcon = icon end)
+    IC.Editor.picker.slots[9]:Click(); Stub.Button(IC.Editor.picker, "Use icon"):Click(); eq(IC.Editor.pickedIcon, 134400)
+end)
+
+test("combat hides only the window, defers rebuilds and never replays chat", function(IC, Stub, env, event)
+    page(IC, "Home"); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
+    assert(not IC.Editor.frame:IsShown())
     IC.Refresh(); assert(IC.refreshPending)
+    IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen()); IC.Menu.Close()
     Stub.combat = false; event("PLAYER_REGEN_ENABLED"); assert(not IC.refreshPending); eq(#Stub.sends, 0)
 end)
-test("combat chat lockdown leaves pool state unchanged and never replays on combat end", function(IC, Stub, env, event)
-    local id = install(IC); IC.Profile().pools[id].lines = { "blocked" }
-    env.C_ChatInfo.InChatMessagingLockdown = function() return true end
-    Stub.combat = true; IC.Wheel.Open(false); selectWheel(IC, "roleplay"); selectWheel(IC, "office-stanley")
-    IC.Wheel.buttons[1]:Click(); eq(#Stub.sends, 0); eq(IC.Dialogue.states[id], nil)
-    Stub.combat = false; event("PLAYER_REGEN_ENABLED"); eq(#Stub.sends, 0)
+
+test("addon compartment opens the menu and settings", function(IC, Stub, env)
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", "LeftButton"); assert(IC.Menu.IsOpen()); IC.Menu.Close()
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", "RightButton"); assert(IC.Editor.frame:IsShown()); eq(IC.Editor.tab, "Home")
 end)
-test("realm formatting changes cannot switch live character settings", function(IC, Stub, env)
-    env.GetRealmName = function() return "Argent Dawn" end
-    env.UnitFullName = function() return "Tester", nil end
-    IC.Profiles.SetScope("character"); IC.Profile().pools.quotes.lines = { "stay" }; IC.Layout().bars[1].x = 51
-    local db, char = env.InCharacterDB, env.InCharacterCharDB
-    env.UnitFullName = function() return "Tester", "ArgentDawn" end
-    IC.Initialize(db, char); eq(IC.Profile().pools.quotes.lines[1], "stay"); eq(IC.Layout().bars[1].x, 51)
-    eq(IC.Profiles.Character(), char); eq(#Stub.sends, 0)
+
+test("wheel geometry: sectors start at the top and go clockwise; hub is a dead zone", function(IC)
+    local M = IC.WheelModel
+    eq(M.Sector(M.Angle(0, 10), 4), 1); eq(M.Sector(M.Angle(10, 0), 4), 2)
+    eq(M.Sector(M.Angle(0, -10), 4), 3); eq(M.Sector(M.Angle(-10, 0), 4), 4)
+    eq(M.Sector(M.Angle(-1, 10), 4), 1)
+    local g = M.Geometry(160)
+    eq(M.Hit(5, 5, g, 7, 12), "hub")
+    local kind, index = M.Hit(0, g.inner, g, 7, 12); eq(kind, "inner"); eq(index, 1)
+    kind, index = M.Hit(g.outer, 0, g, 7, 12); eq(kind, "outer"); eq(index, 4)
+    eq(M.Hit(0, 400, g, 7, 0), "outside")
+    for i = 1, 12 do local x, y = M.Position(i, 12, g.outer); local _, hit = M.Hit(x, y, g, 7, 12); eq(hit, i) end
 end)
-test("wheel model exposes every custom pool across pages and Back", function(IC)
-    for i = 1, 25 do IC.Dialogue.Create("More " .. i) end
-    local M = IC.WheelModel; local state = M.New(M.Tree()); local roleplay = state.stack[1].children[7]
-    M.Enter(state, roleplay); M.Enter(state, roleplay.children[1])
-    local seen = {}; local _, pages = M.Items(state, 8)
-    for _ = 1, pages do for _, action in ipairs(M.Items(state, 8)) do seen[action.id] = true end; M.Page(state, 1, 8) end
-    local count = 0; for _ in pairs(seen) do count = count + 1 end; eq(count, 28)
-    assert(M.Back(state)); assert(M.Back(state)); assert(not M.Back(state)); eq(state.page, 1)
+test("review fixes: mouse-button wheel key, unmoved hold release, Esc closes flyouts, compartment table args", function(IC, Stub, env)
+    Stub.bindings["BUTTON4"] = "INCHARACTER_WHEEL"; IC.Profile().wheel.mode = "hold"
+    IC.Wheel.Binding("down"); assert(IC.Wheel.open)
+    -- The catcher swallows the mouse button, so its release must still reach the binding.
+    IC.Wheel.catcher:Fire("OnMouseUp", "Button4"); assert(not IC.Wheel.open)
+    -- Opening with the cursor already over an action (edge clamping) and releasing without moving does nothing.
+    IC.Wheel.Binding("down"); local slot = IC.Wheel.outer[1]; IC.Wheel.hover = slot; IC.Wheel.moved = false
+    local x, y = slot:GetCenter(); Stub.cursorX, Stub.cursorY = x, y; IC.Wheel.start = { x - 960, y - 540 }
+    IC.Wheel.Binding("up"); eq(#Stub.emotes + #Stub.sends, 0); assert(not IC.Wheel.open)
+    IC.Launcher.button:Click("LeftButton"); IC.Menu.levels[1].rows[3]:Fire("OnEnter")
+    local combat; for i, entry in ipairs(IC.Menu.levels[1].entries) do if entry.children then combat = i; break end end
+    IC.Menu.levels[1].rows[combat]:Fire("OnEnter"); assert(IC.Menu.levels[2]:IsShown())
+    IC.Menu.catcher:Hide(); assert(not IC.Menu.levels[2].shown)
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", { buttonName = "RightButton" }); assert(IC.Editor.frame:IsShown())
+    local key = IC.Editor.pages.Home.wheelKey; key:Click("LeftButton"); assert(key.capturing)
+    IC.Editor.frame:Hide(); key:Fire("OnHide"); assert(not key.capturing)
 end)
+assert(loadfile("tests/ui_enhancements.lua"))()(test, eq, page, point, pointAt)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

@@ -1,91 +1,92 @@
 # In Character
 
-An emote and roleplay dialogue launcher for **WoW Forever, interface 16001**. Native Lua; no runtime dependencies.
+A native Lua emote and dialogue launcher for **WoW Forever, interface 16001**. Use a categorized menu, a radial wheel or configurable quick bars. Dialogue can be a **specific message**, a random line, a shuffled line or the next line in order.
 
 ## Install
 
-**[Download the installable addon ZIP](https://github.com/stronk-dev/wow_forever_mod_in_character/releases/download/v0.3.1/InCharacter-0.3.1.zip)** · [Release notes](https://github.com/stronk-dev/wow_forever_mod_in_character/releases/tag/v0.3.1)
+[GitHub Releases and installable ZIPs](https://github.com/stronk-dev/wow_forever_mod_in_character/releases)
 
-This is a test release: automated checks pass, but live Forever verification is still pending. Download the named addon ZIP under **Assets**, rather than GitHub's automatically generated source-code archives.
+Download the named **InCharacter-0.5.0.zip** asset, rather than GitHub's generated source archive. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` so `AddOns/InCharacter/InCharacter.toc` exists. Enable it at character select. For a local build, run `python3 scripts/package.py`; the ZIP is written to `dist/`.
 
-Extract `InCharacter-0.3.1.zip` into:
+This is a **test release**. Automated logic and UI callback tests pass; rendering and client behavior still need testing in Forever. Before upgrading, close WoW and back up both account and character `WTF/.../SavedVariables/InCharacter.lua` files.
+
+## Get started
+
+- Click the round **In Character** button for the menu. Shift-drag moves it. Right-click opens settings; `/ic` and **Options → AddOns → In Character** open the same controls.
+- **Home / setup** lets you show/hide the launcher, assign the wheel key, choose click/experimental hold mode, toggle a favorites bar, or create bars for the five emote categories.
+- **Emote library** has categories, search, reference metadata filters, previews/details, pinning, custom names and an icon picker. Runtime token recognition controls availability. Custom names apply in the menu, wheel and bars.
+- **Dialogue & messages** manages named pools and their individual messages. Use any pool names you like. Greetings, Quotes and Farewells are empty starter examples, not a limit on the addon.
+- **Favorite actions** reorders pins and offers Preview, Play, Unpin and Create bar. The first four visible favorites also have key bindings.
+- **Bars, wheel & button** configures sources, button size, wrapping, orientation, collapse, visibility, lock, positions, launcher size and key bindings. **Profiles** selects shared or private data and independently shared or private layouts.
+
+## Dialogue: choose what each click does
+
+Create a pool, name it, choose SAY/YELL/EMOTE, select its normal playback mode, and enter one message per line. Save it. The optional preset library copies editable Office/Dutch culture examples; see [LIBRARY.md](LIBRARY.md). Nothing is sent by creating, saving, copying or previewing.
+
+| Control | What it does |
+| --- | --- |
+| **Play next** | Sends one saved line using that pool's current mode. |
+| **Random message** | Picks one saved line uniformly, with repeats possible. |
+| **Browse / edit messages** | Opens the message list and an editor for the selected message. |
+| **Send this message** | Sends exactly the selected, saved message. It does not advance any pool's playback. |
+| **Preview only** | Shows the complete message in a scrollable local preview; nothing is sent. |
+| **Pin message / Create message bar** | Makes a favorite or a bar for that exact message. |
+
+The message browser also has New, Save, Discard, Move up/down, confirmed Delete, channel/mode dropdowns, a byte counter, and Play next/Random from pool buttons. Edited messages must be saved or discarded before **Send this message** is enabled. The main pool editor similarly refuses to play a saved pool while its bulk draft is pending.
+
+Specific-message pins use stable IDs. Editing/reordering in the message browser keeps them pointing at the same message. Bulk text editing preserves IDs for unchanged/reordered text; replaced text receives new IDs, and the editor reports removed pins. A bar referencing a deleted message becomes visibly unavailable rather than sending another message.
+
+Random/shuffle/in-order overrides appear in pool submenus. Each override has its own playback state; using Random does not disturb the normal shuffle or sequence. All selection states are session-only.
+
+Pool and message drafts survive switching items/pages and closing the window until `/reload`. **Save** is required for persistence. Previewing does not consume a shuffle bag or sequence.
+
+## Menus and radial wheel
+
+The launcher menu shows favorites, emote categories and dialogue groups. Navigate **group → pool → playback choices → Choose a specific message**. Hover opens cascading submenus; Back returns one level. Right-click a playable action to pin/unpin it. Click to use it once. Clicking outside or Escape closes the menu.
+
+The wheel uses the same action hierarchy. At the root, pointing at an inner category changes the outer ring. **Click a group to enter it**; the breadcrumb shows where you are. The centre returns **Back**, or cancels at the root. Inside a submenu, crossing an inner sector does not change context; explicitly click an inner category to jump there. Scroll changes pages, including long lists of individual messages. Right-click or Escape cancels from any depth.
+
+Click confirmation is the default. Experimental hold/release requires moving the cursor, then pausing over a playable action for at least 0.15 seconds before releasing the bound key. Releasing over a submenu, immediately after a page/context change, in the centre, or outside the wheel sends nothing. `/ic wheel` always uses click confirmation. Hold/release behavior still needs a live-client test.
+
+Bars support favorites, categories, all pools, one pool, a random-pool action, all messages in a pool, or one exact message. Visible arrows and mouse-wheel paging make every entry reachable; page capacity adapts to the screen and button size. Titles move/collapse bars; right-click a title opens its settings. Layout rebuilding/paging waits until after combat, while existing actions, the launcher menu and wheel remain available subject to client restrictions.
+
+## Commands and keys
 
 ```text
-World of Warcraft/_forever_/Interface/AddOns/
-```
-
-Or copy the repository's `InCharacter/` folder there. `InCharacter.toc` should sit directly inside `AddOns/InCharacter/`.
-
-Enable the addon, then enter:
-
-```text
-/console scriptErrors 1
-/reload
-/ic
-```
-
-## Try a preset
-
-1. Open **Dialogue Pools**.
-2. Choose Stanley, Mastermovies/Michael Nicht, another Office character, or everyday Dutch.
-3. Click **Copy + greet/quote/bye** to create editable pools and connect their available shortcuts.
-4. Preview a line, then click a pool's **Favorite** button to put it on the quick bar.
-5. Click that bar button to send one line.
-
-**Copy preset** creates pools without changing shortcuts. Nothing sends automatically. Your supplied Stanley and Michael Nicht phrases are preserved verbatim. See [the library catalogue](LIBRARY.md) for contents and sources.
-
-## Make it your own
-
-- **Dialogue Pools:** create/rename/reorder/delete pools; edit one saying per line; choose SAY/YELL/EMOTE and random/shuffle/sequential mode. **Save** persists edits. Drafts survive switching pools/tabs or closing the editor for this session; they do not survive `/reload`. **Discard draft** restores saved text.
-- **Emotes:** choose favorites and customize labels/icons. Tokens are checked against the client. The animated filter uses Charades' curated reference list; audio/text-only status still needs a live check.
-- **Bars:** add bars, choose a pool/category/favorites, resize buttons, switch orientation, lock or hide. Drag titles to move; click titles to collapse. Scroll for more buttons.
-- **Wheel:** `/ic wheel` opens a nested click-confirm menu with direct favorites, Back and pagination. Escape/right-click cancels. It stays usable in combat; chat/emotes remain subject to client restrictions.
-- **Profiles:** share dialogue/favorites/settings or keep them private to a character. Choose bar-layout scope independently. A private profile is copied from the current shared profile only when first selected. Existing private profiles are retained when switching scopes.
-
-Assign **In Character** keys in WoW's Key Bindings for the editor, wheel and visible favorites 1–4. No keys are assigned automatically. Optional hold/release mode requires hovering a visible action for 0.15 seconds; it is experimental until verified in Forever. Submenus always require a click. `/ic wheel` always uses click confirmation.
-
-```text
+/ic                         setup and editor
+/ic emotes                  emote library
+/ic menu                    categorized menu at cursor
+/ic wheel                   radial wheel
+/ic My Custom Pool          normal playback from a named pool
+/ic play random My Pool     explicit random playback
+/ic play shuffle My Pool    explicit shuffle playback
+/ic play sequential My Pool explicit in-order playback
+/ic message <pool> <id>     an exact message (IDs shown in its editor)
+/ic greet                   optional Greetings shortcut
+/ic quote                   optional Quotes shortcut
+/ic bye                     optional Farewells shortcut
 /ic help
-/ic greet
-/ic quote
-/ic bye
-/ic My Custom Pool
-/ic pool My Custom Pool
 ```
 
-Pool names support case/punctuation normalization. Duplicate/reserved names can be addressed by exact ID with `/ic pool <ID>`; the editor shows IDs. Profiles can reset the three shortcut mappings. If another addon already owns `/ic` at load time, use `/incharacter`.
+`/ic pool <exact pool ID>` resolves duplicate/reserved names. If `/ic` already belongs to another addon at load time, use `/incharacter`. No keys are assigned automatically. In-addon key capture and WoW's **Key Bindings → In Character** expose window, wheel, menu and favorite 1–4 bindings.
 
-## What is tested
+## Data, metadata and safety
 
-**40 logic/library tests and 14 isolated mocked UI tests pass on Lua 5.5.1 and LuaJIT 2.1.** Lua syntax, matching TOCs, XML bindings and ZIP integrity/layout checks also pass. CI is configured for Lua 5.1/LuaJIT; remote CI execution is separate from these local results.
+- Shared data is `InCharacterDB`; character settings/layouts are `InCharacterCharDB`. Schema 4 adds message IDs and canonicalizes legacy `/joke` favorites without replacing user text. Legacy realm-keyed originals remain available for recovery.
+- Stored quotes have no addon length/count limit. Sending is conservatively limited to **255 UTF-8 bytes after literal pipe escaping**, with no control characters. Long messages remain editable and previewable; nothing is truncated or split into spam.
+- Chat predicates are checked before selection. Known restrictions and reported send failures leave playback unchanged; nothing is queued. A silent server rejection may remain undetectable.
+- Badges marked **(ref)** describe the Retail reference catalogue, not verified Forever audio/animation. Client token recognition establishes availability only. Check nearby sound with a second player. No custom addon audio is broadcast.
+- There are no timers that send chat, arbitrary slash/macro execution, spells, item use or targeting actions. Only direct player input dispatches an action.
+- Profile import/export, custom emote authoring, native action-bar drag/drop and full UI localization remain deferred.
 
-**No live WoW client has been tested in this implementation session.** Follow [the Forever checklist](FOREVER_TEST_CHECKLIST.md) for loading/rendering, chat acceptance, nearby emote audio, real combat/taint behavior, key release and reload/full-restart persistence.
+## Verification and contributions
 
-The reported beta SavedVariables bug was [marked fixed in build 70009](https://github.com/ClassicWoWCommunity/forever-bugs/issues/34). Normal SavedVariables are used; no workaround is installed.
-
-## Limits and upgrades
-
-- Stored quotes have no addon length/count limit. Sending allows at most **255 UTF-8 bytes after literal pipe escaping**. Longer lines remain editable/previewable. Nothing is truncated or split into multiple sends.
-- Lockdown/account chat predicates are checked before selection. Reported failures leave playback unchanged; no chat is queued. A silent server rejection can still be undetectable.
-- Wheel/buttons run only direct chat/emotes. Editor opening and bar-layout rebuilds wait until combat ends. No spells, items, targeting, arbitrary slash/macro execution or automatic chat.
-- Shuffle/sequential state lasts for the session and resets on relevant edits/profile changes. Repeated text is treated as separate entries. Shuffle can repeat across cycle boundaries.
-- Shared data is `InCharacterDB`; character scope/layout is `InCharacterCharDB`, declared with `SavedVariablesPerCharacter`. Schema 3 copies old realm-keyed records on each character's first upgraded login. Legacy originals remain in `InCharacterDB.characters` for recovery. If both realm spellings have records, the addon reports the conflict and preserves both.
-- Pack updates never overwrite installed pool copies. Profile import/export, native action-bar drag/drop, a larger icon browser and verified nearby-audio metadata remain deferred.
-
-Before upgrading, close WoW and back up both account and character `SavedVariables/InCharacter.lua` files under `WTF/`.
-
-## Development
+Local results: **61 logic/library tests and 36 isolated mocked UI tests** pass under Lua 5.5.1 and LuaJIT 2.1, plus manifest/XML/Lua syntax and ZIP checks. Mocks do not establish visual quality or client compatibility. Follow [FOREVER_TEST_CHECKLIST.md](FOREVER_TEST_CHECKLIST.md).
 
 ```sh
-lua tests/run.lua
-lua tests/ui.lua
-luajit tests/run.lua
-luajit tests/ui.lua
-python3 scripts/verify.py
-LUA=luajit python3 scripts/verify.py
-python3 scripts/package.py
+lua tests/run.lua && lua tests/ui.lua
+luajit tests/run.lua && luajit tests/ui.lua
+python3 scripts/verify.py && python3 scripts/package.py
 ```
 
-Packaging reads the release version from the TOC. Runtime modules are in `InCharacter/`; tests, packaging and CI are outside the addon. The ordinary and `_Camelot.toc` manifests both target 16001, following the inspected Charades convention. `_forever_` is the live path specified for this project.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for small preset PRs, [research notes](docs/RESEARCH.md) for source evidence and [implementation status](docs/IMPLEMENTATION_STATUS.md) for remaining live checks. Original code is MIT; quotation/game-asset rights remain with their owners. Charades attribution is retained in the addon.
+GitHub Actions runs tests and uploads the installable ZIP on pushes/PRs. A version tag (`v0.5.0`) publishes the ZIP as a GitHub prerelease after CI passes. See [CONTRIBUTING.md](CONTRIBUTING.md), [research notes](docs/RESEARCH.md) and [implementation status](docs/IMPLEMENTATION_STATUS.md). Original code is MIT; quotes and game assets retain their owners' rights.

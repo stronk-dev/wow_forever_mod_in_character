@@ -289,3 +289,9 @@ Prioritize an intuitive, reliable addon over implementing every edge case.
 ## Accepted scope addition: community preset library
 
 Provide optional, editable, independently versioned Lua packs for The Office characters and Dutch culture, including Mastermovies / Michael Nicht. Make contribution through pull requests straightforward, with schema validation, source notes, and tests. Never overwrite edited user pools on addon updates or execute supplied macro text. User-supplied Michael Nicht phrases are recorded verbatim in the library alongside the Stanley phrases above. Research may add short, sourced examples for other Office characters; no invented character quotes.
+
+## Accepted scope addition: full dialogue controls and UI
+
+The product is not limited to Greetings / Quotes / Farewells. Players must be able to create arbitrary named pools and deliberately choose a specific saved message or random/shuffle/sequential playback. Expose those actions in a real in-game message editor, favorites, bars, nested launcher menus and the radial wheel. Preserve specific-message pins across edits/reordering using stable identities; never silently retarget a deleted message. Keep legacy shortcuts as conveniences only.
+
+Fix the audited draft loss, custom-name display, 48-entry bar truncation, legacy joke alias pinning and unqualified audio claims. The wheel must retain nested navigation, obvious Back/breadcrumb controls, paging and safe cancellation. Validate actual UI callbacks and data persistence without claiming that mocked tests establish rendered appearance or live-client compatibility.

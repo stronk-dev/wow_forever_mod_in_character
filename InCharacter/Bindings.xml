@@ -5,6 +5,9 @@
     <Binding name="INCHARACTER_WHEEL" runOnUp="true" category="ADDONS">
         InCharacter_WheelBinding(keystate)
     </Binding>
+    <Binding name="INCHARACTER_MENU" category="ADDONS">
+        InCharacter_MenuBinding()
+    </Binding>
     <Binding name="INCHARACTER_FAVORITE1" category="ADDONS">InCharacter_FavoriteBinding(1)</Binding>
     <Binding name="INCHARACTER_FAVORITE2" category="ADDONS">InCharacter_FavoriteBinding(2)</Binding>
     <Binding name="INCHARACTER_FAVORITE3" category="ADDONS">InCharacter_FavoriteBinding(3)</Binding>

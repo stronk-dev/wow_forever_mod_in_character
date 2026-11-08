@@ -27,6 +27,14 @@ function IC.Trim(text) return (tostring(text or ""):gsub("^%s+", ""):gsub("%s+$"
 function IC.Normalize(text)
     return (IC.Trim(text):lower():gsub("%s+", "-"):gsub("[^%w_\128-\255%-]", ""))
 end
+function IC.ShortText(text, limit)
+    text, limit = tostring(text or ""):gsub("[\r\n]", " "), limit or 64
+    if #text <= limit then return text end
+    local stop = limit
+    while stop > 0 and text:byte(stop + 1) and text:byte(stop + 1) >= 128 and text:byte(stop + 1) <= 191 do stop = stop - 1 end
+    return text:sub(1, stop) .. "..."
+end
+function IC.DisplayText(text) return (tostring(text or ""):gsub("|", "||")) end
 function IC.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd6b56cIn Character:|r " .. tostring(text)) end
 end
@@ -38,7 +46,8 @@ function IC.Refresh()
     if IC.InCombat() then IC.refreshPending = true; return end
     IC.refreshPending = nil
     if IC.Bars then IC.Bars.Refresh() end
-    if IC.Wheel then IC.Wheel.Close() end
+    if IC.Launcher then IC.Launcher.Refresh() end
+    if IC.Menu then IC.Menu.Rebuild() end
 end
 
 function IC.Changed()
@@ -46,8 +55,8 @@ function IC.Changed()
 end
 
 function IC.Help()
-    IC.Print("/ic opens the editor; /ic wheel; /ic greet; /ic quote; /ic bye; /ic pool <pool name or ID>.")
-    IC.Print("/ic <custom pool name> also works. Library presets are optional: install them in Dialogue Pools.")
+    IC.Print("/ic opens the window; /ic emotes; /ic menu; /ic wheel; /ic greet; /ic quote; /ic bye; /ic pool <name or ID>.")
+    IC.Print("/ic <pool name>; /ic play random|shuffle|sequential <pool name>; /ic message <pool ID> <message ID>.")
 end
 
 function IC.Slash(input)
@@ -59,6 +68,19 @@ function IC.Slash(input)
     elseif command == "help" then IC.Help()
     elseif command == "wheel" then
         if IC.Wheel then IC.Wheel.Toggle() else IC.Print("Wheel is not loaded.") end
+    elseif command == "menu" then
+        if IC.Menu then IC.Menu.OpenAtCursor() end
+    elseif command == "emotes" or command == "setup" or command == "settings" then
+        if IC.Editor then IC.Editor.Open(command == "emotes" and "Emotes" or "Home") end
+    elseif command == "play" then
+        local mode, name = rest:match("^(%S+)%s+(.+)$")
+        local pool, problem = IC.Dialogue.Find(name or "")
+        if pool and (mode == "random" or mode == "shuffle" or mode == "sequential") then IC.Actions.Dispatch("play:" .. mode .. ":" .. pool.id)
+        else IC.Print(problem or "Use /ic play random|shuffle|sequential <pool name>.") end
+    elseif command == "message" then
+        local poolID, lineID = rest:match("^(%S+)%s+(%S+)$")
+        if poolID and lineID then IC.Actions.Dispatch("line:" .. poolID .. ":" .. lineID)
+        else IC.Print("Use /ic message <pool ID> <message ID>, or choose a message in the menu.") end
     else
         local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
         local shortcut = aliases[command]
@@ -97,7 +119,10 @@ function IC.Initialize(database, characterDatabase)
     InCharacterDB = IC.db
     InCharacterCharDB = IC.Profiles.Character()
     IC.Emotes.Validate()
+    -- Create the overlay frames out of combat; they are plain frames and work in combat afterwards.
     if IC.Wheel and not IC.Wheel.frame then IC.Wheel.Create() end
+    if IC.Menu and not IC.Menu.catcher then IC.Menu.Create() end
+    if IC.SettingsPanel then IC.SettingsPanel.Register() end
     IC.Refresh()
 end
 
@@ -107,9 +132,10 @@ if CreateFrame then
         if event == "ADDON_LOADED" and loaded == IC.name then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()
-            IC.Print("Loaded. /ic opens settings; /ic help lists commands.")
+            IC.Print("Loaded. Click the round button, or type /ic to set things up.")
         elseif event == "PLAYER_REGEN_ENABLED" and IC.refreshPending then IC.Refresh()
         elseif event == "PLAYER_REGEN_DISABLED" then
+            for _, stop in ipairs(IC.UI and IC.UI.captures or {}) do stop() end
             if IC.Editor and IC.Editor.frame then IC.Editor.frame:Hide() end
         end
     end)

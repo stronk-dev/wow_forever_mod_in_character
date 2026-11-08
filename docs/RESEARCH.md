@@ -20,4 +20,12 @@ Code and UI assets are independently written; Charades is a behavioral/API refer
 - The original kit research established the client family/interface and reported compatibility hazards. Chat widgets, key callbacks and frame patterns were inspected in **Charades source**; they were not established by the kit README alone. No complete fresh API-surface scan is claimed in this implementation session.
 - `_forever_` was supplied in SPEC.md; the inspected `_Camelot.toc` evidence comes from Charades. The ordinary interface-16001 TOC remains available as a fallback. No unverified `_Forever.toc` convention is assumed here.
 
+## UI/dialogue follow-up, 0.5.0
+
+The generated modern [SimpleTextureBase API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleTextureBaseAPIDocumentation.lua) was checked: SetTexture declares a boolean success return. That confirms the API shape, not whether a named icon exists or an asynchronous load error is observable on Forever. Fallback handling catches explicit rejection/errors and uses a question mark for empty paths; live asset inspection remains required.
+
+The 0.4.0 catalogue's audio/animation labels are Retail reference metadata. In 0.5.0 the badges, filters and descriptions explicitly identify that provenance and leave actual nearby audibility unverified. Runtime EMOTE token recognition is not used as proof of audio/animation behavior.
+
+New dialogue controls and nested navigation are independently written Lua. They reuse the same validated chat/emote dispatcher; they do not add arbitrary command execution, new protected actions or delayed sends.
+
 Preset research: [NBCUniversal's 20th anniversary article](https://www.nbcuniversal.com/article/celebrating-20-years-office) supports the short Michael Scott and Jim impersonation catchphrases. Jim's bear line belongs to **Jim impersonating Dwight**, not Dwight. [Rainn Wilson interview](https://www.aol.com/rainn-wilson-says-playing-dwight-000000582.html) explicitly discusses that misattribution and quotes Dwight's identity-theft line. Stanley and Michael Nicht lines were supplied directly by the project owner, not independently transcribed. See pack metadata for provenance.

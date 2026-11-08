@@ -1,11 +1,15 @@
+Warcraft Wiki — https://warcraft.wiki.gg/wiki/List_of_emotes
+
+Data/EmoteCatalog.lua records facts from the wiki's emote table: each emote's
+command, aliases and whether the table marks it as animated and/or voiced.
+Wiki text is not copied. Wiki content is available under CC BY-SA 4.0.
+
 Charades — https://github.com/damesene/wow-charades
 
 Wheel.lua, Actions.lua, Editor.lua, Bindings.xml and Charades_Camelot.toc
 were inspected as behavior/API references. In Character's implementation and
 UI are independently written, without Charades assets. The binding declaration's
 runOnUp/keystate pattern follows Charades; its MIT notice is retained here.
-Curated animated-emote command metadata in Data/Emotes.lua is adapted from
-Charades Defaults.lua (AnimatedEmoteCommands and its category declarations).
 
 MIT License
 

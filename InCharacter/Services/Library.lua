@@ -45,6 +45,7 @@ function L.Install(id, useShortcuts)
         pool.icon = definition.icon or pack.icon or IC.Icons[1]
         pool.provenance = { pack = id, version = pack.version, source = pack.source }
         profile.pools[poolID] = pool; profile.poolOrder[#profile.poolOrder + 1] = poolID
+        IC.Dialogue.EnsureLines(pool)
         installed.pools[#installed.pools + 1] = poolID
         if useShortcuts and definition.shortcut then profile.shortcuts[definition.shortcut] = poolID end
     end

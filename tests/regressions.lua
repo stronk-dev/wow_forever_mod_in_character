@@ -89,11 +89,44 @@ return function(IC, test, eq, open)
         DoEmote = function() return false end; assert(IC.Actions.Dispatch("emote:wave"))
         DoEmote, EMOTE1_TOKEN, EMOTE1_CMD1 = nil, nil, nil
     end)
-    test("animated filter has real reference entries; unsupported filters migrate to all", function()
-        open(); IC.Profile().emoteFilter = "animated"
-        local actions = IC.Actions.List("all"); assert(#actions > 0)
-        for _, action in ipairs(actions) do assert(action.animated); eq(action.animationSource, "Charades curated reference") end
+    test("emote library classifies sound, silent animation and text from the catalog", function()
+        local byID = IC.Emotes.byID
+        for _, command in ipairs({ "chicken", "cheer", "laugh", "charge", "healme" }) do eq(byID["emote:" .. command].kind, "sound") end
+        for _, command in ipairs({ "flex", "dance", "sit", "wave" }) do eq(byID["emote:" .. command].kind, "animation") end
+        eq(byID["emote:hug"].kind, "text"); eq(byID["emote:apologize"].kind, "voice")
+        assert(IC.Emotes.IsAudible(byID["emote:apologize"])); assert(not IC.Emotes.IsAudible(byID["emote:dance"]))
+        assert(#IC.Emotes.list >= 250)
+        for _, category in ipairs(IC.Emotes.categories) do
+            assert(#IC.Emotes.byCategory[category] >= 10, category)
+            for _, action in ipairs(IC.Emotes.byCategory[category]) do assert(action.categories[category]) end
+        end
+    end)
+    test("filters separate audible, silent and text-only emotes", function()
+        local M, byID = IC.Emotes.Matches, IC.Emotes.byID
+        assert(M(byID["emote:chicken"], "sound")); assert(not M(byID["emote:dance"], "sound"))
+        assert(M(byID["emote:dance"], "silent")); assert(not M(byID["emote:cheer"], "silent"))
+        assert(M(byID["emote:cheer"], "animated")); assert(M(byID["emote:hug"], "text")); assert(not M(byID["emote:hug"], "animated"))
+        open(); IC.Profile().emoteFilter = "sound"
+        for _, action in ipairs(IC.Actions.List("Idle")) do assert(IC.Emotes.IsAudible(action)) end
         local db = open(); IC.Profile().emoteFilter = "audible"; open(db); eq(IC.Profile().emoteFilter, "all")
+        IC.Profile().emoteFilter = "silent"; open(db); eq(IC.Profile().emoteFilter, "silent")
+    end)
+    test("validation maps aliases, adds client-only emotes and is repeatable", function()
+        EMOTE1_TOKEN, EMOTE1_CMD1, EMOTE1_CMD2 = "SILLY", "/silly", "/joke"
+        EMOTE2_TOKEN, EMOTE2_CMD1 = "BRANDNEW", "/brandnew"
+        IC.Emotes.Validate(); IC.Emotes.Validate()
+        eq(IC.Emotes.byID["emote:joke"], IC.Emotes.byID["emote:silly"]); eq(IC.Emotes.byID["emote:silly"].payload, "SILLY")
+        assert(IC.Emotes.byID["emote:silly"].verified); assert(not IC.Emotes.byID["emote:dance"].verified)
+        local extra = IC.Emotes.byID["emote:brandnew"]; eq(extra.kind, "unknown"); assert(extra.verified)
+        local count = 0; for _, action in ipairs(IC.Emotes.list) do if action.command == "brandnew" then count = count + 1 end end
+        eq(count, 1)
+        EMOTE2_TOKEN, EMOTE2_CMD1 = nil, nil; IC.Emotes.Validate(); eq(IC.Emotes.byID["emote:brandnew"], nil)
+        EMOTE1_TOKEN, EMOTE1_CMD1, EMOTE1_CMD2 = nil, nil, nil; IC.Emotes.Validate()
+    end)
+    test("search matches names and every alias", function()
+        local cry = IC.Emotes.byID["emote:cry"]
+        assert(IC.Emotes.Search(cry, "/sob")); assert(IC.Emotes.Search(cry, "CR")); assert(not IC.Emotes.Search(cry, "dance"))
+        assert(IC.Emotes.Search(IC.Emotes.byID["emote:healme"], "heal me"))
     end)
     test("deleting a pool cleans both loaded layout scopes without changing legacy backups", function()
         local db = open(); local char = IC.Profiles.Character()

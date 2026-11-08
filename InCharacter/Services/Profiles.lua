@@ -1,5 +1,5 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 3 }
+IC.Profiles = { VERSION = 4 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
@@ -8,14 +8,15 @@ local function CompleteLayout(layout)
     return layout
 end
 
-local function CompleteProfile(profile)
+local function CompleteProfile(profile, database)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
     local defaults = IC.Defaults.Profile()
     local pools = profile.pools
     defaults.pools = nil
     if pools ~= nil then defaults.poolOrder = nil end
     IC.Merge(profile, defaults)
-    if profile.emoteFilter ~= "all" and profile.emoteFilter ~= "animated" then profile.emoteFilter = "all" end
+    local filters = { all = true, sound = true, silent = true, animated = true, text = true }
+    if not filters[profile.emoteFilter] then profile.emoteFilter = "all" end
     if pools == nil then profile.pools = IC.Defaults.Profile().pools end
     if type(profile.poolOrder) ~= "table" then profile.poolOrder = {} end
     local seen, order = {}, {}
@@ -27,10 +28,22 @@ local function CompleteProfile(profile)
         if not seen[id] then missing[#missing + 1] = id end
         pool.id = id
         IC.Merge(pool, IC.Defaults.Pool(id, id))
+        IC.Dialogue.EnsureLines(pool, database)
     end
     table.sort(missing)
     for _, id in ipairs(missing) do order[#order + 1] = id end
     profile.poolOrder = order
+    -- Canonicalize legacy aliases without losing a pin or creating duplicates.
+    local favorites, pinned = {}, {}
+    for _, id in ipairs(profile.favorites) do
+        local emote = IC.Emotes.byID[id]
+        local canonical = emote and emote.id or id
+        if not pinned[canonical] then favorites[#favorites + 1] = canonical; pinned[canonical] = true end
+        if canonical ~= id and profile.emoteOverrides[id] and not profile.emoteOverrides[canonical] then
+            profile.emoteOverrides[canonical] = IC.Copy(profile.emoteOverrides[id])
+        end
+    end
+    profile.favorites = favorites
     return profile
 end
 
@@ -45,7 +58,7 @@ function P.Open(database, characterDatabase, legacyKeys)
     end
     -- v1 stored the shared profile under account; retain unknown fields for future migrations.
     if not db.profiles then db.profiles = { account = db.account or IC.Defaults.Profile() } end
-    db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile())
+    db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile(), db)
     db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout())
     if character.version == nil and next(character) == nil and db.characters then
         local matches, seen = {}, {}
@@ -64,7 +77,7 @@ function P.Open(database, characterDatabase, legacyKeys)
     -- Keep all legacy records intact so other characters can migrate when they log in.
     IC.Merge(character, { scope = "account", layoutScope = "character", layout = IC.Defaults.Layout() })
     CompleteLayout(character.layout)
-    if character.profile then CompleteProfile(character.profile) end
+    if character.profile then CompleteProfile(character.profile, db) end
     if character.scope == "character" and not character.profile then character.profile = IC.Copy(db.profiles.account) end
     db.version, character.version = P.VERSION, P.VERSION
     P.db, P.character = db, character
