@@ -14,6 +14,10 @@ function B.GroupRows(config, width)
     return math.max(1, math.ceil(count / math.max(1, math.floor((width - GAP) / 112))))
 end
 function B.Capacity(config)
+    if B.IsStrip and B.IsStrip(config) then
+        local g = IC.Presentation.StripGeometry(config, #IC.Presentation.BarActions(config), UIParent:GetWidth())
+        return g.capacity, g.size, g.columns, g.rows, g.size, g.cellHeight
+    end
     local size = math.max(24, math.min(64, tonumber(config.size) or 36))
     local width = config.buttonStyle == "text" and math.max(100, math.min(320, tonumber(config.buttonWidth) or 148)) or size
     local cellHeight = size + GAP + (config.buttonStyle ~= "text" and config.labels and 14 or 0)
@@ -41,6 +45,7 @@ local function tooltip(button)
     end
     GameTooltip:AddLine(button.catalogPool and "Click: play once · Right-click: put specific lines on a bar · Shift-right-click: settings"
         or "Right-click: edit this bar's shown / hidden items", 0.7, 0.8, 0.7, true)
+    if button.stripDrag and B.IsStrip(button:GetParent().config) then GameTooltip:AddLine("Shift-drag: move · /ic arrange: drag to resize", 0.7, 0.8, 0.7, true) end
     GameTooltip:Show()
 end
 
@@ -178,84 +183,93 @@ local function button(frame, n, text)
     list[n] = slot
     return slot
 end
+B.CreateSlot = button
 
+local function renderGrid(frame, config)
+    if B.HideStripControls then B.HideStripControls(frame) end
+    frame:EnableMouse(true); U.Backdrop(frame, { 0.04, 0.04, 0.06, 0.55 }, { 0.2, 0.2, 0.25, 0.8 })
+    local groups = config.catalog and IC.Presentation.CatalogGroups(config) or {}
+    if config.catalogGroup and config.catalogGroup ~= "all" then
+        local exists; for _, group in ipairs(groups) do if group.id == config.catalogGroup then exists = true end end
+        if not exists then config.catalogGroup = "all" end
+    end
+    local actions = IC.Presentation.BarActions(config)
+    frame.missing = config.source and config.source:match("^line:") and not IC.Actions.Resolve(config.source)
+    local capacity, size, columns, rowLimit, buttonWidth, cellHeight = B.Capacity(config)
+    local pages = math.max(1, math.ceil(#actions / capacity))
+    config.page = math.max(1, math.min(pages, config.page or 1))
+    local offset = (config.page - 1) * capacity
+    local count = math.min(capacity, #actions - offset)
+    local cols = math.min(columns, math.max(1, count))
+    local rows = math.max(1, math.min(rowLimit, math.ceil(count / columns)))
+    if (config.rows or 0) > 0 then rows, cols = rowLimit, columns end
+    if config.catalog then cols = columns end
+    local width = math.max(config.catalog and 320 or 90, cols * (buttonWidth + GAP) + GAP)
+    width = math.min(width, UIParent:GetWidth() - 20)
+    local showHeader = config.catalog or config.catalogCompanion or not config.locked or config.collapsed or frame.missing
+    local headerHeight = (config.catalog or config.catalogCompanion) and 24 or HEADER
+    local top = showHeader and headerHeight or 0
+    local tabRows = B.GroupRows(config, width); top = top + tabRows * 26
+    frame.header:SetShown(showHeader)
+    frame.header:SetHeight(headerHeight)
+    frame.header.text:SetPoint("RIGHT", config.catalog and -160 or ((config.catalogCompanion and -54) or -4), 0)
+    frame.header.text:SetText((config.collapsed and "+ " or "") .. config.name .. (frame.missing and " (message removed)" or ""))
+    local paged = pages > 1 and not config.collapsed
+    frame:SetSize(width, config.collapsed and headerHeight or (top + rows * cellHeight + GAP + (paged and 28 or 0)))
+    frame.mode:SetShown(config.catalog == true); frame.mode:SetText(modeNames[config.poolMode] or "Pool mode")
+    frame.close:SetShown(config.catalog or config.catalogCompanion)
+    frame.edit:SetShown(config.catalog or config.catalogCompanion)
+    for _, tab in ipairs(frame.catalogTabs) do tab:Hide() end
+    if config.catalog and not config.collapsed then
+        local tabs = { { id = "all", label = "All pools" } }; for _, group in ipairs(groups) do tabs[#tabs + 1] = group end
+        local perRow = math.max(1, math.floor((width - GAP) / 112)); local tabWidth = (width - GAP) / perRow - GAP
+        for n, group in ipairs(tabs) do
+            local tab = frame.catalogTabs[n]
+            if not tab then tab = U.Button(frame, "", 0, 0, 100, function(self) B.SelectCatalog(frame.index, self.groupID) end); frame.catalogTabs[n] = tab end
+            tab.groupID = group.id; tab:SetText(group.label); tab.tooltip = (group.title or group.label) .. " · click to show these pools; nothing is sent."
+            tab:ClearAllPoints(); tab:SetPoint("TOPLEFT", GAP + ((n - 1) % perRow) * (tabWidth + GAP), -headerHeight - math.floor((n - 1) / perRow) * 26)
+            tab:SetSize(tabWidth, 22); tab:SetSelected(group.id == (config.catalogGroup or "all")); tab:Show()
+        end
+    end
+    frame.previous:SetShown(paged); frame.next:SetShown(paged); frame.pageLabel:SetShown(paged)
+    frame.previous:ClearAllPoints(); frame.next:ClearAllPoints()
+    frame.previous:SetPoint("BOTTOMLEFT", 2, 2); frame.next:SetPoint("BOTTOMRIGHT", -2, 2)
+    frame.previous:SetSize(28, 26); frame.next:SetSize(28, 26)
+    frame.pageLabel:SetText(config.page .. "/" .. pages)
+    frame:ClearAllPoints(); frame:SetPoint((config.catalog or config.catalogCompanion) and "TOP" or "CENTER", UIParent, "CENTER", config.x, config.y)
+    for _, list in ipairs({ frame.iconButtons, frame.textButtons }) do for _, slot in ipairs(list) do slot:Hide() end end
+    local text = config.buttonStyle == "text"; frame.buttons = text and frame.textButtons or frame.iconButtons
+    frame.empty:SetShown((config.catalog or config.catalogCompanion) and #actions == 0 and not config.collapsed)
+    frame.empty:ClearAllPoints(); frame.empty:SetPoint("TOPLEFT", 6, -top - 6); frame.empty:SetWidth(width - 12)
+    frame.empty:SetText(config.catalogCompanion and "This pool has no saved lines." or "Add lines to any pool, or copy a preset in /ic. Its buttons appear here.")
+    if not config.collapsed then
+        for n = 1, count do
+            local action = actions[offset + n]
+            local slot = button(frame, n, text)
+            local col, row = (n - 1) % cols, math.floor((n - 1) / cols)
+            if config.vertical then col, row = math.floor((n - 1) / rows), (n - 1) % rows end
+            slot.action = action
+            slot:SetSize(buttonWidth, size); slot.catalogPool = config.catalog and action.type == "pool"
+            local normal = slot:GetNormalTexture(); if normal then normal:SetSize(size * 1.7, size * 1.7) end
+            if text then slot.icon:SetSize(math.min(24, size - 8), math.min(24, size - 8)); slot.caption:SetHeight(size - 6) end
+            slot:ClearAllPoints(); slot:SetPoint("TOPLEFT", GAP + col * (buttonWidth + GAP), -top - GAP - row * cellHeight)
+            slot:SetIcon(action.icon, IC.Icons[1])
+            slot.icon:SetDesaturated(action.type == "emote" and not action.verified)
+            local audible = action.type == "emote" and IC.Emotes.IsAudible(action)
+            slot.kind:SetShown(audible); slot.kind:SetVertexColor(0.31, 0.76, 0.97, 1)
+            slot.caption:SetText(IC.ShortText(action.name or action.label, text and 120 or 16)); slot.caption:SetWidth(text and (buttonWidth - 42) or (size + GAP))
+            slot.caption:SetShown(text or config.labels == true)
+            slot:Show()
+        end
+    end
+    frame:SetShown(not config.hidden)
+end
 function B.Refresh()
     if IC.InCombat() then IC.refreshPending = true; return end
     for _, frame in ipairs(B.frames) do frame:Hide() end
     for index, config in ipairs(IC.Layout().bars) do
         local frame = B.frames[index] or createFrame(index); B.frames[index] = frame
         frame.config, frame.index = config, index
-        local groups = config.catalog and IC.Presentation.CatalogGroups(config) or {}
-        if config.catalogGroup and config.catalogGroup ~= "all" then
-            local exists; for _, group in ipairs(groups) do if group.id == config.catalogGroup then exists = true end end
-            if not exists then config.catalogGroup = "all" end
-        end
-        local actions = IC.Presentation.BarActions(config)
-        frame.missing = config.source and config.source:match("^line:") and not IC.Actions.Resolve(config.source)
-        local capacity, size, columns, rowLimit, buttonWidth, cellHeight = B.Capacity(config)
-        local pages = math.max(1, math.ceil(#actions / capacity))
-        config.page = math.max(1, math.min(pages, config.page or 1))
-        local offset = (config.page - 1) * capacity
-        local count = math.min(capacity, #actions - offset)
-        local cols = math.min(columns, math.max(1, count))
-        local rows = math.max(1, math.min(rowLimit, math.ceil(count / columns)))
-        if (config.rows or 0) > 0 then rows, cols = rowLimit, columns end
-        if config.catalog then cols = columns end
-        local width = math.max(config.catalog and 320 or 90, cols * (buttonWidth + GAP) + GAP)
-        width = math.min(width, UIParent:GetWidth() - 20)
-        local showHeader = config.catalog or config.catalogCompanion or not config.locked or config.collapsed or frame.missing
-        local headerHeight = (config.catalog or config.catalogCompanion) and 24 or HEADER
-        local top = showHeader and headerHeight or 0
-        local tabRows = B.GroupRows(config, width); top = top + tabRows * 26
-        frame.header:SetShown(showHeader)
-        frame.header:SetHeight(headerHeight)
-        frame.header.text:SetPoint("RIGHT", config.catalog and -160 or ((config.catalogCompanion and -54) or -4), 0)
-        frame.header.text:SetText((config.collapsed and "+ " or "") .. config.name .. (frame.missing and " (message removed)" or ""))
-        local paged = pages > 1 and not config.collapsed
-        frame:SetSize(width, config.collapsed and headerHeight or (top + rows * cellHeight + GAP + (paged and 28 or 0)))
-        frame.mode:SetShown(config.catalog == true); frame.mode:SetText(modeNames[config.poolMode] or "Pool mode")
-        frame.close:SetShown(config.catalog or config.catalogCompanion)
-        frame.edit:SetShown(config.catalog or config.catalogCompanion)
-        for _, tab in ipairs(frame.catalogTabs) do tab:Hide() end
-        if config.catalog and not config.collapsed then
-            local tabs = { { id = "all", label = "All pools" } }; for _, group in ipairs(groups) do tabs[#tabs + 1] = group end
-            local perRow = math.max(1, math.floor((width - GAP) / 112)); local tabWidth = (width - GAP) / perRow - GAP
-            for n, group in ipairs(tabs) do
-                local tab = frame.catalogTabs[n]
-                if not tab then tab = U.Button(frame, "", 0, 0, 100, function(self) B.SelectCatalog(frame.index, self.groupID) end); frame.catalogTabs[n] = tab end
-                tab.groupID = group.id; tab:SetText(group.label); tab.tooltip = (group.title or group.label) .. " · click to show these pools; nothing is sent."
-                tab:ClearAllPoints(); tab:SetPoint("TOPLEFT", GAP + ((n - 1) % perRow) * (tabWidth + GAP), -headerHeight - math.floor((n - 1) / perRow) * 26)
-                tab:SetSize(tabWidth, 22); tab:SetSelected(group.id == (config.catalogGroup or "all")); tab:Show()
-            end
-        end
-        frame.previous:SetShown(paged); frame.next:SetShown(paged); frame.pageLabel:SetShown(paged)
-        frame.pageLabel:SetText(config.page .. "/" .. pages)
-        frame:ClearAllPoints(); frame:SetPoint((config.catalog or config.catalogCompanion) and "TOP" or "CENTER", UIParent, "CENTER", config.x, config.y)
-        for _, list in ipairs({ frame.iconButtons, frame.textButtons }) do for _, slot in ipairs(list) do slot:Hide() end end
-        local text = config.buttonStyle == "text"; frame.buttons = text and frame.textButtons or frame.iconButtons
-        frame.empty:SetShown((config.catalog or config.catalogCompanion) and #actions == 0 and not config.collapsed)
-        frame.empty:ClearAllPoints(); frame.empty:SetPoint("TOPLEFT", 6, -top - 6); frame.empty:SetWidth(width - 12)
-        frame.empty:SetText(config.catalogCompanion and "This pool has no saved lines." or "Add lines to any pool, or copy a preset in /ic. Its buttons appear here.")
-        if not config.collapsed then
-            for n = 1, count do
-                local action = actions[offset + n]
-                local slot = button(frame, n, text)
-                local col, row = (n - 1) % cols, math.floor((n - 1) / cols)
-                if config.vertical then col, row = math.floor((n - 1) / rows), (n - 1) % rows end
-                slot.action = action
-                slot:SetSize(buttonWidth, size); slot.catalogPool = config.catalog and action.type == "pool"
-                local normal = slot:GetNormalTexture(); if normal then normal:SetSize(size * 1.7, size * 1.7) end
-                if text then slot.icon:SetSize(math.min(24, size - 8), math.min(24, size - 8)); slot.caption:SetHeight(size - 6) end
-                slot:ClearAllPoints(); slot:SetPoint("TOPLEFT", GAP + col * (buttonWidth + GAP), -top - GAP - row * cellHeight)
-                slot:SetIcon(action.icon, IC.Icons[1])
-                slot.icon:SetDesaturated(action.type == "emote" and not action.verified)
-                local audible = action.type == "emote" and IC.Emotes.IsAudible(action)
-                slot.kind:SetShown(audible); slot.kind:SetVertexColor(0.31, 0.76, 0.97, 1)
-                slot.caption:SetText(IC.ShortText(action.name or action.label, text and 120 or 16)); slot.caption:SetWidth(text and (buttonWidth - 42) or (size + GAP))
-                slot.caption:SetShown(text or config.labels == true)
-                slot:Show()
-            end
-        end
-        frame:SetShown(not config.hidden)
+        if B.IsStrip and B.IsStrip(config) then B.RenderStrip(frame, config) else renderGrid(frame, config) end
     end
 end

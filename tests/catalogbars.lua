@@ -6,7 +6,7 @@ return function(IC, test, eq, open)
         local db = { version = 6, profiles = { account = profile }, sharedLayout = IC.Copy(old) }
         local char = { version = 6, scope = "character", profile = IC.Copy(profile), layout = IC.Copy(old) }
         IC.Profiles.Open(db, char)
-        eq(db.version, 7); eq(char.version, 7)
+        eq(db.version, 8); eq(char.version, 8)
         for _, layout in ipairs({ db.sharedLayout, char.layout }) do
             eq(#layout.bars, 2); eq(layout.bars[1].name, "My old bar"); eq(layout.bars[1].x, 135)
             eq(layout.bars[1].source, "Social"); eq(layout.bars[1].columns, 3); assert(layout.bars[1].hiddenActions["emote:bow"])

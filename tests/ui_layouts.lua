@@ -46,7 +46,8 @@ return function(test, eq, page, point, pointAt)
     end)
     test("bar rows columns labels and fill direction control the rendered grid and paging", function(IC, Stub)
         IC.Profile().emoteScope = "all"; IC.Profile().hideUnverified = false
-        local p = page(IC, "Layouts"); p.bSource:Choose("all"); p.bColumns:SetValue(3); p.bRows:SetValue(2); p.bSize:SetValue(48)
+        local p = page(IC, "Layouts"); p.bStyle:Choose("icons"); p.bLabels:SetChecked(true); p.bLabels:Click()
+        p.bSource:Choose("all"); p.bColumns:SetValue(3); p.bRows:SetValue(2); p.bSize:SetValue(48)
         local bar, frame = IC.Layout().bars[1], IC.Bars.frames[1]
         eq(IC.Bars.Capacity(bar), 6); eq(frame.buttons[4].x, frame.buttons[1].x)
         assert(frame.buttons[4].y < frame.buttons[1].y); assert(frame.buttons[1].caption:IsShown())

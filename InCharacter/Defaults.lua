@@ -34,8 +34,14 @@ end
 function IC.Defaults.Bar(index)
     return { name = "Quick bar " .. (index or 1), source = "favorites", vertical = false,
         size = 36, columns = 12, rows = 0, labels = true, buttonStyle = "icons", buttonWidth = 148,
-        poolMode = "pool", hiddenActions = {}, locked = false, hidden = false, collapsed = false, page = 1,
+        poolMode = "pool", strip = false, stripWidth = 388, stripRows = 1, categories = {}, hiddenActions = {}, locked = false, hidden = false, collapsed = false, page = 1,
         x = 0, y = -160 - ((index or 1) - 1) * 70 }
+end
+function IC.Defaults.EmoteBar(index, source)
+    local bar = IC.Defaults.Bar(index)
+    bar.name, bar.source, bar.strip, bar.labels = "Emotes", source or "favoriteEmotes", true, false
+    if source == "categories" then for _, id in ipairs(IC.Emotes.categories) do bar.categories[id] = true end end
+    return bar
 end
 function IC.Defaults.CatalogBar(index)
     local bar = IC.Defaults.Bar(index or 2)
@@ -50,6 +56,6 @@ function IC.Defaults.Launcher()
     return { shown = true, click = "quick", size = 40, x = -420, y = 180 }
 end
 function IC.Defaults.Layout()
-    local emotes = IC.Defaults.Bar(1); emotes.name, emotes.source = "Emotes", "favoriteEmotes"
+    local emotes = IC.Defaults.EmoteBar(1)
     return { bars = { emotes, IC.Defaults.CatalogBar(2) }, launcher = IC.Defaults.Launcher(), catalogBarInitialized = true }
 end

@@ -10,11 +10,23 @@ for _, name in ipairs({ "SetJustifyH", "SetFontObject", "SetWordWrap", "SetAutoF
     "SetToplevel", "Raise", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag",
     "SetPushedTexture", "SetClampRectInsets", "SetBlendMode", "SetAlpha" }) do methods[name] = noop end
 function methods:GetRight() local x = self:GetCenter(); return x + self:GetWidth() / 2 end
+function methods:GetLeft() local x = self:GetCenter(); return x - self:GetWidth() / 2 end
 function methods:GetTop() local _, y = self:GetCenter(); return y + self:GetHeight() / 2 end
 local widget
-function methods:SetSize(w, h) self.width, self.height = w, h end
-function methods:SetWidth(w) self.width = w end
-function methods:SetHeight(h) self.height = h end
+function methods:SetSize(w, h)
+    local changed = self.width ~= w or self.height ~= h
+    self.width, self.height = w, h
+    if changed and self.scripts.OnSizeChanged then self.scripts.OnSizeChanged(self, w, h) end
+end
+function methods:SetWidth(w) self:SetSize(w, self:GetHeight()) end
+function methods:SetHeight(h) self:SetSize(self:GetWidth(), h) end
+function methods:SetResizable(value) self.resizable = value end
+function methods:SetResizeBounds(...) self.resizeBounds = { ... } end
+function methods:StartSizing(edge) assert(self.resizable); self.sizing = edge end
+function methods:StartMoving() self.moving = true end
+function methods:StopMovingOrSizing() self.sizing, self.moving = nil, nil end
+function methods:EnableMouse(value) self.mouseEnabled = value end
+function methods:SetBackdropColor(...) self.backdropColor = { ... } end
 function methods:GetWidth() return self.width or 100 end
 function methods:GetHeight() return self.height or 24 end
 function methods:SetPoint(point, relative, relativePoint, x, y)
@@ -31,6 +43,7 @@ function methods:GetCenter()
     local x, y = parent:GetCenter()
     if self.relativePoint == "BOTTOMLEFT" and parent == UIParent then x, y = 0, 0 end
     if self.point == "TOP" and self.relativePoint == "CENTER" then y = y - self:GetHeight() / 2 end
+    if self.point == "TOPLEFT" and self.relativePoint == "CENTER" then x, y = x + self:GetWidth() / 2, y - self:GetHeight() / 2 end
     return x + (self.x or 0), y + (self.y or 0)
 end
 function methods:SetScale(value) self.scale = value end

@@ -1,11 +1,22 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 7 }
+IC.Profiles = { VERSION = 8 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
     local initializeCatalog = not layout.catalogBarInitialized
     IC.Merge(layout, IC.Defaults.Layout())
-    for index, bar in ipairs(layout.bars) do IC.Merge(bar, IC.Defaults.Bar(index)) end
+    for index, bar in ipairs(layout.bars) do
+        if not bar.stripIntroduced then
+            local emotes = bar.source == "favoriteEmotes" or bar.source == "categories" or bar.source == "all"
+            for _, id in ipairs(IC.Emotes.categories) do if bar.source == id then emotes = true end end
+            if emotes and not bar.catalog and not bar.catalogCompanion and (not bar.buttonStyle or bar.buttonStyle == "icons") then
+                bar.previousGrid = { labels = bar.labels, columns = bar.columns, rows = bar.rows, size = bar.size }
+                bar.strip, bar.labels = true, false
+                bar.stripRows = math.max(1, math.min(4, bar.rows or 1))
+            end
+        end
+        IC.Merge(bar, IC.Defaults.Bar(index)); bar.stripIntroduced = true
+    end
     if initializeCatalog and #layout.bars > 0 then
         local found
         for _, bar in ipairs(layout.bars) do if bar.catalog then found = true end end

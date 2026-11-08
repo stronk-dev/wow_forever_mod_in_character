@@ -113,7 +113,7 @@ local function categoryBars(create)
     for i = #bars, 1, -1 do if bars[i].auto then table.remove(bars, i) end end
     if create then
         for n, id in ipairs(IC.Emotes.categories) do
-            local bar = IC.Defaults.Bar(#bars + 1)
+            local bar = IC.Defaults.EmoteBar(#bars + 1, id)
             bar.name, bar.source, bar.auto, bar.columns, bar.size = IC.Emotes.CategoryInfo[id].label, id, true, 8, 32
             bar.x, bar.y = 300, 240 - (n - 1) * 92
             bars[#bars + 1] = bar
@@ -162,13 +162,14 @@ local function createHome(p)
     }, function(value) IC.Profile().quick.style = value end)
     U.Button(p.wheel, "Try it", 274, -128, 100, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
     p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Pinned emote bar",
-        "Your familiar emote hotbar. New installs keep pinned emotes here, separate from RP. Its source can include all favorites if you prefer.")
+        "A compact emote hotbar. Arrange lets you drag its width; icons fit that space. Choose pinned emotes or combine enabled categories in bar settings.")
     p.favToggle = U.Button(p.fav, "", 66, -104, 170, function()
         local bar = favoritesBar()
-        if not bar then bar = IC.Defaults.Bar(#IC.Layout().bars + 1); bar.name, bar.source = "Emotes", "favoriteEmotes"; table.insert(IC.Layout().bars, bar)
+        if not bar then bar = IC.Defaults.EmoteBar(#IC.Layout().bars + 1); table.insert(IC.Layout().bars, bar)
         else bar.hidden = not bar.hidden end
         changed(); E.RefreshHome()
     end, "accent")
+    p.favArrange = U.Button(p.fav, "Arrange", 244, -104, 124, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
     p.rp = card(p, half, -238, "Interface\\Icons\\INV_Misc_Book_09", "Roleplay action bar",
         "Labeled buttons for any named pools. Click to play; right-click for a bar of specific lines. Visible tabs switch your preset sets.")
     p.rpToggle = U.Button(p.rp, "", 66, -104, 190, function() IC.Bars.ToggleCatalog(); E.RefreshHome() end, "accent")
@@ -510,7 +511,8 @@ end
 -- Layouts -----------------------------------------------------------------------------------------
 local function currentBar() return IC.Layout().bars[E.barIndex] end
 local function barSources()
-    local sources = { { value = "favoriteEmotes", label = "Pinned emotes only" }, { value = "favorites", label = "All favorites" } }
+    local sources = { { value = "favoriteEmotes", label = "Pinned emotes only" }, { value = "categories", label = "Enabled emote categories (combined)" },
+        { value = "all", label = "All enabled emotes" }, { value = "favorites", label = "All favorites" } }
     for _, id in ipairs(IC.Emotes.categories) do sources[#sources + 1] = { value = id, label = "Emotes: " .. IC.Emotes.CategoryInfo[id].label } end
     sources[#sources + 1] = { value = "pools", label = "All dialogue pools" }
     for _, id in ipairs(IC.Profile().poolOrder) do sources[#sources + 1] = { value = "pool:" .. id, label = "Pool: " .. IC.Profile().pools[id].name } end
@@ -546,9 +548,19 @@ function E.RefreshLayouts()
     p.barForm:SetShown(bar ~= nil); p.noBars:SetShown(bar == nil)
     if not bar then return end
     p.bName:SetText(bar.name); p.bSource:SetOptions(barSources()); p.bSource:SetValue(bar.source)
+    local strip = IC.Bars.IsStrip(bar)
+    p.bSize.text = strip and "Maximum icon size" or "Button size"
     p.bSize:Set(bar.size); p.bColumns:Set(bar.columns or 12)
     p.bRows:Set(bar.rows or 0); p.bLabels:SetChecked(bar.labels == true)
-    p.bStyle:SetValue(bar.buttonStyle); p.bWidth:Set(bar.buttonWidth)
+    p.bStyle:SetValue(strip and "strip" or bar.buttonStyle); p.bWidth:Set(bar.buttonWidth)
+    p.bStripWidth:Set(bar.stripWidth); p.bStripRows:Set(bar.stripRows)
+    p.bStripWidth:SetShown(strip); p.bStripWidth.caption:SetShown(strip)
+    p.bStripRows:SetShown(strip); p.bStripRows.caption:SetShown(strip)
+    p.bColumns:SetShown(not strip); p.bColumns.caption:SetShown(not strip)
+    p.bRows:SetShown(not strip); p.bRows.caption:SetShown(not strip); p.bOrientation:SetShown(not strip)
+    p.bCategories:SetShown(bar.source == "categories")
+    p.bChooseCategories:SetShown(bar.source == "categories")
+    for id, check in pairs(p.bCategoryChecks) do check:SetChecked(bar.categories[id] == true) end
     p.bPlayback:SetValue(bar.poolMode); p.bCatalog:SetChecked(bar.catalog == true); p.bHideEmpty:SetChecked(bar.hideEmpty == true)
     p.bWidth:SetShown(bar.buttonStyle == "text"); p.bWidth.caption:SetShown(bar.buttonStyle == "text")
     p.bSummary:SetText(#IC.Presentation.BarActions(bar) .. " shown / " .. #IC.Presentation.BarActions(bar, true) .. " source entries")
@@ -563,7 +575,7 @@ local function section(parent, title, x, y, width, height)
 end
 local function createLayouts(p)
     p.layoutScroll = U.Scroll(p, 0, 0, PAGE_W, PAGE_H)
-    p.layoutScroll:SetContentHeight(950)
+    p.layoutScroll:SetContentHeight(1140)
     local canvas = p.layoutScroll.content
     local half = (PAGE_W - 34) / 2
     local s = section(canvas, "Launcher button & dropdown menu", 0, 0, half, 270)
@@ -594,14 +606,18 @@ local function createLayouts(p)
     p.wPageSize = U.Slider(s, "Items per ring", half / 2 + 6, -150, (half - 36) / 2, 4, 12, 1, function(value) IC.Profile().wheel.pageSize = value end)
     p.wDeadZone = U.Slider(s, "Neutral centre", 12, -206, (half - 36) / 2, 30, 100, 2, function(value) IC.Profile().wheel.deadZone = value end)
     p.editWheel = U.Button(s, "Edit quick items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
-    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 600)
+    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 790)
     p.which = U.Dropdown(s, 12, -32, 260, {}, function(value) E.barIndex = value; E.RefreshLayouts() end)
     U.Button(s, "+ Add bar", 280, -32, 110, function()
         local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.Bar(#bars + 1); E.barIndex = #bars; changed(); E.RefreshLayouts()
     end, "accent")
     U.Button(s, "Bars per category", 396, -32, 150, function() categoryBars(not hasCategoryBars()); E.RefreshLayouts() end)
+    p.addStrip = U.Button(s, "+ Emote hotbar", 552, -32, 174, function()
+        local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.EmoteBar(#bars + 1, "categories")
+        E.barIndex = #bars; changed(); E.RefreshLayouts()
+    end, "accent")
     p.noBars = U.Muted(s, "No bars yet. Add one, or create one bar per category.", 12, -70, PAGE_W - 24)
-    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W - 24, 526)
+    p.barForm = CreateFrame("Frame", nil, s); p.barForm:SetPoint("TOPLEFT", 0, -64); p.barForm:SetSize(PAGE_W - 24, 716)
     local b = p.barForm
     U.Muted(b, "Name", 12, 0); p.bName = U.Input(b, 12, -14, 260)
     U.Button(b, "Rename", 280, -14, 110, function()
@@ -614,15 +630,23 @@ local function createLayouts(p)
     p.bSource = U.Dropdown(b, 12, -60, 378, {}, function(value)
         local bar = currentBar(); if not bar then return end
         bar.source, bar.page = value, 1
+        if value == "categories" and not next(bar.categories) then for _, id in ipairs(IC.Emotes.categories) do bar.categories[id] = true end end
         if value ~= "pools" then bar.catalog, bar.catalogGroup = false, "all" end
         changed(); E.RefreshLayouts()
     end)
     p.bOrientation = U.Dropdown(b, 396, -60, 150, {
         { value = "horizontal", label = "Fill rows first" }, { value = "vertical", label = "Fill columns first" },
     }, function(value) local bar = currentBar(); if bar then bar.vertical = value == "vertical"; changed() end end)
+    p.bChooseCategories = U.Button(b, "Choose categories", 552, -60, 174, function() p.layoutScroll:ScrollTo(830) end)
     p.bSize = U.Slider(b, "Button size", 12, -96, 250, 24, 64, 2, function(value) local bar = currentBar(); if bar then bar.size = value; changed() end end)
     p.bColumns = U.Slider(b, "Columns", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; bar.page = 1; changed() end end)
+    p.bStripWidth = U.Slider(b, "Hotbar width (or drag in Arrange)", 296, -96, 250, 80, 1200, 4, function(value)
+        local bar = currentBar(); if bar then bar.stripWidth = value; bar.page = 1; changed() end
+    end)
     p.bRows = U.Slider(b, "Rows (0 = automatic)", 12, -144, 250, 0, 12, 1, function(value) local bar = currentBar(); if bar then bar.rows = value; bar.page = 1; changed() end end)
+    p.bStripRows = U.Slider(b, "Hotbar rows", 12, -144, 250, 1, 4, 1, function(value)
+        local bar = currentBar(); if bar then bar.stripRows = value; bar.page = 1; changed() end
+    end)
     p.bLabels = U.Check(b, "Show action names", 296, -150, function(value) local bar = currentBar(); if bar then bar.labels = value; changed() end end)
     p.bChecks = {}
     for n, definition in ipairs({ { "collapsed", "Collapsed" }, { "locked", "Lock position" }, { "hidden", "Hidden" } }) do
@@ -639,8 +663,13 @@ local function createLayouts(p)
     p.bSummary = U.Muted(b, "", 260, -288, PAGE_W - 300)
     U.Muted(b, "Button appearance", 12, -314); U.Muted(b, "Pool playback on this bar", 296, -314)
     p.bStyle = U.Dropdown(b, 12, -330, 250, {
-        { value = "icons", label = "Icons with optional names" }, { value = "text", label = "Wide labeled buttons" },
-    }, function(value) local bar = currentBar(); if bar then bar.buttonStyle = value; changed(); E.RefreshLayouts() end end)
+        { value = "strip", label = "Compact auto-fit hotbar" }, { value = "icons", label = "Classic icon grid" }, { value = "text", label = "Wide labeled buttons" },
+    }, function(value)
+        local bar = currentBar(); if not bar then return end
+        bar.strip, bar.buttonStyle = value == "strip", value == "strip" and "icons" or value
+        if bar.strip then bar.labels = false; bar.catalog = false end
+        changed(); E.RefreshLayouts()
+    end)
     p.bPlayback = U.Dropdown(b, 296, -330, 250, {
         { value = "pool", label = "Each pool's saved mode" }, { value = "random", label = "Random" },
         { value = "shuffle", label = "Shuffle" }, { value = "sequential", label = "In order" },
@@ -658,6 +687,16 @@ local function createLayouts(p)
         local bar = currentBar(); if bar then bar.hideEmpty = value; bar.page = 1; changed() end
     end)
     U.Muted(b, "RP buttons: click to play once. Right-click a pool to put its exact lines on a second bar; Shift-right-click edits shown items. Both bars stay open after playing.", 12, -466, PAGE_W - 60)
+    p.bCategories = CreateFrame("Frame", nil, b); p.bCategories:SetPoint("TOPLEFT", 12, -526); p.bCategories:SetSize(PAGE_W - 48, 164)
+    U.Label(p.bCategories, "Emote categories feeding this hotbar", 0, 0)
+    p.bCategoryChecks = {}
+    for n, id in ipairs(IC.Emotes.categories) do
+        local check = U.Check(p.bCategories, IC.Emotes.CategoryInfo[id].label, ((n - 1) % 2) * 310, -26 - math.floor((n - 1) / 2) * 30, function(value)
+            local bar = currentBar(); if bar then bar.categories[id] = value; bar.page = 1; changed() end
+        end)
+        check.caption:SetWidth(264); p.bCategoryChecks[id] = check
+    end
+    U.Muted(p.bCategories, "Categories combine into one bar; duplicates appear once. Your emote review and this bar's hidden-item choices still apply.", 0, -128, PAGE_W - 68)
 end
 
 -- Profiles ----------------------------------------------------------------------------------------

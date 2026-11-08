@@ -179,6 +179,7 @@ test("category bars show only their category and dispatch on click", function(IC
         if slot.action.command == "moo" then assert(slot.icon.desaturated) end
     end
     eq(Stub.emotes[1], "CHICKEN")
+    frame.config.strip = false; IC.Bars.Refresh() -- Classic grids retain their title/collapse controls.
     frame.header:Click("LeftButton"); assert(frame.config.collapsed)
     frame.config.collapsed, frame.config.locked = false, true; IC.Bars.Refresh(); assert(not frame.header:IsShown())
 end)
@@ -263,4 +264,5 @@ assert(loadfile("tests/ui_layouts.lua"))()(test, eq, page, point, pointAt)
 assert(loadfile("tests/ui_quick.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_review.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_catalogbars.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_strips.lua"))()(test, eq, page)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

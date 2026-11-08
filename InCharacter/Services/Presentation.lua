@@ -10,7 +10,18 @@ function P.Filter(actions, config)
     return result
 end
 function P.BarActions(config, raw)
-    local actions = IC.Actions.List(config.source or "favorites", raw)
+    local actions
+    if config.source == "categories" then
+        actions = {}; local seen = {}
+        for _, id in ipairs(IC.Emotes.categories) do
+            if config.categories and config.categories[id] then
+                for _, action in ipairs(IC.Actions.List(id, raw)) do
+                    local key = action.payload or action.id
+                    if not seen[key] then actions[#actions + 1] = action; seen[key] = true end
+                end
+            end
+        end
+    else actions = IC.Actions.List(config.source or "favorites", raw) end
     if raw then return actions end
     actions = P.Filter(actions, config)
     local result = {}
@@ -38,6 +49,23 @@ function P.BarActions(config, raw)
         end
     end
     return P.Filter(result, config)
+end
+-- Pure geometry. Keep a readable minimum; overflow pages instead of shrinking indefinitely.
+function P.StripGeometry(config, count, screenWidth)
+    local gap, padding, minimum = 2, 4, 20
+    local width = math.max(80, math.min(tonumber(config.stripWidth) or 388, math.max(80, (screenWidth or 1920) - 56)))
+    local rows = math.max(1, math.min(4, math.floor(tonumber(config.stripRows) or 1)))
+    local maximum = math.max(minimum, math.min(64, tonumber(config.size) or 36))
+    local limit = math.min(48, math.floor((width - 2 * padding + gap) / (minimum + gap)) * rows)
+    local controls = count > limit and 48 or 0
+    local available = width - 2 * padding - controls
+    local perRow = math.max(1, math.ceil(math.min(count, 48) / rows))
+    local size = math.max(minimum, math.min(maximum, math.floor((available + gap) / perRow) - gap))
+    local columns = math.max(1, math.floor((available + gap) / (size + gap)))
+    local capacity = math.min(48, columns * rows)
+    local cellHeight = size + gap + (config.labels and 14 or 0)
+    return { width = width, size = size, columns = columns, rows = rows, capacity = capacity, gap = gap, padding = padding,
+        height = padding * 2 + rows * cellHeight - gap, cellHeight = cellHeight, controls = controls }
 end
 function P.CatalogGroups(config)
     local groups, byID = {}, {}
