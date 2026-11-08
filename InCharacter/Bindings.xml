@@ -1,0 +1,12 @@
+<Bindings>
+    <Binding name="INCHARACTER_EDITOR" header="INCHARACTER" category="ADDONS">
+        InCharacter_ToggleEditor()
+    </Binding>
+    <Binding name="INCHARACTER_WHEEL" runOnUp="true" category="ADDONS">
+        InCharacter_WheelBinding(keystate)
+    </Binding>
+    <Binding name="INCHARACTER_FAVORITE1" category="ADDONS">InCharacter_FavoriteBinding(1)</Binding>
+    <Binding name="INCHARACTER_FAVORITE2" category="ADDONS">InCharacter_FavoriteBinding(2)</Binding>
+    <Binding name="INCHARACTER_FAVORITE3" category="ADDONS">InCharacter_FavoriteBinding(3)</Binding>
+    <Binding name="INCHARACTER_FAVORITE4" category="ADDONS">InCharacter_FavoriteBinding(4)</Binding>
+</Bindings>
