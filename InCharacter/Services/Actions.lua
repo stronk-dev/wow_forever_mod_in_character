@@ -2,7 +2,12 @@ local _, IC = ...
 IC.Actions = {}
 local A = IC.Actions
 function A.Resolve(id)
-    if IC.Emotes.byID[id] then return IC.Emotes.byID[id] end
+    if IC.Emotes.byID[id] then
+        local action = IC.Copy(IC.Emotes.byID[id])
+        local override = IC.Profile().emoteOverrides[id]
+        if override then action.label = override.label or action.label; action.icon = override.icon or action.icon end
+        return action
+    end
     local poolID = type(id) == "string" and id:match("^pool:(.+)$")
     local pool = poolID and IC.Profile().pools[poolID]
     if pool then return { id = id, type = "pool", label = pool.name, icon = pool.icon, payload = poolID } end
@@ -35,7 +40,7 @@ function A.List(source)
         if action then result[1] = action end
     else
         for _, action in ipairs(IC.Emotes.list) do
-            if (source == "all" or action.categories[source]) and IC.Emotes.Visible(action, profile) then result[#result + 1] = action end
+            if (source == "all" or action.categories[source]) and IC.Emotes.Visible(action, profile) then result[#result + 1] = A.Resolve(action.id) end
         end
     end
     return result

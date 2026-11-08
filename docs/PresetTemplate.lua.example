@@ -1,0 +1,12 @@
+local _, IC = ...
+IC.Library.Register({
+    id = "your-pack", title = "Your pack title", version = 1,
+    culture = "Show / culture / region", locale = "enUS", author = "Your name",
+    source = "Exact source URL, speaker, episode / timestamp; or clearly state original/common expressions.",
+    contentNote = "Describe tone or explicit language. Text only; no custom audio.",
+    pools = {
+        { id = "quotes", name = "Quotes", shortcut = "quotes", mode = "shuffle", channel = "SAY",
+            lines = { "Replace with a short, accurately attributed phrase." },
+        },
+    },
+})

@@ -19,7 +19,7 @@ local function activate(action)
     if action.type == "submenu" then
         M.Enter(W.state, action); W.Render()
     else
-        W.Close(); IC.Actions.Dispatch(action)
+        GameTooltip:Hide(); W.Close(); IC.Actions.Dispatch(action)
     end
 end
 local function actionButton(parent)

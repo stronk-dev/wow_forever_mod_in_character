@@ -1,11 +1,11 @@
 -- Loaded by run.lua; each module registers its pack through the production schema.
 return function(IC, test, eq, open)
     assert(loadfile("InCharacter/Services/Library.lua"))("InCharacter", IC)
-    for _, file in ipairs({ "OfficeStanley", "DutchMastermovies", "DutchEveryday", "OfficeOthers" }) do
-        assert(loadfile("InCharacter/Data/Library/" .. file .. ".lua"))("InCharacter", IC)
+    for file in io.lines("InCharacter/InCharacter.toc") do
+        if file:match("^Data/Library/.+%.lua$") then assert(loadfile("InCharacter/" .. file))("InCharacter", IC) end
     end
-    test("all six library packs validate with provenance", function()
-        eq(#IC.Library.order, 6)
+    test("all library packs validate with provenance", function()
+        assert(#IC.Library.order >= 6)
         for _, id in ipairs(IC.Library.order) do assert(IC.Library.Validate(IC.Library.packs[id])) end
     end)
     test("library copies preserve edits on repeat install and addon update", function()

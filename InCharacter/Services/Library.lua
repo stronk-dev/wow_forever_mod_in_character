@@ -12,6 +12,7 @@ function L.Validate(pack)
     if type(pack.pools) ~= "table" or #pack.pools == 0 then return false, "Missing pools" end
     local seen = {}
     for _, pool in ipairs(pack.pools) do
+        if type(pool) ~= "table" then return false, "Invalid pool" end
         if type(pool.id) ~= "string" or not pool.id:match("^[a-z0-9%-]+$") or seen[pool.id] then return false, "Invalid/duplicate pool ID" end
         seen[pool.id] = true
         if type(pool.name) ~= "string" or pool.name == "" then return false, "Missing pool name" end

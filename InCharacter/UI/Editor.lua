@@ -112,12 +112,26 @@ local function createEmotes(panel)
     panel.rows = {}
     for n = 1, 12 do panel.rows[n] = U.Button(panel, "", 14, -80 - (n - 1) * 30, 300, function(self)
         E.emote = self.action
+        panel.labelInput:SetText(self.action.label); panel.iconInput:SetText(self.action.icon)
         panel.detail:SetText(self.action.label .. "\nToken: " .. self.action.payload .. "\n\n" .. (self.action.verified and "Recognized by client token table." or "Unverified: execution disabled.") .. "\n\nAnimation, audible voice and text-only status: unknown until verified in Forever.")
     end) end
     panel.detail = U.Label(panel, "Select an emote.", 340, -88, 320)
-    U.Button(panel, "Preview", 340, -280, 100, function() if E.emote then E.ShowPreview(E.emote.label .. "\nToken: " .. E.emote.payload .. "\nNo emote or chat sent.") end end)
-    U.Button(panel, "Favorite / remove", 450, -280, 210, function() if E.emote then IC.Actions.Favorite(E.emote.id); emoteRefresh() end end)
-    U.Button(panel, "Try emote", 340, -316, 320, function() if E.emote then IC.Actions.Dispatch(E.emote) end end)
+    U.Label(panel, "Custom label", 340, -250); panel.labelInput = U.Input(panel, 340, -272, 320)
+    U.Label(panel, "Icon texture path", 340, -306); panel.iconInput = U.Input(panel, 340, -328, 320)
+    U.Button(panel, "Save appearance", 340, -362, 155, function()
+        if not E.emote then return end
+        local label, icon = IC.Trim(panel.labelInput:GetText()), IC.Trim(panel.iconInput:GetText())
+        IC.Profile().emoteOverrides[E.emote.id] = { label = label ~= "" and label or nil, icon = icon ~= "" and icon or nil }
+        E.emote = IC.Actions.Resolve(E.emote.id); changed(); emoteRefresh(); status("Saved emote label and icon. Token remains unchanged.")
+    end)
+    U.Button(panel, "Next icon", 505, -362, 155, function()
+        local index = 1
+        for i, icon in ipairs(IC.Icons) do if icon == panel.iconInput:GetText() then index = i % #IC.Icons + 1; break end end
+        panel.iconInput:SetText(IC.Icons[index])
+    end)
+    U.Button(panel, "Preview", 340, -402, 100, function() if E.emote then E.ShowPreview(E.emote.label .. "\nToken: " .. E.emote.payload .. "\nNo emote or chat sent.") end end)
+    U.Button(panel, "Favorite / remove", 450, -402, 210, function() if E.emote then IC.Actions.Favorite(E.emote.id); emoteRefresh() end end)
+    U.Button(panel, "Try emote", 340, -442, 320, function() if E.emote then IC.Actions.Dispatch(E.emote) end end)
     U.Button(panel, "<", 14, -446, 70, function() E.emotePage = E.emotePage - 1; emoteRefresh() end)
     panel.page = U.Label(panel, "", 120, -452)
     U.Button(panel, ">", 244, -446, 70, function() E.emotePage = E.emotePage + 1; emoteRefresh() end)

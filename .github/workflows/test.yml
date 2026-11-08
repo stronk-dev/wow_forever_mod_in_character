@@ -1,0 +1,19 @@
+name: Lua and packaging
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1 and LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y lua5.1 luajit
+      - run: lua5.1 tests/run.lua
+      - run: lua5.1 tests/ui.lua
+      - run: luajit tests/run.lua
+      - run: luajit tests/ui.lua
+      - run: LUA=lua5.1 python3 scripts/verify.py
+      - run: python3 scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InCharacter-addon
+          path: dist/InCharacter-0.3.0.zip

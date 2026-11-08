@@ -22,6 +22,7 @@ function IC.Defaults.Profile()
         emoteFilter = "all", hideUnverified = false,
         installedPacks = {},
         shortcuts = {},
+        emoteOverrides = {},
     }
 end
 function IC.Defaults.Bar(index)

@@ -2,6 +2,12 @@ local _, IC = ...
 IC.Profiles = { VERSION = 2 }
 local P = IC.Profiles
 
+local function CompleteLayout(layout)
+    IC.Merge(layout, IC.Defaults.Layout())
+    for index, bar in ipairs(layout.bars) do IC.Merge(bar, IC.Defaults.Bar(index)) end
+    return layout
+end
+
 local function CompleteProfile(profile)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
     local defaults = IC.Defaults.Profile()
@@ -36,13 +42,15 @@ function P.Open(database, characterKey)
     if not db.profiles then db.profiles = { account = db.account or IC.Defaults.Profile() } end
     db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile())
     db.characters = db.characters or {}
-    db.sharedLayout = db.sharedLayout or IC.Defaults.Layout()
+    db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout())
     for _, character in pairs(db.characters) do
         if character.profile then CompleteProfile(character.profile) end
+        if character.layout then CompleteLayout(character.layout) end
     end
     local character = db.characters[characterKey]
     if not character then character = {}; db.characters[characterKey] = character end
     IC.Merge(character, { scope = "account", layoutScope = "character", layout = IC.Defaults.Layout() })
+    CompleteLayout(character.layout)
     character.profile = character.profile or IC.Copy(db.profiles.account)
     CompleteProfile(character.profile)
     db.version = P.VERSION

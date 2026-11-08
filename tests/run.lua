@@ -108,4 +108,26 @@ test("custom pool normalization, unique IDs and favorite cleanup", function()
     IC.Dialogue.Delete(one.id); assert(not IC.Actions.IsFavorite("pool:" .. one.id))
 end)
 assert(loadfile("tests/library.lua"))()(IC, test, eq, open)
+test("new bar defaults merge into existing layouts without restoring deleted bars", function()
+    local db = open(); IC.Layout().bars = { { name = "Old", x = 55, hidden = true } }
+    db.sharedLayout.bars = {}; open(db)
+    eq(IC.Layout().bars[1].source, "favorites"); eq(IC.Layout().bars[1].name, "Old"); eq(IC.Layout().bars[1].x, 55)
+    eq(IC.Layout().bars[1].hidden, true); eq(#db.sharedLayout.bars, 0)
+end)
+test("emote label/icon overrides do not change trusted tokens", function()
+    open(); IC.Profile().emoteOverrides["emote:wave"] = { label = "Hi!", icon = IC.Icons[2] }
+    local action = IC.Actions.Resolve("emote:wave"); eq(action.label, "Hi!"); eq(action.icon, IC.Icons[2]); eq(action.payload, "WAVE")
+    eq(IC.Emotes.byID["emote:wave"].label, "/wave")
+end)
+test("failed chat attempts are not queued and preserve selection", function()
+    open(); local pool = IC.Profile().pools.quotes; pool.lines = { "first", "second" }; pool.mode = "sequential"
+    C_ChatInfo = { SendChatMessage = function() error("blocked by client") end }
+    assert(not IC.Actions.Dispatch("pool:quotes"))
+    C_ChatInfo = { SendChatMessage = function(text) eq(text, "first") end }
+    assert(IC.Actions.Dispatch("pool:quotes")); C_ChatInfo = nil
+end)
+test("deleting preset pools clears dangling shortcuts", function()
+    open(); IC.Library.Install("office-stanley", true)
+    local id = IC.Profile().shortcuts.greetings; IC.Dialogue.Delete(id); eq(IC.Profile().shortcuts.greetings, nil)
+end)
 print("PASS: " .. total .. " tests")

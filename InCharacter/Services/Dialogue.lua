@@ -80,6 +80,8 @@ end
 function D.Delete(id)
     local profile = IC.Profile()
     profile.pools[id] = nil
+    D.Clear(id)
+    for shortcut, poolID in pairs(profile.shortcuts) do if poolID == id then profile.shortcuts[shortcut] = nil end end
     for i = #profile.poolOrder, 1, -1 do if profile.poolOrder[i] == id then table.remove(profile.poolOrder, i) end end
     for i = #profile.favorites, 1, -1 do if profile.favorites[i] == "pool:" .. id then table.remove(profile.favorites, i) end end
     for _, layout in ipairs({ IC.Layout() }) do
