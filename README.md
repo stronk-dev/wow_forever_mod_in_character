@@ -6,7 +6,7 @@ A native Lua emote and dialogue launcher for **WoW Forever, interface 16001**. U
 
 [GitHub Releases and installable ZIPs](https://github.com/stronk-dev/wow_forever_mod_in_character/releases)
 
-Download the named **InCharacter-0.5.0.zip** asset, rather than GitHub's generated source archive. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` so `AddOns/InCharacter/InCharacter.toc` exists. Enable it at character select. For a local build, run `python3 scripts/package.py`; the ZIP is written to `dist/`.
+Download the named **InCharacter-0.5.1.zip** asset, rather than GitHub's generated source archive. Extract it into `World of Warcraft/_forever_/Interface/AddOns/` so `AddOns/InCharacter/InCharacter.toc` exists. Enable it at character select. For a local build, run `python3 scripts/package.py`; the ZIP is written to `dist/`.
 
 This is a **test release**. Automated logic and UI callback tests pass; rendering and client behavior still need testing in Forever. Before upgrading, close WoW and back up both account and character `WTF/.../SavedVariables/InCharacter.lua` files.
 
@@ -68,7 +68,7 @@ Bars support favorites, categories, all pools, one pool, a random-pool action, a
 /ic help
 ```
 
-`/ic pool <exact pool ID>` resolves duplicate/reserved names. If `/ic` already belongs to another addon at load time, use `/incharacter`. No keys are assigned automatically. In-addon key capture and WoW's **Key Bindings → In Character** expose window, wheel, menu and favorite 1–4 bindings.
+`/ic pool <exact pool ID>` resolves duplicate/reserved names. If `/ic` already belongs to another addon at load time, use `/incharacter`. No keys are assigned automatically. In-addon key capture and WoW's **Key Bindings → In Character** expose window, wheel, menu and favorite 1–4 bindings. Key capture listens only after you click a binding control; Escape, another click, closing the page, combat or 15 seconds without a selection cancels it.
 
 ## Data, metadata and safety
 
@@ -76,12 +76,13 @@ Bars support favorites, categories, all pools, one pool, a random-pool action, a
 - Stored quotes have no addon length/count limit. Sending is conservatively limited to **255 UTF-8 bytes after literal pipe escaping**, with no control characters. Long messages remain editable and previewable; nothing is truncated or split into spam.
 - Chat predicates are checked before selection. Known restrictions and reported send failures leave playback unchanged; nothing is queued. A silent server rejection may remain undetectable.
 - Badges marked **(ref)** describe the Retail reference catalogue, not verified Forever audio/animation. Client token recognition establishes availability only. Check nearby sound with a second player. No custom addon audio is broadcast.
+- Built-in emotes follow Charades' client-token-to-`DoEmote` path, with the namespaced API used only when `DoEmote` is unavailable. The addon reports Lua errors; a submitted request does not establish whether the client animated it.
 - There are no timers that send chat, arbitrary slash/macro execution, spells, item use or targeting actions. Only direct player input dispatches an action.
 - Profile import/export, custom emote authoring, native action-bar drag/drop and full UI localization remain deferred.
 
 ## Verification and contributions
 
-Local results: **61 logic/library tests and 36 isolated mocked UI tests** pass under Lua 5.5.1 and LuaJIT 2.1, plus manifest/XML/Lua syntax and ZIP checks. Mocks do not establish visual quality or client compatibility. Test rendering, input, chat restrictions and saved-data persistence in the live client before relying on a release.
+Local results: **63 logic/library tests and 44 isolated mocked UI tests** pass under Lua 5.5.1 and LuaJIT 2.1, plus manifest/XML/Lua syntax and ZIP checks. Mocks do not establish visual quality or client compatibility. Test rendering, input, chat restrictions and saved-data persistence in the live client before relying on a release.
 
 ```sh
 lua tests/run.lua && lua tests/ui.lua
@@ -89,4 +90,4 @@ luajit tests/run.lua && luajit tests/ui.lua
 python3 scripts/verify.py && python3 scripts/package.py
 ```
 
-GitHub Actions runs tests and uploads the installable ZIP on pushes/PRs. A version tag (`v0.5.0`) publishes the ZIP as a GitHub prerelease after CI passes. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute code or presets. Original code is MIT; quotes and game assets retain their owners' rights.
+GitHub Actions runs tests and uploads the installable ZIP on pushes/PRs. A version tag (`v0.5.1`) publishes the ZIP as a GitHub prerelease after CI passes. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute code or presets. Original code is MIT; quotes and game assets retain their owners' rights.

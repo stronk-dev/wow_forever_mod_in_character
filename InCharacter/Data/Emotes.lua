@@ -130,7 +130,7 @@ function E.Validate()
     for index = 1, 1000 do
         local token = _G["EMOTE" .. index .. "_TOKEN"]
         if type(token) == "string" then
-            token = token:upper(); tokens[token] = true
+            tokens[token] = true
             for n = 1, 4 do
                 local alias = _G["EMOTE" .. index .. "_CMD" .. n]
                 if type(alias) == "string" then

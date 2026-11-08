@@ -1,13 +1,13 @@
 -- Deliberately limited widget surface: unknown methods fail instead of silently succeeding.
 -- This exercises callbacks/data flow, not rendering or Blizzard's protected-action rules.
-local Stub = { frames = {}, clock = 0, combat = false, sends = {}, emotes = {}, bindings = {}, missing = {}, modifiers = {} }
+local Stub = { frames = {}, clock = 0, combat = false, sends = {}, emotes = {}, bindings = {}, missing = {}, modifiers = {}, worldKeys = {}, messages = {} }
 local methods = {}
 local function noop() end
 for _, name in ipairs({ "SetJustifyH", "SetFontObject", "SetWordWrap", "SetAutoFocus", "SetMultiLine", "SetBackdrop",
     "SetBackdropColor", "SetBackdropBorderColor", "SetFrameStrata", "SetFrameLevel", "SetClampedToScreen", "SetMovable",
     "EnableMouse", "EnableMouseWheel", "RegisterForDrag", "RegisterForClicks", "SetTexCoord", "SetVertexColor",
     "SetColorTexture", "StartMoving", "StopMovingOrSizing", "ClearFocus", "SetFocus", "SetTextInsets", "SetTextColor",
-    "SetToplevel", "Raise", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag", "SetPropagateKeyboardInput",
+    "SetToplevel", "Raise", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag",
     "SetPushedTexture", "SetClampRectInsets", "SetBlendMode", "SetAlpha" }) do methods[name] = noop end
 function methods:GetRight() local x = self:GetCenter(); return x + self:GetWidth() / 2 end
 local widget
@@ -34,16 +34,29 @@ end
 function methods:SetScale(value) self.scale = value end
 function methods:GetScale() return self.scale or 1 end
 function methods:GetEffectiveScale() return (self.scale or 1) * (self.parent and self.parent:GetEffectiveScale() or 1) end
-function methods:SetScript(name, callback) self.scripts[name] = callback end
+function methods:SetScript(name, callback)
+    self.scripts[name] = callback
+    -- Model the hazard conservatively: installing a keyboard handler makes the
+    -- frame a listener unless the addon explicitly disables keyboard input.
+    if (name == "OnKeyDown" or name == "OnKeyUp") and callback then self.keyboard = true end
+end
+function methods:SetPropagateKeyboardInput(value)
+    assert(not Stub.combat, "Cannot change keyboard propagation in combat")
+    self.propagateKeyboard = value
+end
 function methods:GetScript(name) return self.scripts[name] end
 function methods:GetParent() return self.parent end
+local function visibilityScript(frame, script)
+    if frame.scripts[script] then frame.scripts[script](frame) end
+    for _, child in ipairs(frame.children) do if child.shown then visibilityScript(child, script) end end
+end
 function methods:Show()
-    local wasShown = self.shown; self.shown = true
-    if not wasShown and self.scripts.OnShow then self.scripts.OnShow(self) end
+    local wasShown = self:IsShown(); self.shown = true
+    if not wasShown and self:IsShown() then visibilityScript(self, "OnShow") end
 end
 function methods:Hide()
-    local wasShown = self.shown; self.shown = false
-    if wasShown and self.scripts.OnHide then self.scripts.OnHide(self) end
+    local wasShown = self:IsShown(); self.shown = false
+    if wasShown then visibilityScript(self, "OnHide") end
 end
 function methods:IsShown() return self.shown and (not self.parent or self.parent:IsShown()) end
 function methods:SetShown(value) if value then self:Show() else self:Hide() end end
@@ -81,6 +94,23 @@ function methods:SetVerticalScroll(value) self.scroll = value end
 function methods:RegisterEvent(event) self.events[event] = true end
 function methods:Fire(event, ...) if self.scripts[event] then return self.scripts[event](self, ...) end end
 function methods:Click(mouse) return self:Fire("OnClick", mouse or "LeftButton") end
+function Stub.Tick(seconds)
+    Stub.clock = Stub.clock + (seconds or 0)
+    for _, frame in ipairs(Stub.frames) do if frame:IsShown() then frame:Fire("OnUpdate", seconds or 0) end end
+end
+function Stub.KeyDown(key)
+    -- Dispatch through visible listeners, then the world bindings. Tests use
+    -- one active listener; this does not simulate Blizzard's full strata order.
+    for index = #Stub.frames, 1, -1 do
+        local frame = Stub.frames[index]
+        if frame.keyboard and frame:IsShown() then
+            frame:Fire("OnKeyDown", key)
+            if not frame.propagateKeyboard then return false end
+        end
+    end
+    Stub.worldKeys[#Stub.worldKeys + 1] = key
+    return true
+end
 widget = function(kind, name, parent)
     local object = { kind = kind, name = name, parent = parent, scripts = {}, events = {}, shown = true, children = {} }
     setmetatable(object, { __index = function(_, method)
@@ -102,7 +132,7 @@ function Stub.Install()
     UIParent = widget("Frame", "UIParent"); UIParent:SetSize(1920, 1080)
     UISpecialFrames, SlashCmdList = {}, {}
     GameTooltip = { SetOwner = noop, SetText = noop, AddLine = noop, Show = noop, Hide = noop }
-    DEFAULT_CHAT_FRAME = { AddMessage = noop }
+    DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) Stub.messages[#Stub.messages + 1] = text end }
     CreateFrame = function(kind, name, parent) return widget(kind, name, parent) end
     GetTime = function() return Stub.clock end
     InCombatLockdown = function() return Stub.combat end

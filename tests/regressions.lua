@@ -77,16 +77,30 @@ return function(IC, test, eq, open)
         assert(IC.Actions.Dispatch("pool:quotes")); eq(pool.lines[1], "literal |cffff0000red|r and |Hlink")
         pool.lines = { string.rep("|", 128) }; assert(not IC.Actions.Dispatch("pool:quotes")); eq(calls, 1); C_ChatInfo = nil
     end)
-    test("modern emotes prefer PerformEmote and never retry a refusal via legacy", function()
+    test("emotes follow Charades DoEmote path without guessing return semantics", function()
         open(); EMOTE1_TOKEN, EMOTE1_CMD1 = "WAVE", "/wave"; IC.Emotes.Validate()
-        local calls = 0; DoEmote = function() error("legacy must not run") end
-        C_ChatInfo = { PerformEmote = function(token) eq(token, "WAVE"); calls = calls + 1; return true end }
+        local calls, modernCalls = 0, 0
+        C_ChatInfo = { PerformEmote = function() modernCalls = modernCalls + 1 end }
+        for _, result in ipairs({ "nil", false, true }) do
+            DoEmote = function(token) eq(token, "WAVE"); calls = calls + 1; if result ~= "nil" then return result end end
+            assert(IC.Actions.Dispatch("emote:wave"))
+        end
+        eq(calls, 3); eq(modernCalls, 0)
+        DoEmote, C_ChatInfo, EMOTE1_TOKEN, EMOTE1_CMD1 = nil, nil, nil, nil
+    end)
+    test("emotes only fall back when DoEmote is absent and never retry errors", function()
+        open(); EMOTE1_TOKEN, EMOTE1_CMD1 = "WAVE", "/wave"; IC.Emotes.Validate()
+        local calls = 0; DoEmote = nil
+        C_ChatInfo = { PerformEmote = function(token) eq(token, "WAVE"); calls = calls + 1; return false end }
         assert(IC.Actions.Dispatch("emote:wave")); eq(calls, 1)
-        C_ChatInfo.PerformEmote = function() return false end; assert(not IC.Actions.Dispatch("emote:wave"))
-        C_ChatInfo = nil; DoEmote = function() calls = calls + 1 end
-        assert(IC.Actions.Dispatch("emote:wave")); eq(calls, 2)
-        DoEmote = function() return true end; assert(not IC.Actions.Dispatch("emote:wave"))
-        DoEmote = function() return false end; assert(IC.Actions.Dispatch("emote:wave"))
+        DoEmote = function() error("client refused") end
+        assert(not IC.Actions.Dispatch("emote:wave")); eq(calls, 1)
+        DoEmote, C_ChatInfo, EMOTE1_TOKEN, EMOTE1_CMD1 = nil, nil, nil, nil
+    end)
+    test("emote dispatch preserves the exact client token instead of deriving it from a command", function()
+        open(); EMOTE1_TOKEN, EMOTE1_CMD1 = "Client_Wave", "/wave"; IC.Emotes.Validate()
+        local token; DoEmote = function(value) token = value end
+        assert(IC.Actions.Dispatch("emote:wave")); eq(token, "Client_Wave")
         DoEmote, EMOTE1_TOKEN, EMOTE1_CMD1 = nil, nil, nil
     end)
     test("emote library classifies sound, silent animation and text from the catalog", function()

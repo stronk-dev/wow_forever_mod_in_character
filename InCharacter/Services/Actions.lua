@@ -168,16 +168,17 @@ function A.Dispatch(action)
         local known = IC.Emotes.byID[action.id]
         if not known then IC.Print("Unknown emote."); return false end
         if not known.verified then IC.Print(known.label .. " is not recognized by this client."); return false end
-        local modern = C_ChatInfo and type(C_ChatInfo.PerformEmote) == "function"
-        local perform = modern and C_ChatInfo.PerformEmote or DoEmote
+        -- Follow Charades' Forever path: pass the client's token to DoEmote.
+        -- Only use the namespaced API if that entry point does not exist.
+        local perform = type(DoEmote) == "function" and DoEmote
+            or (C_ChatInfo and C_ChatInfo.PerformEmote)
         if type(perform) ~= "function" then IC.Print("Emote API is unavailable."); return false end
         local ok, result = pcall(perform, known.payload)
         if not ok then IC.Print("Client blocked the emote: " .. tostring(result)); return false end
-        if issecretvalue and issecretvalue(result) then IC.Print("Client did not expose the emote result."); return false end
-        -- PerformEmote returns success; legacy DoEmote reports whether it was restricted.
-        if (modern and result ~= true) or (not modern and result == true) then
-            IC.Print("Client declined the emote."); return false
-        end
+        -- Charades does not infer acceptance from this return. Forever's actual
+        -- chat handler calls it "restricted", while generated docs call it
+        -- "success". Do not invent a rejection or retry the action. A successful
+        -- Lua call establishes submission only, not an observed animation.
         return true
     elseif action.type == "pool" or action.type == "line" then
         local pool = IC.Profile().pools[action.payload]

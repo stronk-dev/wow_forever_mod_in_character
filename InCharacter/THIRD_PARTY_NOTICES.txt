@@ -9,7 +9,8 @@ Charades — https://github.com/damesene/wow-charades
 Wheel.lua, Actions.lua, Editor.lua, Bindings.xml and Charades_Camelot.toc
 were inspected as behavior/API references. In Character's implementation and
 UI are independently written, without Charades assets. The binding declaration's
-runOnUp/keystate pattern follows Charades; its MIT notice is retained here.
+runOnUp/keystate pattern and the client-token-to-DoEmote dispatch path follow
+Charades; its MIT notice is retained here.
 
 MIT License
 

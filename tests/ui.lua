@@ -250,4 +250,5 @@ test("review fixes: mouse-button wheel key, unmoved hold release, Esc closes fly
     IC.Editor.frame:Hide(); key:Fire("OnHide"); assert(not key.capturing)
 end)
 assert(loadfile("tests/ui_enhancements.lua"))()(test, eq, page, point, pointAt)
+assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

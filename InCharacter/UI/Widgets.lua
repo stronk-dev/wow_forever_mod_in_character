@@ -286,6 +286,7 @@ local MODIFIER_KEYS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true
     LMETA = true, RMETA = true, UNKNOWN = true }
 U.MOUSE_KEYS = { MiddleButton = "BUTTON3", Button4 = "BUTTON4", Button5 = "BUTTON5" }
 local MOUSE_KEYS = U.MOUSE_KEYS
+local stopCapture
 function U.Modifiers()
     return (IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsShiftKeyDown() and "SHIFT-" or "")
 end
@@ -296,46 +297,84 @@ end
 function U.KeyCapture(parent, x, y, width, action, caption, changed)
     local button = U.Button(parent, "", x, y, width)
     local function refresh() button:SetText(caption .. ": " .. U.KeyLabel(action)); button:SetSelected(false) end
-    local function finish() button.capturing = false; button:EnableKeyboard(false); refresh() end
-    local function assign(key)
-        if IC.InCombat() then IC.Print("Key bindings cannot be changed in combat."); finish(); return end
-        local combo = U.Modifiers() .. key
-        local previous = GetBindingAction and GetBindingAction(combo)
-        local old = { GetBindingKey(action) }
-        if not SetBinding(combo, action) then IC.Print("Binding was refused; existing keys were kept."); finish(); return end
-        for _, key in ipairs(old) do if key ~= combo then SetBinding(key) end end
-        SaveBindings(GetCurrentBindingSet())
-        if previous and previous ~= "" and previous ~= action then
-            IC.Print(combo .. " replaced " .. (_G["BINDING_NAME_" .. previous] or previous) .. ".")
-        end
-        finish(); if changed then changed(combo) end
+    local function restorePropagation()
+        if not IC.InCombat() then button:SetPropagateKeyboardInput(true) end
+        button:SetScript("OnUpdate", nil)
+    end
+    local function finish(consumeKey)
+        button.capturing = false
+        button:SetScript("OnKeyDown", nil); button:SetScript("OnUpdate", nil)
+        button:EnableKeyboard(false)
+        -- Propagation cannot be changed in combat. With keyboard input disabled
+        -- and the handler removed, this widget cannot consume a key either way.
+        -- Keep this key consumed until dispatch ends; otherwise assigning a key
+        -- could immediately run its new binding. Restore propagation next frame.
+        if consumeKey then button:SetScript("OnUpdate", restorePropagation)
+        else restorePropagation() end
+        if stopCapture == button.StopCapture then stopCapture = nil end
+        refresh()
+    end
+    button.StopCapture = finish
+    local function safely(change, consumeKey)
+        -- Release input before any client API or callback that could throw.
+        finish(consumeKey)
+        local ok, problem = pcall(change)
+        refresh()
+        if not ok then IC.Print("Key binding change failed: " .. tostring(problem)) end
+    end
+    local function assign(key, consumeKey)
+        safely(function()
+            if IC.InCombat() then IC.Print("Key bindings cannot be changed in combat."); return end
+            local combo = U.Modifiers() .. key
+            local previous = GetBindingAction and GetBindingAction(combo)
+            local old = { GetBindingKey(action) }
+            if not SetBinding(combo, action) then IC.Print("Binding was refused; existing keys were kept."); return end
+            for _, key in ipairs(old) do if key ~= combo then SetBinding(key) end end
+            SaveBindings(GetCurrentBindingSet())
+            if previous and previous ~= "" and previous ~= action then
+                IC.Print(combo .. " replaced " .. (_G["BINDING_NAME_" .. previous] or previous) .. ".")
+            end
+            if changed then changed(combo) end
+        end, consumeKey)
+    end
+    local function keyDown(self, key)
+        if not self.capturing then finish(); return end
+        if key == "ESCAPE" then finish(true); return end
+        if MODIFIER_KEYS[key] then return end
+        assign(key, true)
     end
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     button:SetScript("OnClick", function(self, mouse)
-        if self.capturing then return end
+        if self.capturing then finish(); return end
         if IC.InCombat() then IC.Print("Key bindings cannot be changed in combat."); return end
+        if stopCapture then stopCapture() end
         if mouse == "RightButton" then
-            local old, guard = GetBindingKey(action), 0
-            while old and guard < 4 do SetBinding(old); old = GetBindingKey(action); guard = guard + 1 end
-            SaveBindings(GetCurrentBindingSet()); refresh(); return
+            safely(function()
+                local old, guard = GetBindingKey(action), 0
+                while old and guard < 4 do SetBinding(old); old = GetBindingKey(action); guard = guard + 1 end
+                SaveBindings(GetCurrentBindingSet()); refresh()
+                if changed then changed() end
+            end)
+            return
         end
+        local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+        if focus then focus:ClearFocus() end
+        stopCapture = finish
         self.capturing = true; self:SetSelected(true)
-        self:SetText("Press a key... (Esc cancels)")
-        self:EnableKeyboard(true); self:SetPropagateKeyboardInput(false)
-    end)
-    button:SetScript("OnKeyDown", function(self, key)
-        if not self.capturing then return end
-        if key == "ESCAPE" then finish(); return end
-        if MODIFIER_KEYS[key] then return end
-        assign(key)
+        self:SetText("Press a key... (Esc / click cancels)")
+        self:SetScript("OnKeyDown", keyDown)
+        self:SetPropagateKeyboardInput(false); self:EnableKeyboard(true)
+        local deadline = GetTime() + 15
+        self:SetScript("OnUpdate", function() if GetTime() >= deadline then finish() end end)
     end)
     button:SetScript("OnMouseDown", function(self, mouse)
         if self.capturing and MOUSE_KEYS[mouse] then assign(MOUSE_KEYS[mouse]) end
     end)
     button:SetScript("OnHide", function(self) if self.capturing then finish() end end)
     U.captures = U.captures or {}; table.insert(U.captures, finish)
-    button.tooltip = "Click, then press the key you want. Right-click clears it. You can also use WoW's Key Bindings > In Character."
+    button.tooltip = "Click, then press a key within 15 seconds. Escape or another click cancels. Right-click clears an existing binding. You can also use WoW's Key Bindings > In Character."
     button.Refresh = refresh
-    refresh()
+    -- Idle binding buttons must never register a keyboard handler or consume input.
+    finish()
     return button
 end
