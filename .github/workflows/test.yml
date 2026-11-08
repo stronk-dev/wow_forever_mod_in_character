@@ -1,5 +1,7 @@
-name: Lua and packaging
-on: [push, pull_request]
+name: CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,3 +19,21 @@ jobs:
         with:
           name: InCharacter-addon
           path: dist/InCharacter-*.zip
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: InCharacter-addon
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/InCharacter-*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: true

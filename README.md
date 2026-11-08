@@ -4,7 +4,11 @@ An emote and roleplay dialogue launcher for **WoW Forever, interface 16001**. Na
 
 ## Install
 
-Extract `dist/InCharacter-0.3.1.zip` into:
+**[Download the installable addon ZIP](https://github.com/stronk-dev/wow_forever_mod_in_character/releases/download/v0.3.1/InCharacter-0.3.1.zip)** · [Release notes](https://github.com/stronk-dev/wow_forever_mod_in_character/releases/tag/v0.3.1)
+
+This is a test release: automated checks pass, but live Forever verification is still pending. Download the named addon ZIP under **Assets**, rather than GitHub's automatically generated source-code archives.
+
+Extract `InCharacter-0.3.1.zip` into:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/
