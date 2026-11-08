@@ -1,8 +1,9 @@
 ## Interface: 16001
 ## Title: In Character
 ## Notes: Emotes, reactions, and roleplay dialogue
-## Version: 0.3.0
+## Version: 0.3.1
 ## SavedVariables: InCharacterDB
+## SavedVariablesPerCharacter: InCharacterCharDB
 ## X-License: MIT
 
 Core.lua

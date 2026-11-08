@@ -9,12 +9,20 @@ local function test(name, fn)
     total = total + 1; print("ok " .. total .. " - " .. name)
 end
 local function eq(a, b) assert(a == b, tostring(a) .. " ~= " .. tostring(b)) end
-local function open(db, key) IC.db = IC.Profiles.Open(db, key or "Realm:Player"); IC.Dialogue.Clear(); return IC.db end
+-- Simulate Blizzard selecting a SavedVariablesPerCharacter table on each login.
+local characterStores = setmetatable({}, { __mode = "k" })
+local function open(db, key)
+    db, key = db or {}, key or "Realm:Player"
+    characterStores[db] = characterStores[db] or {}
+    local store = characterStores[db]; store[key] = store[key] or {}
+    IC.db = IC.Profiles.Open(db, store[key], { key }); IC.Dialogue.Clear()
+    return IC.db
+end
 test("sequential loops", function()
     local state, pool = {}, { mode = "sequential", lines = { "a", "b", "c" } }
     for _, expected in ipairs({ "a", "b", "c", "a" }) do eq(IC.Dialogue.Next(pool, state), expected) end
 end)
-test("uniform random selects every index without excluding previous result", function()
+test("random maps requested indices directly and allows repeats", function()
     local pool, state = { mode = "random", lines = { "a", "b", "c" } }, {}
     for i = 1, 3 do
         for _ = 1, 2 do eq(IC.Dialogue.Next(pool, state, function(n) eq(n, 3); return i end), pool.lines[i]) end
@@ -60,7 +68,7 @@ end)
 test("v1 migration retains user and unknown data", function()
     local account = IC.Defaults.Profile(); account.pools.quotes.lines = { "old" }
     local db = open({ version = 1, account = account, customFutureKey = "keep" })
-    eq(db.version, 2); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
+    eq(db.version, 3); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
 end)
 test("deleted defaults stay deleted across upgrades", function()
     local db = open(); IC.Dialogue.Delete("quotes"); open(db)
@@ -76,7 +84,7 @@ end)
 test("reset only active profile and future schema is refused", function()
     local db = open(); IC.Profiles.SetScope("character"); IC.Profile().pools.quotes.lines = { "reset" }
     IC.Profiles.Reset(); eq(#IC.Profile().pools.quotes.lines, 0)
-    eq(db.characters["Realm:Player"].scope, "character")
+    eq(IC.Profiles.Character().scope, "character")
     local future = { version = 999 }; assert(not pcall(open, future)); eq(future.version, 999)
 end)
 test("preview never consumes state or sends", function()
@@ -130,4 +138,5 @@ test("deleting preset pools clears dangling shortcuts", function()
     open(); IC.Library.Install("office-stanley", true)
     local id = IC.Profile().shortcuts.greetings; IC.Dialogue.Delete(id); eq(IC.Profile().shortcuts.greetings, nil)
 end)
+assert(loadfile("tests/regressions.lua"))()(IC, test, eq, open)
 print("PASS: " .. total .. " tests")

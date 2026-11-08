@@ -12,6 +12,7 @@ assert toc == (ADDON / "InCharacter_Camelot.toc").read_text(), "Flavor TOCs diff
 for required in (
     "## Interface: 16001", "## Title: In Character",
     "## Notes: Emotes, reactions, and roleplay dialogue", "## SavedVariables: InCharacterDB",
+    "## SavedVariablesPerCharacter: InCharacterCharDB",
 ):
     assert required in toc, f"Missing TOC metadata: {required}"
 entries = [line.strip() for line in toc.splitlines() if line.strip() and not line.startswith("#")]

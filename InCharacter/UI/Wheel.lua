@@ -15,7 +15,6 @@ local function selectHover(button)
 end
 local function activate(action)
     if not W.open then return end
-    if IC.InCombat() then W.Close(); return end
     if action.type == "submenu" then
         M.Enter(W.state, action); W.Render()
     else
@@ -129,7 +128,6 @@ function W.Create()
 end
 function W.Open(binding)
     if not IC.db then return end
-    if IC.InCombat() then IC.Print("Open the wheel after combat."); return end
     if not W.frame then W.Create() end
     W.state = M.New(M.Tree()); W.open = true; W.held = binding == true
     W.frame:SetScale(math.min(1, (UIParent:GetHeight() - 24) / 540, (UIParent:GetWidth() - 24) / 540))
@@ -146,7 +144,7 @@ function W.Binding(keystate)
             local action = button and button.action
             local ready = action and action.type ~= "submenu" and W.hoverSince and now() - W.hoverSince >= 0.15 and now() - W.renderedAt >= 0.15
             W.Close()
-            if ready and not IC.InCombat() then IC.Actions.Dispatch(action) end
+            if ready then IC.Actions.Dispatch(action) end
         end
         -- Click mode stays open after key release; the next key press toggles it closed.
     end
@@ -154,7 +152,7 @@ end
 _G.InCharacter_WheelBinding = W.Binding
 _G.InCharacter_ToggleEditor = function() if IC.db then IC.Editor.Toggle() end end
 _G.InCharacter_FavoriteBinding = function(index)
-    if IC.db then IC.Actions.Dispatch(IC.Profile().favorites[index]) end
+    if IC.db then IC.Actions.Dispatch(IC.Actions.List("favorites")[index]) end
 end
 BINDING_HEADER_INCHARACTER = "In Character"
 BINDING_NAME_INCHARACTER_EDITOR = "Open editor"

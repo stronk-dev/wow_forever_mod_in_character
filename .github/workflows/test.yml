@@ -16,4 +16,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: InCharacter-addon
-          path: dist/InCharacter-0.3.0.zip
+          path: dist/InCharacter-*.zip

@@ -44,7 +44,8 @@ function D.Preview(pool)
 end
 function D.Find(name)
     if IC.Profile().pools[name] then return IC.Profile().pools[name] end
-    local normalized, found = IC.Normalize(name)
+    local normalized = IC.Normalize(name)
+    local found
     if normalized == "" then return nil, "Choose a pool name." end
     for id, pool in pairs(IC.Profile().pools) do
         if IC.Normalize(id) == normalized or IC.Normalize(pool.name) == normalized then
@@ -52,7 +53,8 @@ function D.Find(name)
             found = pool
         end
     end
-    return found, found and nil or "Pool not found. Install a preset or create one with /ic."
+    if found then return found end
+    return nil, "Pool not found. Install a preset or create one with /ic."
 end
 function D.Create(name)
     name = IC.Trim(name)
@@ -84,7 +86,9 @@ function D.Delete(id)
     for shortcut, poolID in pairs(profile.shortcuts) do if poolID == id then profile.shortcuts[shortcut] = nil end end
     for i = #profile.poolOrder, 1, -1 do if profile.poolOrder[i] == id then table.remove(profile.poolOrder, i) end end
     for i = #profile.favorites, 1, -1 do if profile.favorites[i] == "pool:" .. id then table.remove(profile.favorites, i) end end
-    for _, layout in ipairs({ IC.Layout() }) do
+    -- The currently loaded character and shared layout can both reference this pool.
+    -- Archived pre-v3 character records remain intact as migration/recovery backups.
+    for _, layout in ipairs({ IC.Profiles.Character().layout, IC.Profiles.db.sharedLayout }) do
         for _, bar in ipairs(layout.bars) do if bar.source == "pool:" .. id then bar.source = "favorites" end end
     end
     IC.Changed()

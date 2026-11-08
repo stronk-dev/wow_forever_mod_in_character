@@ -1,6 +1,6 @@
 local _, IC = ...
 local U = IC.UI
-IC.Editor = { tab = "Dialogue Pools", poolPage = 1, emotePage = 1, barIndex = 1 }
+IC.Editor = { tab = "Dialogue Pools", poolPage = 1, emotePage = 1, barIndex = 1, drafts = setmetatable({}, { __mode = "k" }) }
 local E = IC.Editor
 local function status(text) E.status:SetText(text or "") end
 local function changed() IC.Changed() end
@@ -9,13 +9,25 @@ local function splitLines(text)
     for line in (text .. "\n"):gmatch("(.-)\n") do if IC.Trim(line) ~= "" then lines[#lines + 1] = line end end
     return lines
 end
+function E.StoreDraft()
+    if not E.formID or not E.formProfile then return end
+    local panel = E.panels["Dialogue Pools"]
+    E.drafts[E.formProfile] = E.drafts[E.formProfile] or {}
+    E.drafts[E.formProfile][E.formID] = { name = panel.name:GetText(), lines = panel.lines:GetText(),
+        mode = panel.mode.value, channel = panel.channel.value, icon = panel.icon:GetText() }
+end
 local function poolSelect(id)
+    E.StoreDraft()
     local panel = E.panels["Dialogue Pools"]; E.poolID = id
-    local pool = id and IC.Profile().pools[id]
-    panel.name:SetText(pool and pool.name or "")
-    panel.lines:SetText(pool and table.concat(pool.lines, "\n") or "")
-    panel.mode:SetValue(pool and pool.mode or "shuffle"); panel.channel:SetValue(pool and pool.channel or "SAY")
-    panel.icon:SetText(pool and tostring(pool.icon) or IC.Icons[1]); panel.iconPreview:SetTexture(pool and pool.icon or IC.Icons[1])
+    local profile = IC.Profile()
+    E.formProfile, E.formID = profile, id
+    local pool = id and profile.pools[id]
+    local draft = pool and E.drafts[profile] and E.drafts[profile][id]
+    panel.name:SetText(draft and draft.name or (pool and pool.name or ""))
+    panel.lines:SetText(draft and draft.lines or (pool and table.concat(pool.lines, "\n") or ""))
+    panel.mode:SetValue(draft and draft.mode or (pool and pool.mode or "shuffle")); panel.channel:SetValue(draft and draft.channel or (pool and pool.channel or "SAY"))
+    local icon = draft and draft.icon or (pool and pool.icon or IC.Icons[1])
+    panel.icon:SetText(tostring(icon)); panel.iconPreview:SetTexture(icon)
     panel.favorite:SetText(pool and IC.Actions.IsFavorite("pool:" .. id) and "Unfavorite" or "Favorite")
     panel.delete.confirming = nil; panel.delete:SetText("Delete pool")
     panel.info:SetText(pool and ("ID: " .. pool.id .. "   |   " .. #pool.lines .. " lines") or "Create a pool or copy a library preset below.")
@@ -34,7 +46,7 @@ local function createPools(panel)
     U.Label(panel, "Your pools", 14, -10); panel.rows = {}
     for n = 1, 8 do
         panel.rows[n] = U.Button(panel, "", 14, -32 - (n - 1) * 28, 185, function(self)
-            poolSelect(self.poolID); status("Editing " .. IC.Profile().pools[self.poolID].name .. ". Save before switching pools or tabs.")
+            poolSelect(self.poolID); status("Editing " .. IC.Profile().pools[self.poolID].name .. ". Drafts survive switching; Save to keep after /reload.")
         end)
     end
     U.Button(panel, "<", 14, -260, 40, function() E.poolPage = E.poolPage - 1; poolRefresh(true) end)
@@ -46,6 +58,11 @@ local function createPools(panel)
     end)
     U.Button(panel, "Move up", 14, -326, 90, function() if E.poolID then IC.Dialogue.Move(E.poolID, -1); poolRefresh(true) end end)
     U.Button(panel, "Down", 109, -326, 90, function() if E.poolID then IC.Dialogue.Move(E.poolID, 1); poolRefresh(true) end end)
+    U.Button(panel, "Discard draft", 14, -364, 185, function()
+        local profile = IC.Profile()
+        if E.drafts[profile] and E.poolID then E.drafts[profile][E.poolID] = nil end
+        E.formID = nil; poolSelect(E.poolID); status("Draft discarded; showing saved pool.")
+    end)
     U.Label(panel, "Name", 218, -10); panel.name = U.Input(panel, 218, -30, 456)
     panel.channel = U.Cycle(panel, 218, -62, 145, U.Options({ "SAY", "YELL", "EMOTE" }))
     panel.mode = U.Cycle(panel, 372, -62, 145, U.Options({ "random", "shuffle", "sequential" }))
@@ -77,7 +94,10 @@ local function createPools(panel)
             panel.favorite:SetText(IC.Actions.IsFavorite("pool:" .. E.poolID) and "Unfavorite" or "Favorite") end
     end)
     panel.delete = U.Button(panel, "Delete pool", 495, -366, 179, function(self)
-        if E.poolID then U.Confirm(self, "Delete pool", function() IC.Dialogue.Delete(E.poolID); E.poolID = nil; poolRefresh(); status("Pool deleted.") end) end
+        if E.poolID then U.Confirm(self, "Delete pool", function()
+            local drafts = E.drafts[IC.Profile()]; if drafts then drafts[E.poolID] = nil end
+            E.formID = nil; IC.Dialogue.Delete(E.poolID); E.poolID = nil; poolRefresh(); status("Pool deleted.")
+        end) end
     end)
     panel.info = U.Label(panel, "", 218, -402, 456)
     U.Label(panel, "Optional library (copies editable pools; never sends chat)", 14, -438, 660)
@@ -113,7 +133,7 @@ local function createEmotes(panel)
     for n = 1, 12 do panel.rows[n] = U.Button(panel, "", 14, -80 - (n - 1) * 30, 300, function(self)
         E.emote = self.action
         panel.labelInput:SetText(self.action.label); panel.iconInput:SetText(self.action.icon)
-        panel.detail:SetText(self.action.label .. "\nToken: " .. self.action.payload .. "\n\n" .. (self.action.verified and "Recognized by client token table." or "Unverified: execution disabled.") .. "\n\nAnimation, audible voice and text-only status: unknown until verified in Forever.")
+        panel.detail:SetText(self.action.label .. "\nToken: " .. self.action.payload .. "\n\n" .. (self.action.verified and "Recognized by client token table." or "Unverified: execution disabled.") .. "\n\nAnimation: " .. (self.action.animated and "listed by Charades (reference only)." or "unknown.") .. "\nNearby audio/text-only status: requires a live check.")
     end) end
     panel.detail = U.Label(panel, "Select an emote.", 340, -88, 320)
     U.Label(panel, "Custom label", 340, -250); panel.labelInput = U.Input(panel, 340, -272, 320)
@@ -137,10 +157,9 @@ local function createEmotes(panel)
     U.Button(panel, ">", 244, -446, 70, function() E.emotePage = E.emotePage + 1; emoteRefresh() end)
     panel.hide = U.Check(panel, "Hide unverified emotes", 14, -490, function(value) IC.Profile().hideUnverified = value; changed(); emoteRefresh() end)
     panel.filter = U.Cycle(panel, 14, -530, 300, {
-        { value = "all", label = "All metadata" }, { value = "animated", label = "Verified animated only" },
-        { value = "audible", label = "Verified audible only" }, { value = "text", label = "Verified text-only" },
+        { value = "all", label = "All emotes" }, { value = "animated", label = "Animated (curated reference)" },
     }, function(value) IC.Profile().emoteFilter = value; changed(); emoteRefresh() end)
-    U.Label(panel, "Metadata filters exclude unknown entries. Initially these filters may show no results; audio and animation are not inferred from token presence.", 340, -490, 320)
+    U.Label(panel, "Animation metadata comes from Charades' curated list, not a Forever test. Nearby audio and text-only filters are unavailable until established.", 340, -490, 320)
 end
 local function barSources()
     local sources = { { value = "favorites", label = "Favorites" }, { value = "pools", label = "All dialogue pools" } }
@@ -196,14 +215,14 @@ local function createWheel(panel)
         { value = 140, label = "Compact radius" }, { value = 165, label = "Default radius" }, { value = 200, label = "Large radius" },
     }, function(value) IC.Profile().wheel.radius = value; changed() end)
     U.Button(panel, "Open wheel", 14, -348, 240, function() if IC.Wheel then E.frame:Hide(); IC.Wheel.Toggle() else status("Wheel module not loaded yet.") end end)
-    U.Label(panel, "Combat: wheel/editor opening and layout rebuilds are deferred or blocked. Existing bar buttons can attempt a direct emote/chat action; the client may reject it. Chat is never queued. No secure action buttons or native action-bar drag/drop are used.", 14, -404, 640)
+    U.Label(panel, "The wheel remains available in combat for direct emotes/chat, subject to client restrictions. Editor/layout rebuilds wait until safe. Chat permissions are checked before pool selection; nothing is queued. No secure action buttons or native action-bar drag/drop are used.", 14, -404, 640)
 end
 local function createProfiles(panel)
     U.Label(panel, "Dialogue, favorites and wheel settings", 14, -14)
     panel.scope = U.Cycle(panel, 14, -48, 500, {
         { value = "account", label = "Account-wide shared profile" }, { value = "character", label = "This character's profile" },
     }, function(value) IC.Profiles.SetScope(value); E.poolID = nil; status("Profile switched. Reopen other tabs to edit the selected profile.") end)
-    U.Label(panel, "Characters start with a private snapshot available; switching scopes keeps both profiles. Copy account explicitly to replace the private snapshot with current shared data.", 14, -90, 640)
+    U.Label(panel, "A private snapshot is created when you first select This character. Switching scopes keeps both profiles. Copy account explicitly to replace an existing private profile.", 14, -90, 640)
     U.Button(panel, "Copy account to this character", 14, -160, 320, function(self)
         U.Confirm(self, "Copy account", function() IC.Profiles.CopyAccount(); panel.scope:SetValue("character"); status("Account profile copied to character.") end)
     end)
@@ -214,7 +233,7 @@ local function createProfiles(panel)
     U.Button(panel, "Reset active profile", 14, -316, 320, function(self)
         U.Confirm(self, "Reset profile", function() IC.Profiles.Reset(); E.poolID = nil; status("Active profile reset. Other profiles and layouts retained.") end)
     end)
-    U.Label(panel, "SavedVariables: InCharacterDB. Settings should persist on /reload and a normal logout; verify this on your Forever build. The API kit reported a beta persistence bug. Export/import and automatic persistence workarounds are not implemented.", 14, -382, 640)
+    U.Label(panel, "SavedVariables: InCharacterDB (shared) and InCharacterCharDB (this character). The reported beta loading bug was marked fixed in build 70009; verify reload/restart on your build. Export/import is not implemented.", 14, -382, 640)
     U.Button(panel, "Reset greet/quote/bye mapping", 14, -474, 320, function() IC.Profile().shortcuts = {}; changed(); status("Shortcuts now use the default Greetings, Quotes and Farewells pools.") end)
 end
 function E.ShowPreview(text)
@@ -230,7 +249,8 @@ function E.ShowPreview(text)
     E.preview.text:SetText(text); E.preview:Show()
 end
 function E.SelectTab(name)
-    E.tab = name; status("Save pool edits before switching pools or tabs. Click selectors to cycle choices.")
+    E.StoreDraft()
+    E.tab = name; status("Pool drafts survive switching until /reload. Save to persist. Click selectors to cycle choices.")
     for tab, panel in pairs(E.panels) do panel:SetShown(tab == name) end
     if name == "Dialogue Pools" then poolRefresh()
     elseif name == "Emotes" then emoteRefresh()
@@ -254,6 +274,7 @@ function E.Create()
     end
     E.status = U.Label(frame, "", 16, -666, 680); E.status:SetFontObject("GameFontHighlightSmall")
     table.insert(UISpecialFrames, "InCharacterEditor"); frame:Hide()
+    frame:SetScript("OnHide", function() E.StoreDraft() end)
 end
 function E.Toggle()
     if IC.InCombat() then IC.Print("Open the editor after combat."); return end

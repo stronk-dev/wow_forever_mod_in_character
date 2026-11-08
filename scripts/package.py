@@ -2,9 +2,11 @@
 """Build a deterministic, dependency-free WoW addon ZIP from the working tree."""
 from pathlib import Path
 import zipfile
+import re
 
 ROOT = Path(__file__).resolve().parent.parent
-output = ROOT / "dist" / "InCharacter-0.3.0.zip"
+version = re.search(r"^## Version: (\S+)$", (ROOT / "InCharacter/InCharacter.toc").read_text(), re.M).group(1)
+output = ROOT / "dist" / f"InCharacter-{version}.zip"
 output.parent.mkdir(exist_ok=True)
 files = {str(path.relative_to(ROOT)): path for path in (ROOT / "InCharacter").rglob("*") if path.is_file()}
 for name in ("README.md", "LICENSE", "CONTRIBUTING.md", "LIBRARY.md", "FOREVER_TEST_CHECKLIST.md"):

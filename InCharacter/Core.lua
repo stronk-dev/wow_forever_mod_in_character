@@ -1,7 +1,7 @@
 local addonName, IC = ...
 _G.InCharacter = IC
 IC.name = addonName or "InCharacter"
-IC.version = "0.3.0"
+IC.version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(IC.name, "Version") or "development"
 
 function IC.Copy(value)
     if type(value) ~= "table" then return value end
@@ -25,7 +25,7 @@ end
 
 function IC.Trim(text) return (tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 function IC.Normalize(text)
-    return IC.Trim(text):lower():gsub("%s+", "-"):gsub("[^%w_\128-\255%-]", "")
+    return (IC.Trim(text):lower():gsub("%s+", "-"):gsub("[^%w_\128-\255%-]", ""))
 end
 function IC.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd6b56cIn Character:|r " .. tostring(text)) end
@@ -84,10 +84,20 @@ local function RegisterSlash()
     end
 end
 
-function IC.Initialize(database, characterKey)
-    IC.db = IC.Profiles.Open(database, characterKey)
+function IC.LegacyCharacterKeys()
+    local name = UnitName("player")
+    local realm = GetRealmName()
+    if not name or not realm then return {} end
+    -- These keys are only for migration. Blizzard selects the live character DB.
+    return { realm .. ":" .. name, realm:gsub("%s+", "") .. ":" .. name }
+end
+
+function IC.Initialize(database, characterDatabase)
+    IC.db = IC.Profiles.Open(database, characterDatabase, IC.LegacyCharacterKeys())
     InCharacterDB = IC.db
+    InCharacterCharDB = IC.Profiles.Character()
     IC.Emotes.Validate()
+    if IC.Wheel and not IC.Wheel.frame then IC.Wheel.Create() end
     IC.Refresh()
 end
 
@@ -95,13 +105,11 @@ if CreateFrame then
     local events = CreateFrame("Frame")
     events:SetScript("OnEvent", function(_, event, loaded)
         if event == "ADDON_LOADED" and loaded == IC.name then
-            local name, realm = UnitFullName("player")
-            IC.Initialize(InCharacterDB, (realm or GetRealmName() or "Realm") .. ":" .. (name or UnitName("player")))
+            IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()
             IC.Print("Loaded. /ic opens settings; /ic help lists commands.")
         elseif event == "PLAYER_REGEN_ENABLED" and IC.refreshPending then IC.Refresh()
         elseif event == "PLAYER_REGEN_DISABLED" then
-            if IC.Wheel then IC.Wheel.Close() end
             if IC.Editor and IC.Editor.frame then IC.Editor.frame:Hide() end
         end
     end)

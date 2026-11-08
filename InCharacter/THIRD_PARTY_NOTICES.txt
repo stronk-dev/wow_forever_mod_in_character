@@ -4,6 +4,8 @@ Wheel.lua, Actions.lua, Editor.lua, Bindings.xml and Charades_Camelot.toc
 were inspected as behavior/API references. In Character's implementation and
 UI are independently written, without Charades assets. The binding declaration's
 runOnUp/keystate pattern follows Charades; its MIT notice is retained here.
+Curated animated-emote command metadata in Data/Emotes.lua is adapted from
+Charades Defaults.lua (AnimatedEmoteCommands and its category declarations).
 
 MIT License
 
