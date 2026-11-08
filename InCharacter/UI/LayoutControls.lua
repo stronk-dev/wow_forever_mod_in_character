@@ -100,13 +100,13 @@ function L.Open(kind, index)
         end
         U.Button(frame, "Show listed", 14, -452, 140, function() setAll(false) end)
         U.Button(frame, "Hide listed", 164, -452, 140, function() setAll(true) end)
-        U.Muted(frame, "Click an icon to replace it. Icons are shared across layouts; visibility affects only this bar, wheel or menu. Nothing here sends chat.", 14, -492, 732)
+        U.Muted(frame, "Click an icon to replace it. Icons are shared across layouts; visibility affects only this bar, quick actions or menu. Nothing here sends chat.", 14, -492, 732)
         table.insert(UISpecialFrames, "InCharacterLayoutItems")
     end
     frame.kind, frame.barIndex, frame.profile, frame.layout = kind, index or E.barIndex, IC.Profile(), IC.Layout()
     frame.source = "categories"; frame.search:SetText("")
     frame.sourceChoice:SetShown(kind ~= "bar"); frame.sourceChoice:SetValue(frame.source)
     local settings = config(frame); if not settings then return end
-    frame.title:SetText(kind == "bar" and ("Edit items · " .. settings.name) or ("Edit " .. kind .. " · categories & items"))
+    frame.title:SetText(kind == "bar" and ("Edit items · " .. settings.name) or ("Edit " .. (kind == "wheel" and "quick actions" or kind) .. " · categories & items"))
     frame.list:ScrollTo(0); L.Refresh(); frame:Show(); frame:Raise()
 end

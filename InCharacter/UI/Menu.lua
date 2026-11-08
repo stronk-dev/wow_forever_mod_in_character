@@ -176,7 +176,7 @@ function Menu.Entries()
         for _, group in ipairs(IC.Presentation.Tree(IC.Actions.RoleplayGroups(), config)) do entries[#entries + 1] = actionEntry(group) end
     end
     entries[#entries + 1] = { label = "Edit menu items...", run = function() IC.Editor.Open("Layouts"); IC.LayoutUI.Open("menu") end }
-    entries[#entries + 1] = { label = "Radial wheel", icon = IC.AddonIcon, run = function() IC.Wheel.Open(false) end }
+    entries[#entries + 1] = { label = "Quick actions", icon = IC.AddonIcon, run = function() IC.QuickActions.Toggle() end }
     entries[#entries + 1] = { label = "Open In Character...", icon = "Interface\\Icons\\INV_Misc_Book_09", run = function() IC.Editor.Open() end }
     return entries
 end

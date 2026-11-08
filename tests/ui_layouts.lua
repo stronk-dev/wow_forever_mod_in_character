@@ -45,6 +45,7 @@ return function(test, eq, page, point, pointAt)
         eq(#Stub.sends + #Stub.emotes, 0)
     end)
     test("bar rows columns labels and fill direction control the rendered grid and paging", function(IC, Stub)
+        IC.Profile().emoteScope = "all"; IC.Profile().hideUnverified = false
         local p = page(IC, "Layouts"); p.bSource:Choose("all"); p.bColumns:SetValue(3); p.bRows:SetValue(2); p.bSize:SetValue(48)
         local bar, frame = IC.Layout().bars[1], IC.Bars.frames[1]
         eq(IC.Bars.Capacity(bar), 6); eq(frame.buttons[4].x, frame.buttons[1].x)
@@ -81,6 +82,7 @@ return function(test, eq, page, point, pointAt)
         wheelClick(IC, Stub, "Social"); eq(IC.Wheel.Current().id, "Social"); eq(#Stub.sends + #Stub.emotes, 0)
     end)
     test("large emote menus use semantic groups and alphabet ranges with reachable page controls", function(IC, Stub, env)
+        IC.Profile().emoteScope = "all"
         for i, action in ipairs(IC.Emotes.list) do env["EMOTE" .. i .. "_TOKEN"] = action.payload; env["EMOTE" .. i .. "_CMD1"] = "/" .. action.command end
         IC.Emotes.Validate(); IC.Profile().menu.pageSize = 6; IC.Menu.OpenAtCursor()
         local entries = IC.Menu.Entries(); local social, all

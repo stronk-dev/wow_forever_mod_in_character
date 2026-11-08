@@ -63,18 +63,20 @@ test("home cards turn each layout option on and off", function(IC, Stub)
     eq(auto, #IC.Emotes.categories); eq(#IC.Bars.frames, 1 + auto)
     p.catToggle:Click(); eq(#IC.Layout().bars, 1)
     p.favToggle:Click(); assert(IC.Layout().bars[1].hidden); assert(not IC.Bars.frames[1]:IsShown())
-    p.launcherClick:Choose("wheel"); IC.Launcher.button:Click("LeftButton"); assert(IC.Wheel.open)
+    p.launcherClick:Choose("quick"); IC.Launcher.button:Click("LeftButton"); assert(IC.QuickActions.open)
 end)
 
-test("emote library filters by what others can hear, searches, pins and tries emotes", function(IC, Stub)
+test("emote editor filters recorded sound and animation, searches, pins and tries emotes", function(IC, Stub)
     local p = page(IC, "Emotes")
     IC.Editor.emoteCategory = "all"; IC.Editor.RefreshEmotes()
     local everything = #p.shown
-    for _, chip in ipairs(p.chips) do if chip.value == "sound" then chip:Click() end end
+    IC.Curation.Save("emote:chicken", "keep", "nearby", "yes")
+    IC.Curation.Save("emote:dance", "keep", "silent", "yes")
+    for _, chip in ipairs(p.chips) do if chip.value == "heard" then chip:Click() end end
     assert(#p.shown > 0 and #p.shown < everything)
     for _, action in ipairs(p.shown) do assert(IC.Emotes.IsAudible(action)) end
-    for _, chip in ipairs(p.chips) do if chip.value == "silent" then chip:Click() end end
-    for _, action in ipairs(p.shown) do eq(action.kind, "animation") end
+    for _, chip in ipairs(p.chips) do if chip.value == "observed" then chip:Click() end end
+    for _, action in ipairs(p.shown) do eq(IC.Curation.Observation(action.id).animation, "yes") end
     for _, chip in ipairs(p.chips) do if chip.value == "all" then chip:Click() end end
     p.search:SetText("chick"); eq(#p.shown, 1); eq(p.shown[1].command, "chicken")
     p.tiles[1]:Click("RightButton"); assert(IC.Actions.IsFavorite("emote:chicken"))
@@ -87,6 +89,7 @@ end)
 
 test("emote library shows client-only emotes and disables unknown ones", function(IC, Stub)
     local p = page(IC, "Emotes")
+    p.hide:SetChecked(false); p.hide:Click()
     IC.Editor.emoteCategory = "all"; p.search:SetText("foreveronly"); eq(#p.shown, 1); eq(p.shown[1].kind, "unknown")
     p.search:SetText("flex"); eq(#p.shown, 1); assert(not p.shown[1].verified); assert(p.tiles[1].icon.desaturated)
     p.tiles[1]:Click(); IC.Editor.RefreshEmoteDetail(); eq(p.dTry.enabled, false)
@@ -107,6 +110,7 @@ test("dialogue: preset copy, drafts survive switching, save, preview and shortcu
 end)
 
 test("launcher menu lists favorites and categories, uses an emote and pins without closing", function(IC, Stub)
+    IC.Layout().launcher.click = "menu"
     IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen())
     local root = IC.Menu.levels[1]
     eq(root.entries[1].label, "Favorites")
@@ -164,6 +168,7 @@ test("wheel pages long categories with the mouse wheel and opens in combat", fun
 end)
 
 test("category bars show only their category and dispatch on click", function(IC, Stub)
+    IC.Curation.Save("emote:chicken", "keep", "nearby", "yes")
     local p = page(IC, "Home"); p.catToggle:Click()
     local frame
     for i, bar in ipairs(IC.Layout().bars) do if bar.source == "Voice/Fun" then frame = IC.Bars.frames[i] end end
@@ -216,12 +221,12 @@ test("combat hides only the window, defers rebuilds and never replays chat", fun
     page(IC, "Home"); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
     assert(not IC.Editor.frame:IsShown())
     IC.Refresh(); assert(IC.refreshPending)
-    IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen()); IC.Menu.Close()
+    IC.Launcher.button:Click("LeftButton"); assert(IC.QuickActions.open); IC.QuickActions.Close()
     Stub.combat = false; event("PLAYER_REGEN_ENABLED"); assert(not IC.refreshPending); eq(#Stub.sends, 0)
 end)
 
 test("addon compartment opens the menu and settings", function(IC, Stub, env)
-    env.InCharacter_OnAddonCompartmentClick("InCharacter", "LeftButton"); assert(IC.Menu.IsOpen()); IC.Menu.Close()
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", "LeftButton"); assert(IC.QuickActions.open); IC.QuickActions.Close()
     env.InCharacter_OnAddonCompartmentClick("InCharacter", "RightButton"); assert(IC.Editor.frame:IsShown()); eq(IC.Editor.tab, "Home")
 end)
 
@@ -238,6 +243,7 @@ test("wheel geometry: sectors start at the top and go clockwise; hub is a dead z
     for i = 1, 12 do local x, y = M.Position(i, 12, g.outer); local _, hit = M.Hit(x, y, g, 7, 12); eq(hit, i) end
 end)
 test("review fixes: mouse-button wheel key, unmoved hold release, Esc closes flyouts, compartment table args", function(IC, Stub, env)
+    IC.Layout().launcher.click = "menu"
     Stub.bindings["BUTTON4"] = "INCHARACTER_WHEEL"; IC.Profile().wheel.mode = "hold"
     IC.Wheel.Binding("down"); assert(IC.Wheel.open)
     -- The catcher swallows the mouse button, so its release must still reach the binding.
@@ -257,4 +263,6 @@ end)
 assert(loadfile("tests/ui_enhancements.lua"))()(test, eq, page, point, pointAt)
 assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_layouts.lua"))()(test, eq, page, point, pointAt)
+assert(loadfile("tests/ui_quick.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_review.lua"))()(test, eq, page)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

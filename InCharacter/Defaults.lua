@@ -23,7 +23,9 @@ function IC.Defaults.Profile()
             "pool:greetings", "pool:quotes", "pool:farewells" },
         wheel = { mode = "click", radius = 180, buttonSize = 42, pageSize = 8, deadZone = 62, hiddenActions = {}, hiddenCategories = {} },
         menu = { hiddenActions = {}, hiddenCategories = {}, pageSize = 12 },
-        emoteFilter = "all", hideUnverified = false,
+        quick = { style = "panel", columns = 3 },
+        emoteScope = "essentials", emoteReview = {},
+        emoteFilter = "all", hideUnverified = true,
         installedPacks = {},
         shortcuts = {},
         emoteOverrides = {},
@@ -36,6 +38,6 @@ function IC.Defaults.Bar(index)
 end
 function IC.Defaults.Launcher()
     -- click = what a left click on the launcher button opens: the categorized menu or the wheel.
-    return { shown = true, click = "menu", size = 40, x = -420, y = 180 }
+    return { shown = true, click = "quick", size = 40, x = -420, y = 180 }
 end
 function IC.Defaults.Layout() return { bars = { IC.Defaults.Bar(1) }, launcher = IC.Defaults.Launcher() } end

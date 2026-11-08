@@ -5,7 +5,7 @@ return function(IC, test, eq, open)
         profile.emoteOverrides["emote:wave"] = { icon = "my-icon" }
         IC.Layout().bars[1].columns = 3; IC.Layout().bars[1].size = 48
         open(db)
-        eq(db.version, 5); eq(IC.Profile().wheel.radius, 210); eq(IC.Profile().wheel.mode, "hold")
+        eq(db.version, 6); eq(IC.Profile().wheel.radius, 210); eq(IC.Profile().wheel.mode, "hold")
         assert(IC.Profile().wheel.hiddenActions["emote:wave"]); eq(IC.Profile().menu.pageSize, 12)
         eq(IC.Layout().bars[1].columns, 3); eq(IC.Layout().bars[1].rows, 0); eq(IC.Layout().bars[1].size, 48)
         eq(IC.Actions.Resolve("emote:wave").icon, "my-icon")

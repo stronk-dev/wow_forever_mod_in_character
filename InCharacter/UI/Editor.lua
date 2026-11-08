@@ -2,7 +2,7 @@ local _, IC = ...
 local unpack = unpack or table.unpack
 local U = IC.UI
 local C = U.Colors
-IC.Editor = { tab = "Home", emoteCategory = "Favorites", search = "", barIndex = 1,
+IC.Editor = { tab = "Home", emoteCategory = "essentials", search = "", barIndex = 1,
     drafts = setmetatable({}, { __mode = "k" }), pages = {} }
 local E = IC.Editor
 local WIDTH, HEIGHT, NAV = 960, 620, 150
@@ -131,33 +131,33 @@ function E.RefreshHome()
     p.launcherToggle:SetText(launcher.shown and "Hide the button" or "Show the button")
     p.launcherClick:SetValue(launcher.click)
     p.launcher.state:SetText(launcher.shown and "|cff66dd66On|r - shift-drag it anywhere." or "|cff999999Off|r")
-    p.wheelKey.Refresh(); p.wheelMode:SetValue(IC.Profile().wheel.mode)
+    p.wheelKey.Refresh(); p.wheelMode:SetValue(IC.Profile().quick.style)
     local fav = favoritesBar()
     p.favToggle:SetText(fav and not fav.hidden and "Hide favorites bar" or "Show favorites bar")
-    p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Actions.List("favorites") .. " favorites pinned.") or "|cff999999Off|r")
+    p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Actions.List("favorites") .. " visible pins.") or "|cff999999Off|r")
     local auto = hasCategoryBars()
     p.catToggle:SetText(auto and "Remove category bars" or "Create category bars")
     p.cat.state:SetText(auto and "|cff66dd66On|r - drag each bar's title to place it; right-click a title for settings." or "|cff999999Off|r")
 end
 local function createHome(p)
-    U.Heading(p, "How do you want to reach your emotes?", 0, 0)
-    U.Muted(p, "Turn on any combination. Everything below can be changed later under Bars, wheel & button.", 0, -22, PAGE_W)
+    U.Heading(p, "Your actions, one press away", 0, 0)
+    U.Muted(p, "Start small. Pin what you use, keep useful emotes, and write any named pools you want.", 0, -22, PAGE_W)
     local half = (PAGE_W - 12) / 2 + 12
-    p.launcher = card(p, 0, -48, IC.AddonIcon, "One button with a menu",
-        "A round button on your screen. Click it for every emote sorted by category, with favorites on top. Right-click any entry to pin it.")
+    p.launcher = card(p, 0, -48, IC.AddonIcon, "Quick actions",
+        "Labeled buttons for your pins, everyday emotes and any named dialogue pools. Click a pool to use it; ... chooses a specific line.")
     p.launcherToggle = U.Button(p.launcher, "", 66, -104, 150, function()
         local launcher = IC.Layout().launcher; launcher.shown = not launcher.shown; changed(); E.RefreshHome()
     end, "accent")
     p.launcherClick = U.Dropdown(p.launcher, 224, -104, 150, {
-        { value = "menu", label = "Click opens menu" }, { value = "wheel", label = "Click opens wheel" },
+        { value = "quick", label = "Quick actions" }, { value = "menu", label = "Dropdown menu" }, { value = "wheel", label = "Quick actions (old key)" },
     }, function(value) IC.Layout().launcher.click = value; E.RefreshHome() end)
-    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Radial wheel",
-        "Press a key and a ring appears under your cursor: categories inside, emotes and lines outside. Bind a key here.")
-    p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Wheel key", function() E.RefreshHome() end)
+    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Open with a key",
+        "Keep familiar actions in a stable order. The panel opens without capturing typing or selecting anything. Release never sends a panel action.")
+    p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Quick key", function() E.RefreshHome() end)
     p.wheelMode = U.Dropdown(p.wheel, 66, -128, 200, {
-        { value = "click", label = "Press key, click to use" }, { value = "hold", label = "Hold / release (experimental)" },
-    }, function(value) IC.Profile().wheel.mode = value end)
-    U.Button(p.wheel, "Try it", 274, -128, 100, function() E.frame:Hide(); IC.Wheel.Open(false) end)
+        { value = "panel", label = "Labeled action panel" }, { value = "ring", label = "Legacy circle" },
+    }, function(value) IC.Profile().quick.style = value end)
+    U.Button(p.wheel, "Try it", 274, -128, 100, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
     p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Favorites bar",
         "One action bar with the emotes and lines you pinned. Pin things in the Emote library or with right-click in the menu.")
     p.favToggle = U.Button(p.fav, "", 66, -104, 170, function()
@@ -167,18 +167,13 @@ local function createHome(p)
         changed(); E.RefreshHome()
     end, "accent")
     p.cat = card(p, half, -238, IC.Emotes.CategoryInfo.Combat.icon, "A bar per category",
-        "Separate small bars for Combat callouts, Greetings, Reactions, Poses and Sounds. Good for a fixed screen layout.")
+        "Separate bars for your enabled Combat, Social, Reaction, Idle and Playful emotes. Trim them further with each bar's item controls.")
     p.catToggle = U.Button(p.cat, "", 66, -104, 190, function() categoryBars(not hasCategoryBars()); E.RefreshHome() end, "accent")
     local legend = U.Panel(p, PAGE_W, 112, C.panel); legend:SetPoint("TOPLEFT", 0, -428)
-    U.Label(legend, "Reading the emote badges", 12, -10, nil, "GameFontNormal")
-    local y = -32
-    for _, kind in ipairs({ "sound", "animation", "text" }) do
-        local info = IC.Emotes.KindInfo[kind]
-        U.Label(legend, "|c" .. info.color .. info.label .. "|r", 12, y, 90)
-        U.Muted(legend, info.help, 100, y, PAGE_W - 120)
-        y = y - 22
-    end
-    U.Muted(legend, "Next: pin favorites in the Emote library, then write your own lines under Dialogue lines.", 12, y - 2, PAGE_W - 24)
+    U.Label(legend, "Keep everyday use small", 12, -10, nil, "GameFontNormal")
+    U.Muted(legend, "The emote list starts trimmed. All commands remain available in the editor; nothing is deleted.", 12, -34, PAGE_W - 24)
+    U.Button(legend, "Check emotes one by one", 12, -68, 240, function() IC.EmoteReview.Open() end)
+    U.Muted(legend, "Sound badges show your own character's checks. Nearby sound needs another player to confirm it.", 266, -72, PAGE_W - 282)
 end
 
 -- Emote library -----------------------------------------------------------------------------------
@@ -193,11 +188,13 @@ local function emoteSource()
         for _, id in ipairs(profile.favorites) do
             local action = IC.Emotes.byID[id]; if action then list[#list + 1] = action end
         end
-    elseif category == "all" then list = IC.Emotes.list
+    elseif category == "all" or category == "essentials" then list = IC.Emotes.list
     else list = IC.Emotes.byCategory[category] or {} end
     for _, action in ipairs(list) do
         action = IC.Actions.Resolve(action.id)
-        if (not profile.hideUnverified or action.verified) and IC.Emotes.Matches(action, profile.emoteFilter) and IC.Emotes.Search(action, E.search) then
+        local visible = category == "all" and (not profile.hideUnverified or action.verified) and IC.Emotes.Matches(action, profile.emoteFilter)
+            or (category ~= "all" and IC.Emotes.Visible(action, profile))
+        if visible and IC.Emotes.Search(action, E.search) then
             result[#result + 1] = action
         end
     end
@@ -232,6 +229,7 @@ function E.RefreshEmotes()
     end
     for _, chip in ipairs(p.chips) do chip:SetSelected(chip.value == profile.emoteFilter) end
     p.hide:SetChecked(profile.hideUnverified)
+    p.scope:SetValue(profile.emoteScope)
     local actions = emoteSource()
     p.shown = actions
     for _, t in ipairs(p.tiles) do t:Hide() end
@@ -269,12 +267,15 @@ function E.RefreshEmoteDetail()
     p.dClient:SetText(action.verified and "|cff66dd66This client knows this emote.|r" or "|cffff7755This client does not recognize it, so it is disabled.|r")
     p.dTry:SetEnabled(action.verified)
     p.dPin:SetText(IC.Actions.IsFavorite(action.id) and "Unpin favorite" or "Pin to favorites")
+    local review = IC.Curation.Record(action.id)
+    p.dKeep:SetText((review.choice == "hide" or review.choice == "duplicate" or review.choice == "text") and "Keep in everyday use" or "Hide from everyday use")
+    p.dReview:SetEnabled(action.verified)
     local override = IC.Profile().emoteOverrides[action.id] or {}
     p.dLabel:SetText(override.label or "")
 end
 local function createEmotes(p)
     p.categories, p.tiles, p.chips = {}, {}, {}
-    local ids = { "Favorites" }
+    local ids = { "essentials", "Favorites" }
     for _, id in ipairs(IC.Emotes.categories) do ids[#ids + 1] = id end
     ids[#ids + 1] = "all"
     for n, id in ipairs(ids) do
@@ -284,6 +285,10 @@ local function createEmotes(p)
         p.categories[n] = button
     end
     U.Muted(p, "Right-click a tile to pin it. Double-click to try it.", 0, -#ids * 30 - 8, 150)
+    p.scope = U.Dropdown(p, 0, -#ids * 30 - 52, 150, {
+        { value = "essentials", label = "Quick lists: trimmed" }, { value = "all", label = "Quick lists: all" },
+    }, function(value) IC.Profile().emoteScope = value; changed(); E.RefreshEmotes() end)
+    p.review = U.Button(p, "Check one by one", 0, -#ids * 30 - 88, 150, function() IC.EmoteReview.Open() end)
     p.search = U.Input(p, GRID_X, 0, 200)
     p.search:SetScript("OnTextChanged", function(self) E.search = self:GetText(); E.RefreshEmotes() end)
     U.Muted(p, "Search", GRID_X + 210, -6)
@@ -336,6 +341,14 @@ local function createEmotes(p)
     U.Button(d, "Reset look", 12, -342, DW - 24, function()
         if E.emote then IC.Profile().emoteOverrides[E.emote.id] = nil; changed(); E.RefreshEmotes() end
     end)
+    p.dKeep = U.Button(d, "", 12, -380, DW - 24, function()
+        local action = E.emote; if not action then return end
+        local record, seen = IC.Curation.Record(action.id), IC.Curation.Observation(action.id)
+        local hidden = record.choice == "hide" or record.choice == "duplicate" or record.choice == "text"
+        IC.Curation.Save(action.id, hidden and "keep" or "hide", seen.sound or "unknown", seen.animation or "unknown", "", record.notes, record.iconReviewed)
+        E.RefreshEmotes()
+    end)
+    p.dReview = U.Button(d, "Check sound / duplicates", 12, -414, DW - 24, function() if E.emote then IC.EmoteReview.Open(E.emote.id) end end)
 end
 
 -- Dialogue ----------------------------------------------------------------------------------------
@@ -513,6 +526,10 @@ function E.RefreshLayouts()
     p.wMode:SetValue(wheel.mode); p.wRadius:Set(wheel.radius); p.wKey.Refresh(); p.mKey.Refresh()
     p.wButtonSize:Set(wheel.buttonSize); p.wPageSize:Set(wheel.pageSize); p.wDeadZone:Set(wheel.deadZone)
     p.mPageSize:Set(IC.Profile().menu.pageSize)
+    p.qStyle:SetValue(IC.Profile().quick.style); p.qColumns:Set(IC.Profile().quick.columns)
+    local ring = IC.Profile().quick.style == "ring"
+    for _, widget in ipairs({ p.wRadius, p.wButtonSize, p.wPageSize, p.wDeadZone }) do widget:SetShown(ring); widget.caption:SetShown(ring) end
+    p.wMode:SetShown(ring); p.qColumns:SetShown(not ring); p.qColumns.caption:SetShown(not ring)
     local bars = IC.Layout().bars
     E.barIndex = math.max(1, math.min(#bars, E.barIndex))
     local options = {}
@@ -536,13 +553,13 @@ local function section(parent, title, x, y, width, height)
 end
 local function createLayouts(p)
     p.layoutScroll = U.Scroll(p, 0, 0, PAGE_W, PAGE_H)
-    p.layoutScroll:SetContentHeight(760)
+    p.layoutScroll:SetContentHeight(810)
     local canvas = p.layoutScroll.content
     local half = (PAGE_W - 34) / 2
     local s = section(canvas, "Launcher button & dropdown menu", 0, 0, half, 270)
     p.lShown = U.Check(s, "Show the launcher button", 12, -32, function(value) IC.Layout().launcher.shown = value; changed() end)
     p.lClick = U.Dropdown(s, 12, -62, half - 24, {
-        { value = "menu", label = "Left-click opens the emote menu" }, { value = "wheel", label = "Left-click opens the radial wheel" },
+        { value = "quick", label = "Left-click opens quick actions" }, { value = "menu", label = "Left-click opens the dropdown menu" }, { value = "wheel", label = "Quick actions (old wheel setting)" },
     }, function(value) IC.Layout().launcher.click = value end)
     p.lSize = U.Slider(s, "Size", 12, -96, half - 120, 28, 64, 2, function(value) IC.Layout().launcher.size = value; changed() end)
     U.Button(s, "Reset", half - 100, -112, 88, function()
@@ -551,19 +568,23 @@ local function createLayouts(p)
     end)
     p.mPageSize = U.Slider(s, "Menu rows per page", 12, -150, half - 24, 6, 20, 1, function(value) IC.Profile().menu.pageSize = value; changed() end)
     p.editMenu = U.Button(s, "Edit menu categories / items", 12, -204, half - 24, function() IC.LayoutUI.Open("menu") end)
-    s = section(canvas, "Radial wheel · categories first", half + 10, 0, half, 270)
-    p.wKey = U.KeyCapture(s, 12, -32, (half - 30) / 2, "INCHARACTER_WHEEL", "Wheel")
+    s = section(canvas, "Quick actions", half + 10, 0, half, 310)
+    p.wKey = U.KeyCapture(s, 12, -32, (half - 30) / 2, "INCHARACTER_WHEEL", "Quick")
     p.mKey = U.KeyCapture(s, 18 + (half - 30) / 2, -32, (half - 30) / 2, "INCHARACTER_MENU", "Menu")
-    p.wMode = U.Dropdown(s, 12, -62, half - 24, {
+    p.qStyle = U.Dropdown(s, 12, -62, half - 24, {
+        { value = "panel", label = "Labeled action panel (default)" }, { value = "ring", label = "Legacy circle" },
+    }, function(value) IC.Profile().quick.style = value; E.RefreshLayouts() end)
+    p.wMode = U.Dropdown(s, 12, -264, half - 24, {
         { value = "click", label = "Press key, then click an action" }, { value = "hold", label = "Hold / release (experimental)" },
     }, function(value) IC.Profile().wheel.mode = value end)
     p.wRadius = U.Slider(s, "Ring radius", 12, -96, half - 120, 130, 260, 5, function(value) IC.Profile().wheel.radius = value end)
-    U.Button(s, "Try wheel", half - 100, -112, 88, function() E.frame:Hide(); IC.Wheel.Open(false) end)
+    p.qColumns = U.Slider(s, "Panel columns", 12, -96, half - 120, 2, 4, 1, function(value) IC.Profile().quick.columns = value end)
+    U.Button(s, "Try it", half - 100, -112, 88, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
     p.wButtonSize = U.Slider(s, "Icon size", 12, -150, (half - 36) / 2, 28, 64, 2, function(value) IC.Profile().wheel.buttonSize = value end)
     p.wPageSize = U.Slider(s, "Items per ring", half / 2 + 6, -150, (half - 36) / 2, 4, 12, 1, function(value) IC.Profile().wheel.pageSize = value end)
     p.wDeadZone = U.Slider(s, "Neutral centre", 12, -206, (half - 36) / 2, 30, 100, 2, function(value) IC.Profile().wheel.deadZone = value end)
-    p.editWheel = U.Button(s, "Edit wheel items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
-    s = section(canvas, "Action bars", 0, -282, PAGE_W - 24, 460)
+    p.editWheel = U.Button(s, "Edit quick items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
+    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 460)
     p.which = U.Dropdown(s, 12, -32, 260, {}, function(value) E.barIndex = value; E.RefreshLayouts() end)
     U.Button(s, "+ Add bar", 280, -32, 110, function()
         local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.Bar(#bars + 1); E.barIndex = #bars; changed(); E.RefreshLayouts()
@@ -641,6 +662,7 @@ function E.SelectTab(name)
     if E.messages then E.messages:Hide() end
     if E.preview then E.preview:Hide() end
     if IC.LayoutUI and IC.LayoutUI.frame then IC.LayoutUI.frame:Hide() end
+    if IC.EmoteReview and IC.EmoteReview.frame then IC.EmoteReview.frame:Hide() end
     E.tab = name
     for tab, page in pairs(E.pages) do page:SetShown(tab == name) end
     for _, button in ipairs(E.nav) do button:SetSelected(button.tab == name) end
@@ -676,6 +698,7 @@ function E.Create()
         if E.messages then E.messages:Hide() end
         if E.preview then E.preview:Hide() end
         if IC.LayoutUI and IC.LayoutUI.frame then IC.LayoutUI.frame:Hide() end
+        if IC.EmoteReview and IC.EmoteReview.frame then IC.EmoteReview.frame:Hide() end
     end)
 end
 function E.Open(tab, barIndex)
@@ -684,6 +707,7 @@ function E.Open(tab, barIndex)
     if barIndex then E.barIndex = barIndex end
     if IC.Menu then IC.Menu.Close() end
     if IC.Wheel then IC.Wheel.Close() end
+    if IC.QuickActions then IC.QuickActions.Close() end
     E.frame:Show(); E.frame:Raise(); E.SelectTab(tab or E.tab)
 end
 function E.Toggle()

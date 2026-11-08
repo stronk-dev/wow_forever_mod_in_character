@@ -48,6 +48,7 @@ function IC.Refresh()
     if IC.Bars then IC.Bars.Refresh() end
     if IC.Launcher then IC.Launcher.Refresh() end
     if IC.Menu then IC.Menu.Rebuild() end
+    if IC.QuickActions and IC.QuickActions.open then IC.QuickActions.Refresh() end
 end
 
 function IC.Changed()
@@ -55,7 +56,7 @@ function IC.Changed()
 end
 
 function IC.Help()
-    IC.Print("/ic opens the window; /ic emotes; /ic menu; /ic wheel; /ic greet; /ic quote; /ic bye; /ic pool <name or ID>.")
+    IC.Print("/ic opens settings; /ic quick opens quick actions; /ic review checks emotes; /ic emotes; /ic menu; /ic wheel.")
     IC.Print("/ic <pool name>; /ic play random|shuffle|sequential <pool name>; /ic message <pool ID> <message ID>.")
 end
 
@@ -66,8 +67,10 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
-    elseif command == "wheel" then
-        if IC.Wheel then IC.Wheel.Toggle() else IC.Print("Wheel is not loaded.") end
+    elseif command == "wheel" or command == "quick" then
+        IC.QuickActions.Toggle()
+    elseif command == "review" then
+        IC.EmoteReview.Open()
     elseif command == "menu" then
         if IC.Menu then IC.Menu.OpenAtCursor() end
     elseif command == "emotes" or command == "setup" or command == "settings" then

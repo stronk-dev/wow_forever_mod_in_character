@@ -103,27 +103,32 @@ return function(IC, test, eq, open)
         assert(IC.Actions.Dispatch("emote:wave")); eq(token, "Client_Wave")
         DoEmote, EMOTE1_TOKEN, EMOTE1_CMD1 = nil, nil, nil
     end)
-    test("emote library classifies sound, silent animation and text from the catalog", function()
+    test("reference metadata remains available without establishing actual sound", function()
+        open()
         local byID = IC.Emotes.byID
         for _, command in ipairs({ "chicken", "cheer", "laugh", "charge", "healme" }) do eq(byID["emote:" .. command].kind, "sound") end
         for _, command in ipairs({ "flex", "dance", "sit", "wave" }) do eq(byID["emote:" .. command].kind, "animation") end
         eq(byID["emote:hug"].kind, "text"); eq(byID["emote:apologize"].kind, "voice")
-        assert(IC.Emotes.IsAudible(byID["emote:apologize"])); assert(not IC.Emotes.IsAudible(byID["emote:dance"]))
+        assert(not IC.Emotes.IsAudible(byID["emote:apologize"])); assert(not IC.Emotes.IsAudible(byID["emote:dance"]))
         assert(#IC.Emotes.list >= 250)
         for _, category in ipairs(IC.Emotes.categories) do
             assert(#IC.Emotes.byCategory[category] >= 10, category)
             for _, action in ipairs(IC.Emotes.byCategory[category]) do assert(action.categories[category]) end
         end
     end)
-    test("filters separate audible, silent and text-only emotes", function()
+    test("filters use recorded character observations and legacy reference filters migrate to all", function()
+        open()
         local M, byID = IC.Emotes.Matches, IC.Emotes.byID
-        assert(M(byID["emote:chicken"], "sound")); assert(not M(byID["emote:dance"], "sound"))
-        assert(M(byID["emote:dance"], "silent")); assert(not M(byID["emote:cheer"], "silent"))
-        assert(M(byID["emote:cheer"], "animated")); assert(M(byID["emote:hug"], "text")); assert(not M(byID["emote:hug"], "animated"))
-        open(); IC.Profile().emoteFilter = "sound"
-        for _, action in ipairs(IC.Actions.List("Idle")) do assert(IC.Emotes.IsAudible(action)) end
+        assert(not M(byID["emote:chicken"], "heard"))
+        IC.Curation.Save("emote:chicken", "keep", "nearby", "yes")
+        IC.Curation.Save("emote:dance", "keep", "silent", "yes")
+        IC.Curation.Save("emote:hug", "text", "unknown", "unknown")
+        assert(M(byID["emote:chicken"], "heard")); assert(not M(byID["emote:dance"], "heard"))
+        assert(M(byID["emote:dance"], "observed")); assert(not M(byID["emote:cheer"], "observed"))
+        assert(M(byID["emote:hug"], "textChecked"))
         local db = open(); IC.Profile().emoteFilter = "audible"; open(db); eq(IC.Profile().emoteFilter, "all")
-        IC.Profile().emoteFilter = "silent"; open(db); eq(IC.Profile().emoteFilter, "silent")
+        IC.Profile().emoteFilter = "silent"; open(db); eq(IC.Profile().emoteFilter, "all")
+        IC.Profile().emoteFilter = "heard"; open(db); eq(IC.Profile().emoteFilter, "heard")
     end)
     test("validation maps aliases, adds client-only emotes and is repeatable", function()
         EMOTE1_TOKEN, EMOTE1_CMD1, EMOTE1_CMD2 = "SILLY", "/silly", "/joke"

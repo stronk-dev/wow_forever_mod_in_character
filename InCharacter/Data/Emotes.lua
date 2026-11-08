@@ -19,10 +19,9 @@ E.KindInfo = {
 }
 E.Filters = {
     { value = "all", label = "All" },
-    { value = "sound", label = "Sound (ref)" },
-    { value = "silent", label = "Silent (ref)" },
-    { value = "animated", label = "Any animation" },
-    { value = "text", label = "Text only" },
+    { value = "heard", label = "Sound checked" },
+    { value = "observed", label = "Animation checked" },
+    { value = "textChecked", label = "Text checked" },
 }
 
 -- Guided categories. Ids are stable (bars and saved favorites refer to them).
@@ -30,17 +29,18 @@ E.categories = { "Combat", "Social", "Reactions", "Idle", "Voice/Fun" }
 E.CategoryInfo = {
     Favorites = { label = "Favorites", icon = I .. "Spell_Holy_PowerInfusion", hint = "Your pinned emotes and dialogue." },
     Combat = { label = "Combat callouts", icon = I .. "Ability_Warrior_BattleShout",
-        hint = "Group callouts: charge, heal me, out of mana. Audio labels are Retail references, not Forever verification." },
+        hint = "Group callouts: charge, heal me, out of mana. Check the result on your character." },
     Social = { label = "Greetings & manners", icon = I .. "Spell_Holy_PrayerOfHealing",
         hint = "Wave, bow, thank and welcome people." },
     Reactions = { label = "Reactions", icon = I .. "Spell_Holy_MindVision",
         hint = "Laugh, cheer, cry, facepalm: react to what just happened." },
     Idle = { label = "Poses & idle", icon = I .. "Spell_Nature_Sleep",
-        hint = "Mostly silent animations for roleplay scenes: dance, flex, sit, read." },
-    ["Voice/Fun"] = { label = "Sounds & fun", icon = I .. "Ability_Druid_DemoralizingRoar",
-        hint = "Chicken, train, roar and more. Reference voice metadata; nearby audio in Forever requires a live check." },
+        hint = "Poses and activities: dance, flex, sit and read. Check the result on your character." },
+    ["Voice/Fun"] = { label = "Playful emotes", icon = I .. "Ability_Druid_DemoralizingRoar",
+        hint = "Chicken, train, roar and more. Sound stays unverified until you check it." },
     Roleplay = { label = "Roleplay lines", icon = I .. "INV_Misc_Book_09", hint = "Your dialogue pools." },
     all = { label = "All emotes", icon = I .. "INV_Misc_Note_01", hint = "Every emote this client knows." },
+    essentials = { label = "Everyday emotes", icon = I .. "INV_Gauntlets_04", hint = "A smaller starting selection plus the emotes you keep. Review and change it freely." },
 }
 local curated = {
     Combat = { "charge", "attacktarget", "incoming", "openfire", "flee", "helpme", "healme", "oom",
@@ -88,7 +88,7 @@ local function kindOf(animated, voice)
     if animated then return "animation" end
     return "text"
 end
-function E.IsAudible(action) return action.kind == "sound" or action.kind == "voice" end
+function E.IsAudible(action) return IC.Curation and IC.Curation.Observation(action.id).sound == "nearby" or false end
 
 local function addEmote(command, aliases, animated, voice, fromCatalog)
     local action = {
@@ -126,16 +126,18 @@ for _, category in ipairs(E.categories) do
 end
 
 function E.Validate()
-    local tokens, aliases, primary = {}, {}, {}
+    local tokens, aliases, primary, clientAliases = {}, {}, {}, {}
     for index = 1, 1000 do
         local token = _G["EMOTE" .. index .. "_TOKEN"]
         if type(token) == "string" then
             tokens[token] = true
+            clientAliases[token] = clientAliases[token] or {}
             for n = 1, 4 do
                 local alias = _G["EMOTE" .. index .. "_CMD" .. n]
                 if type(alias) == "string" then
                     alias = alias:lower():gsub("^/", "")
                     aliases[alias] = token; primary[token] = primary[token] or alias
+                    clientAliases[token][#clientAliases[token] + 1] = alias
                 end
             end
         end
@@ -152,6 +154,7 @@ function E.Validate()
         token = token or (tokens[emote.command:upper()] and emote.command:upper())
         emote.payload = token or emote.command:upper()
         emote.verified = token ~= nil
+        emote.clientAliases = token and clientAliases[token] or nil
         if token then claimed[token] = true end
     end
     for token in pairs(tokens) do
@@ -159,20 +162,24 @@ function E.Validate()
         if not claimed[token] and not E.byID["emote:" .. command] then
             local action = addEmote(command, { command }, false, false, false)
             action.payload, action.verified, action.clientOnly = token, true, true
+            action.clientAliases = clientAliases[token]
         end
     end
     table.sort(E.list, function(a, b) return a.command < b.command end)
 end
 
 function E.Matches(action, filter)
-    if filter == "sound" then return E.IsAudible(action) end
-    if filter == "silent" then return action.kind == "animation" end
-    if filter == "animated" then return action.animated == true end
-    if filter == "text" then return action.kind == "text" end
+    if filter == "heard" or filter == "observed" or filter == "textChecked" then
+        local seen = IC.Curation.Observation(action.id)
+        if filter == "heard" then return seen.sound == "self" or seen.sound == "nearby" end
+        if filter == "observed" then return seen.animation == "yes" end
+        return seen.sound == "silent" and seen.animation == "no"
+    end
     return true
 end
 function E.Visible(action, profile)
     if profile.hideUnverified and not action.verified then return false end
+    if IC.Curation and not IC.Curation.Included(action, profile) then return false end
     return E.Matches(action, profile.emoteFilter)
 end
 function E.Search(action, text)
@@ -180,9 +187,10 @@ function E.Search(action, text)
     if text == "" then return true end
     if action.name:lower():find(text, 1, true) then return true end
     for _, alias in ipairs(action.aliases) do if alias:find(text, 1, true) then return true end end
+    for _, alias in ipairs(action.clientAliases or {}) do if alias:find(text, 1, true) then return true end end
     return false
 end
 function E.Badge(action)
-    local info = E.KindInfo[action.kind] or E.KindInfo.unknown
-    return "|c" .. info.color .. info.label .. "|r", info
+    if IC.Curation then return IC.Curation.Badge(action) end
+    return "Not checked", { help = "Sound and animation have not been checked on this character." }
 end

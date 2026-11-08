@@ -13,7 +13,7 @@ function L.Create()
     button:SetIcon(IC.AddonIcon)
     button:SetScript("OnClick", function(self, mouse)
         if mouse == "RightButton" then IC.Editor.Open("Home"); return end
-        if config().click == "wheel" then IC.Wheel.Toggle() else IC.Menu.Open(self) end
+        if config().click == "quick" or config().click == "wheel" then IC.QuickActions.Toggle() else IC.Menu.Open(self) end
     end)
     button:SetScript("OnDragStart", function(self) if IsShiftKeyDown() then self:StartMoving() end end)
     button:SetScript("OnDragStop", function(self)
@@ -23,7 +23,7 @@ function L.Create()
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText("In Character", 1, 1, 1)
-        GameTooltip:AddLine("Left-click: " .. (config().click == "wheel" and "radial wheel" or "emote menu"), 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Left-click: " .. (config().click == "menu" and "emote menu" or "quick actions"), 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Right-click: settings", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Shift-drag: move", 0.8, 0.8, 0.8)
         GameTooltip:Show()

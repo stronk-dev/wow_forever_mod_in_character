@@ -1,5 +1,5 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 5 }
+IC.Profiles = { VERSION = 6 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
@@ -15,8 +15,9 @@ local function CompleteProfile(profile, database)
     defaults.pools = nil
     if pools ~= nil then defaults.poolOrder = nil end
     IC.Merge(profile, defaults)
-    local filters = { all = true, sound = true, silent = true, animated = true, text = true }
+    local filters = { all = true, heard = true, observed = true, textChecked = true }
     if not filters[profile.emoteFilter] then profile.emoteFilter = "all" end
+    if profile.emoteScope ~= "all" and profile.emoteScope ~= "essentials" then profile.emoteScope = "essentials" end
     if pools == nil then profile.pools = IC.Defaults.Profile().pools end
     if type(profile.poolOrder) ~= "table" then profile.poolOrder = {} end
     local seen, order = {}, {}
@@ -75,7 +76,7 @@ function P.Open(database, characterDatabase, legacyKeys)
         end
     end
     -- Keep all legacy records intact so other characters can migrate when they log in.
-    IC.Merge(character, { scope = "account", layoutScope = "character", layout = IC.Defaults.Layout() })
+    IC.Merge(character, { scope = "account", layoutScope = "character", layout = IC.Defaults.Layout(), emoteObservations = {} })
     CompleteLayout(character.layout)
     if character.profile then CompleteProfile(character.profile, db) end
     if character.scope == "character" and not character.profile then character.profile = IC.Copy(db.profiles.account) end
