@@ -1,0 +1,14 @@
+## Interface: 16001
+## Title: In Character
+## Notes: Emotes, reactions, and roleplay dialogue
+## Version: 0.3.0
+## SavedVariables: InCharacterDB
+## X-License: MIT
+
+Core.lua
+Defaults.lua
+Data/Emotes.lua
+Services/Profiles.lua
+Services/Dialogue.lua
+Services/Actions.lua
+UI/Bars.lua

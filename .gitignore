@@ -1,0 +1,4 @@
+dist/
+*.bundle
+.DS_Store
+*.luac
