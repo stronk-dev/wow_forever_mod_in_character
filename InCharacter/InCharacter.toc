@@ -11,4 +11,11 @@ Data/Emotes.lua
 Services/Profiles.lua
 Services/Dialogue.lua
 Services/Actions.lua
+Services/Library.lua
+Data/Library/OfficeStanley.lua
+Data/Library/DutchMastermovies.lua
+Data/Library/DutchEveryday.lua
+Data/Library/OfficeOthers.lua
+UI/Widgets.lua
 UI/Bars.lua
+UI/Editor.lua

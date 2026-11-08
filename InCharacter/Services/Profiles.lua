@@ -61,6 +61,7 @@ end
 function P.SetScope(scope)
     assert(scope == "account" or scope == "character", "invalid profile scope")
     P.Character().scope = scope
+    IC.Dialogue.Clear()
     IC.Changed()
 end
 function P.SetLayoutScope(scope)
@@ -71,11 +72,13 @@ end
 function P.CopyAccount()
     P.Character().profile = IC.Copy(P.db.profiles.account)
     P.Character().scope = "character"
+    IC.Dialogue.Clear()
     IC.Changed()
 end
 function P.Reset()
     local character = P.Character()
     if character.scope == "character" then character.profile = IC.Defaults.Profile()
     else P.db.profiles.account = IC.Defaults.Profile() end
+    IC.Dialogue.Clear()
     IC.Changed()
 end

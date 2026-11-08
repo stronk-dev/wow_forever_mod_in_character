@@ -42,7 +42,6 @@ function IC.Refresh()
 end
 
 function IC.Changed()
-    IC.Dialogue.Clear()
     IC.Refresh()
 end
 
@@ -62,7 +61,9 @@ function IC.Slash(input)
         if IC.Wheel then IC.Wheel.Toggle() else IC.Print("Wheel is not loaded.") end
     else
         local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
-        local pool, problem = IC.Dialogue.Find(command == "pool" and rest or (aliases[command] or input))
+        local shortcut = aliases[command]
+        local requested = shortcut and (IC.Profile().shortcuts[shortcut] or shortcut) or input
+        local pool, problem = IC.Dialogue.Find(command == "pool" and rest or requested)
         if pool then IC.Actions.Dispatch({ type = "pool", payload = pool.id })
         else IC.Print(problem or "Unknown pool. Use /ic help.") end
     end

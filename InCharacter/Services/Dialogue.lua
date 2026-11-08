@@ -43,10 +43,10 @@ function D.Preview(pool)
     return D.Next(pool, IC.Copy(D.states[pool.id] or {}))
 end
 function D.Find(name)
+    if IC.Profile().pools[name] then return IC.Profile().pools[name] end
     local normalized, found = IC.Normalize(name)
     if normalized == "" then return nil, "Choose a pool name." end
     for id, pool in pairs(IC.Profile().pools) do
-        if id == name then return pool end
         if IC.Normalize(id) == normalized or IC.Normalize(pool.name) == normalized then
             if found and found ~= pool then return nil, "Ambiguous pool name; use /ic pool <exact ID>." end
             found = pool

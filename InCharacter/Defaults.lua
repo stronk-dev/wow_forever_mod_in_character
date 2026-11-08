@@ -21,6 +21,7 @@ function IC.Defaults.Profile()
         wheel = { mode = "click", radius = 165 },
         emoteFilter = "all", hideUnverified = false,
         installedPacks = {},
+        shortcuts = {},
     }
 end
 function IC.Defaults.Bar(index)
