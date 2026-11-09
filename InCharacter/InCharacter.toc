@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: In Character
 ## Notes: Emotes, reactions, and roleplay dialogue
-## Version: 0.13.0
+## Version: 0.13.1
 ## SavedVariables: InCharacterDB
 ## SavedVariablesPerCharacter: InCharacterCharDB
 ## IconTexture: Interface\Icons\Ability_Warrior_RallyingCry
