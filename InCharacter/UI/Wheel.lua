@@ -1,182 +1,179 @@
 local _, IC = ...
-local unpack = unpack or table.unpack
--- One labeled ring per level: categories first, then groups/actions. No category
--- opens on hover and no action is selected while the cursor rests in the centre.
-IC.Wheel = { inner = {}, outer = {}, stack = {} }
+-- Compact radial ring centred on the cursor. It shows one collection (default: the main bar's).
+-- Groups and pools show small previews of their contents; pointing at one fans its items out
+-- beyond it. Pointing never sends: only a click (or releasing the key in hold mode) does.
+IC.Wheel = { slots = {}, fanSlots = {}, stack = {} }
 local W, M, U = IC.Wheel, IC.WheelModel, IC.UI
-local C = U.Colors
-local SOUND_TINT = { 0.31, 0.76, 0.97, 1 }
-function W.Current() return W.stack[#W.stack] and W.stack[#W.stack].node or W.root end
+local unpack = unpack or table.unpack
+local PREVIEW, PREVIEW_SIZE = 4, 10
+
+local function settings() return IC.Profile().wheel end
+local function iconSize() return math.max(24, math.min(40, math.floor(tonumber(settings().iconSize) or 30))) end
+function W.Root() return settings().root or "main" end
+
+local function slot(parent)
+    local button = U.ActionButton(parent)
+    button:EnableMouse(false); button.arrow:EnableMouse(false)
+    button.previews = {}
+    for i = 1, PREVIEW do
+        local texture = button:CreateTexture(nil, "OVERLAY"); texture:SetSize(PREVIEW_SIZE, PREVIEW_SIZE)
+        texture:SetTexCoord(0.08, 0.92, 0.08, 0.92); button.previews[i] = texture
+    end
+    return button
+end
+
+local function cursorOffset()
+    local x, y = IC.Platform.Cursor()
+    local scale = W.frame:GetEffectiveScale()
+    local cx, cy = W.frame:GetCenter()
+    return x / scale - cx, y / scale - cy
+end
+W.CursorOffset = cursorOffset
+
+function W.Current() return W.stack[#W.stack] end
+
+-- Lays out the ring for the current node and page.
+function W.Render()
+    W.CloseFan()
+    local node = W.Current()
+    local all = IC.Collections.Children(node)
+    W.pages = M.Pages(#all)
+    W.page = math.max(1, math.min(W.pages, W.page or 1))
+    local items = M.Slice(all, W.page)
+    W.items = items
+    local g = M.Geometry(#items, iconSize()); W.geometry = g
+    W.frame:SetSize(g.size, g.size)
+    -- Reserve exactly the furthest extent of all fan rows, including icon corners.
+    local positions = M.Fan(10000, 0, g)
+    local extent = g.size / 2
+    for _, p in ipairs(positions) do extent = math.max(extent, math.sqrt(p.x * p.x + p.y * p.y) + g.fanIcon / math.sqrt(2)) end
+    local reach = math.max(0, extent - g.size / 2)
+    W.frame:SetClampRectInsets(-reach, reach, reach, -reach)
+    W.disc:SetSize(g.radius * 2 + g.icon + 12, g.radius * 2 + g.icon + 12)
+    W.hub:SetSize(g.hub * 2, g.hub * 2)
+    for _, button in ipairs(W.slots) do button:Hide() end
+    for index, item in ipairs(items) do
+        local button = W.slots[index] or slot(W.frame); W.slots[index] = button
+        button:SetNode(item, g.icon, "UP", false); button.arrow:Hide()
+        local x, y, angle = M.Position(index, #items, g.radius)
+        button.angle = angle
+        button:ClearAllPoints(); button:SetPoint("CENTER", W.frame, "CENTER", x, y)
+        local children = IC.Collections.HasChildren(item) and IC.Collections.Children(item) or {}
+        local distance = math.ceil((g.icon + PREVIEW_SIZE) / 2 * math.sqrt(2)) + 4
+        local previewCount = math.min(PREVIEW, #children)
+        local previewStep = math.min(0.16, ((math.pi * 2 / #items) * 0.85 - PREVIEW_SIZE / (g.radius + distance)) / math.max(1, previewCount - 1))
+        for i, texture in ipairs(button.previews) do
+            local child = children[i]
+            texture:SetShown(child ~= nil)
+            if child then
+                local a = angle + (i - (previewCount + 1) / 2) * previewStep
+                U.SetIcon(texture, child.icon, IC.Icons[1])
+                texture:ClearAllPoints()
+                texture:SetPoint("CENTER", W.frame, "CENTER", math.sin(a) * (g.radius + distance), math.cos(a) * (g.radius + distance))
+            end
+        end
+    end
+    W.pageText:SetText(W.pages > 1 and (W.page .. "/" .. W.pages) or "")
+    W.title:SetWidth(math.max(60, (g.radius - g.icon / 2) * 2 - 8))
+    W.SetHover(nil)
+end
+
+function W.CloseFan()
+    for _, button in ipairs(W.fanSlots) do button:Hide() end
+    if W.fanOwner then for _, texture in ipairs(W.fanOwner.previews) do if texture.wasShown then texture:Show() end end end
+    W.fan, W.fanOwner, W.fanItems = nil, nil, nil
+end
+-- Reveals the items of a ring slot beyond it. Nothing is sent.
+function W.OpenFan(button)
+    if W.fanOwner == button then return end
+    W.CloseFan()
+    local children = IC.Collections.Children(button.node)
+    if #children == 0 then return end
+    local positions, placed = M.Fan(#children, button.angle, W.geometry)
+    W.fan, W.fanOwner, W.fanItems = positions, button, {}
+    for i = 1, placed do
+        local child = children[i]
+        if i == placed and placed < #children then
+            child = { id = "more:" .. button.node.id, type = "more", target = button.node, name = "More (" .. (#children - placed + 1) .. ")", icon = "Interface\\Icons\\INV_Misc_QuestionMark" }
+        end
+        local fanButton = W.fanSlots[i] or slot(W.frame); W.fanSlots[i] = fanButton
+        fanButton:SetNode(child, W.geometry.fanIcon, "UP", false); fanButton.arrow:Hide()
+        for _, texture in ipairs(fanButton.previews) do texture:Hide() end
+        fanButton:ClearAllPoints(); fanButton:SetPoint("CENTER", W.frame, "CENTER", positions[i].x, positions[i].y)
+        W.fanItems[i] = child
+    end
+    for _, texture in ipairs(button.previews) do texture.wasShown = texture:IsShown(); texture:Hide() end
+end
+
+function W.SetHover(button)
+    if W.hover == button then return end
+    W.hover = button
+    W.highlight:SetShown(button ~= nil)
+    if button then
+        local size = button:GetWidth() + 6
+        W.highlight:SetSize(size, size); W.highlight:ClearAllPoints(); W.highlight:SetPoint("CENTER", button, "CENTER")
+        W.title:SetText(button.node.name or button.node.label)
+        W.hoverSince = IC.Platform.Time()
+    else
+        local node = W.Current()
+        W.title:SetText(#W.stack > 1 and (node.name or node.label) or "")
+    end
+end
+
+function W.Track()
+    if not W.open then return end
+    local dx, dy = cursorOffset()
+    if not W.moved and W.start and math.abs(dx - W.start[1]) + math.abs(dy - W.start[2]) > 8 then W.moved = true end
+    local zone = M.Zone(dx, dy, W.geometry)
+    if zone == "hub" or #W.items == 0 then W.SetHover(nil); return end
+    if zone == "ring" then
+        local button = W.slots[M.Sector(M.Angle(dx, dy), #W.items)]
+        W.SetHover(button)
+        if IC.Collections.HasChildren(button.node) then W.OpenFan(button) elseif W.fanOwner ~= button then W.CloseFan() end
+        return
+    end
+    if W.fan then
+        local index = M.Nearest(dx, dy, W.fan, W.geometry.fanIcon * 0.8)
+        W.SetHover(index and W.fanSlots[index] or nil)
+    else W.SetHover(nil) end
+end
+
 function W.Enter(node)
-    if node.type ~= "submenu" then return false end
-    W.stack[#W.stack + 1] = { node = node, parentPage = W.page }
-    W.page = 1; W.Render(); return true
+    for _, ancestor in ipairs(W.stack) do if ancestor.id == node.id then return end end
+    W.stack[#W.stack + 1] = node; W.page = 1; W.Render()
 end
 function W.Back()
-    local entry = table.remove(W.stack)
-    if not entry then W.Close(); return false end
-    W.page = entry.parentPage; W.Render(); return true
+    if #W.stack <= 1 then W.Close(); return end
+    table.remove(W.stack); W.page = 1; W.Render()
+end
+function W.Page(delta)
+    if not W.open or (W.pages or 1) < 2 then return end
+    W.page = (W.page - 1 + delta) % W.pages + 1; W.Render()
 end
 
-local function slot(parent, size, labelled)
-    local frame = CreateFrame("Frame", nil, parent)
-    frame:SetSize(size, size)
-    frame.glow = U.Circle(frame, "BACKGROUND", size * 1.5, { C.accent[1], C.accent[2], C.accent[3], 0.55 })
-    frame.glow:SetPoint("CENTER"); frame.glow:Hide()
-    frame.icon = frame:CreateTexture(nil, "ARTWORK"); frame.icon:SetAllPoints()
-    local mask = frame:CreateMaskTexture()
-    mask:SetTexture(U.CIRCLE_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE"); mask:SetAllPoints(frame.icon)
-    frame.icon:AddMaskTexture(mask)
-    frame.ring = U.Circle(frame, "BORDER", size + 6, { 1, 1, 1, 1 }); frame.ring:SetPoint("CENTER")
-    frame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    frame.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    frame.label:SetPoint("TOP", frame, "BOTTOM", 0, -2); frame.label:SetWidth(84); frame.label:SetWordWrap(false)
-    frame.label:SetShown(labelled == true)
-    return frame
-end
-local function fill(frame, action, active)
-    frame.action = action
-    U.SetIcon(frame.icon, action.icon, IC.Icons[1])
-    frame.label:SetText(IC.ShortText(action.name or action.label, 60) .. (action.type == "submenu" and " >" or ""))
-    local audible = action.type == "emote" and IC.Emotes.IsAudible(action)
-    frame.ring:SetVertexColor(unpack(active and C.accent or (audible and SOUND_TINT or C.border)))
-    frame.glow:SetShown(active == true)
-    frame:Show()
-end
-local function highlight(frame, on)
-    if not frame then return end
-    frame.glow:SetShown(on)
-    frame.label:SetTextColor(unpack(on and C.accent or C.text))
-end
-
-function W.Close()
-    W.open, W.held, W.hover = false, false, nil
-    if W.catcher then W.catcher:Hide() end
-    if GameTooltip then GameTooltip:Hide() end
-end
-
-function W.Layout()
-    local settings = IC.Profile().wheel
-    local radius = math.max(130, math.min(260, tonumber(settings.radius) or 180))
-    W.buttonSize = math.max(28, math.min(64, tonumber(settings.buttonSize) or 42))
-    W.geometry = M.Geometry(radius, tonumber(settings.deadZone) or 62, W.buttonSize)
-    local size = math.max(420, radius * 2 + 110)
-    W.frame:SetSize(size, size)
-    W.discOuter:SetSize(radius * 2 + 80, radius * 2 + 80)
-    W.discInner:Hide()
-    W.discHub:SetSize(W.geometry.hub * 2, W.geometry.hub * 2)
-end
-
-function W.SetHover(kind, index)
-    local frame = kind == "outer" and W.outer[index] or nil
-    if W.hover == frame then return end
-    highlight(W.hover, false); W.hover = frame; highlight(frame, true)
-    W.hoverSince = frame and GetTime() or nil
-    GameTooltip:Hide()
-    if frame and frame.action.type == "line" then
-        GameTooltip:SetOwner(W.info, "ANCHOR_BOTTOM"); GameTooltip:SetText(frame.action.label)
-        GameTooltip:AddLine(IC.Actions.Description(frame.action), 1, 1, 1, true); GameTooltip:Show()
+-- Uses the hovered item. Groups and "more" enter; pools play their next line; everything else sends.
+function W.Use(mouse)
+    local button = W.hover
+    if not button then return false end
+    local node = button.node
+    if node.type == "more" then W.Enter(node.target); return true end
+    if node.type == "group" then W.Enter(node); return true end
+    if mouse == "RightButton" then
+        if node.type == "pool" then W.Enter(node); return true end
+        return false
     end
-    W.RenderHub()
-end
-
-function W.SelectCategory(index)
-    if not index or not W.categories[index] then return end
-    W.stack = {}; W.category = index; W.Enter(W.categories[index])
-end
-
-function W.RenderHub()
-    local action = W.hover and W.hover.action
-    local category = W.Current()
-    W.backHint:SetText(#W.stack > 0 and "< Back" or "Cancel")
-    local path = { "Categories" }
-    for _, entry in ipairs(W.stack) do path[#path + 1] = entry.node.label end
-    W.breadcrumb:SetText(IC.ShortText(table.concat(path, " > "), 96))
-    if action then
-        U.SetIcon(W.hubIcon, action.icon, IC.Icons[1])
-        W.hubTitle:SetText(action.name or action.label)
-        if action.type == "submenu" then
-            W.hubDetail:SetText("Click to open this group. Hover and key release never enter a submenu.")
-        elseif action.type == "emote" then
-            local badge, info = IC.Emotes.Badge(action)
-            W.hubDetail:SetText(badge .. "  /" .. action.command .. "\n|cffbbbbbb" .. info.help .. "|r")
-        else
-            W.hubDetail:SetText(IC.ShortText(IC.Actions.Description(action), 150))
-        end
-    else
-        U.SetIcon(W.hubIcon, category.icon or IC.AddonIcon, IC.Icons[1])
-        W.hubTitle:SetText(#W.stack == 0 and "Choose a category" or category.label)
-        local pages = M.Pages(category)
-        local count = #M.Children(category)
-        W.hubDetail:SetText(count == 0 and "|cffbbbbbbNothing visible. Edit items in Layouts to show them.|r"
-            or ("|cffbbbbbb" .. count .. " entries · page " .. W.page .. "/" .. pages .. "\nMove to a labeled button; click to open or use. Centre selects nothing.|r"))
-    end
-end
-
-function W.Render()
-    local geometry = W.geometry
-    for i, frame in ipairs(W.inner) do frame:Hide() end
-    for _, frame in ipairs(W.outer) do frame:Hide(); highlight(frame, false) end
-    local items = M.Items(W.Current(), W.page)
-    W.items = items
-    for i, action in ipairs(items) do
-        local frame = W.outer[i] or slot(W.frame, W.buttonSize, true); W.outer[i] = frame
-        frame:SetSize(W.buttonSize, W.buttonSize); frame.ring:SetSize(W.buttonSize + 6, W.buttonSize + 6)
-        frame.glow:SetSize(W.buttonSize * 1.5, W.buttonSize * 1.5)
-        local x, y = M.Position(i, #items, geometry.outer)
-        frame:ClearAllPoints(); frame:SetPoint("CENTER", W.frame, "CENTER", x, y)
-        -- Keep neighbouring labels apart on small wheels with a full ring.
-        frame.label:SetWidth(math.max(52, math.min(116, 2 * math.pi * geometry.outer / math.max(1, #items) - 10)))
-        fill(frame, action, false)
-        if action.type == "submenu" then frame.label:SetText(action.label .. " (" .. #M.Children(action) .. ") >") end
-    end
-    W.hover = nil
-    W.hoverSince = nil; W.readyAt = GetTime() + 0.15
-    W.pageText:SetText("Page " .. W.page .. " / " .. M.Pages(W.Current()))
-    local paged = M.Pages(W.Current()) > 1
-    W.previous:SetShown(paged); W.next:SetShown(paged)
-    W.moved = false
-    if W.open then local dx, dy = W.CursorOffset(); W.start = { dx, dy } end
-    GameTooltip:Hide()
-    W.RenderHub()
-end
-
-function W.Use()
-    local action = W.hover and W.hover.action
-    if not action then return false end
-    if action.type == "submenu" then return W.Enter(action) end
     W.Close()
-    IC.Actions.Dispatch(action)
+    IC.Actions.Dispatch(node)
     return true
 end
 
 -- A wheel bound to a mouse button: the catcher swallows that button, so route it to the binding here.
 local function wheelButton(mouse)
     local key = U.MOUSE_KEYS[mouse]
-    if not key or not GetBindingKey then return false end
+    if not key or not IC.Platform.BindingKeys then return false end
     local combo = U.Modifiers() .. key
-    for _, bound in ipairs({ GetBindingKey("INCHARACTER_WHEEL") }) do if bound == combo or bound == key then return true end end
+    for _, bound in ipairs({ IC.Platform.BindingKeys("INCHARACTER_WHEEL") }) do if bound == combo or bound == key then return true end end
     return false
-end
-local function cursorOffset()
-    local x, y = GetCursorPosition()
-    local scale = W.frame:GetEffectiveScale()
-    local cx, cy = W.frame:GetCenter()
-    return x / scale - cx, y / scale - cy
-end
-W.CursorOffset = cursorOffset
-function W.Track(allowStationary)
-    if not W.open then return end
-    local dx, dy = cursorOffset()
-    if not W.moved and W.start and math.abs(dx - W.start[1]) + math.abs(dy - W.start[2]) > 12 then W.moved = true end
-    if not W.moved and allowStationary ~= true then W.SetHover(nil); return end
-    local kind, index = M.Hit(dx, dy, W.geometry, #W.categories, #W.items)
-    W.SetHover(kind, index)
-end
-function W.Page(delta)
-    if not W.open then return end
-    local pages = M.Pages(W.Current())
-    W.page = (W.page - 1 + delta) % pages + 1; W.Render()
 end
 
 function W.Create()
@@ -188,67 +185,45 @@ function W.Create()
     catcher:SetScript("OnMouseUp", function(_, button) if wheelButton(button) then W.Binding("up") end end)
     catcher:SetScript("OnMouseDown", function(_, button)
         if wheelButton(button) then W.Binding("down"); return end
-        if button == "RightButton" then W.Close(); return end
-        if button ~= "LeftButton" then return end
-        W.Track(true)
-        local dx, dy = cursorOffset()
-        local kind, index = M.Hit(dx, dy, W.geometry, #W.categories, #W.items)
-        if not W.Use() and not W.hover then
-            if kind == "hub" then W.Back() end
+        W.Track()
+        if button == "LeftButton" or button == "RightButton" then
+            if W.Use(button) then return end
+            local dx, dy = cursorOffset()
+            if button == "RightButton" or M.Zone(dx, dy, W.geometry) == "hub" then W.Back() end
         end
     end)
     catcher:SetScript("OnMouseWheel", function(_, delta) W.Page(-delta) end)
     local frame = CreateFrame("Frame", nil, catcher); W.frame = frame
     frame:SetClampedToScreen(true)
-    frame:SetClampRectInsets(0, 0, 0, -116) -- include breadcrumbs, info and help under the wheel
-    W.discOuter = U.Circle(frame, "BACKGROUND", 100, { 0.03, 0.03, 0.03, 0.72 }); W.discOuter:SetPoint("CENTER")
-    W.discInner = U.Circle(frame, "BORDER", 100, { 0.12, 0.11, 0.09, 0.9 }); W.discInner:SetPoint("CENTER")
-    W.discHub = U.Circle(frame, "ARTWORK", 100, { 0.02, 0.02, 0.02, 0.95 }); W.discHub:SetPoint("CENTER")
-    -- The hub only shows an icon; names and explanations go in the info strip under the wheel.
-    W.hubIcon = frame:CreateTexture(nil, "OVERLAY"); W.hubIcon:SetSize(40, 40); W.hubIcon:SetPoint("CENTER")
-    local hubMask = frame:CreateMaskTexture()
-    hubMask:SetTexture(U.CIRCLE_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE"); hubMask:SetAllPoints(W.hubIcon)
-    W.hubIcon:AddMaskTexture(hubMask)
-    W.hubIcon:SetSize(24, 24); W.hubIcon:ClearAllPoints(); W.hubIcon:SetPoint("CENTER", 0, 8)
-    W.backHint = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); W.backHint:SetPoint("CENTER", 0, -14)
-    W.previous = U.Button(frame, "<", nil, nil, 36, function() W.Page(-1) end); W.previous:SetPoint("CENTER", -54, 30)
-    W.next = U.Button(frame, ">", nil, nil, 36, function() W.Page(1) end); W.next:SetPoint("CENTER", 54, 30)
-    W.pageText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); W.pageText:SetPoint("CENTER", 0, -36)
-    W.info = U.Panel(frame, 400, 86, { 0.03, 0.03, 0.05, 0.9 }); W.info:SetPoint("TOP", frame, "BOTTOM", 0, 8)
-    W.breadcrumb = W.info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    W.breadcrumb:SetPoint("TOP", 0, -6); W.breadcrumb:SetWidth(380); W.breadcrumb:SetWordWrap(false)
-    W.hubTitle = W.info:CreateFontString(nil, "OVERLAY", "GameFontNormal"); W.hubTitle:SetPoint("TOP", 0, -24)
-    W.hubTitle:SetWidth(320); W.hubTitle:SetWordWrap(false)
-    W.hubDetail = W.info:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); W.hubDetail:SetPoint("TOP", W.hubTitle, "BOTTOM", 0, -3)
-    W.hubDetail:SetWidth(320)
-    W.help = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); W.help:SetPoint("TOP", W.info, "BOTTOM", 0, -4)
-    W.help:SetTextColor(unpack(C.muted))
+    W.disc = U.Circle(frame, "BACKGROUND", 100, { 0, 0, 0, 0.45 }); W.disc:SetPoint("CENTER")
+    W.hub = U.Circle(frame, "BORDER", 40, { 0.02, 0.02, 0.02, 0.85 }); W.hub:SetPoint("CENTER")
+    W.highlight = frame:CreateTexture(nil, "BORDER"); W.highlight:SetColorTexture(unpack(U.Colors.accent)); W.highlight:Hide()
+    W.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal"); W.title:SetPoint("CENTER", 0, 0); W.title:SetWordWrap(false)
+    W.pageText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); W.pageText:SetPoint("CENTER", 0, -14)
     frame:SetScript("OnUpdate", W.Track)
     table.insert(UISpecialFrames, "InCharacterWheel")
 end
 
+function W.Close()
+    W.open, W.held, W.hover = false, false, nil
+    if W.catcher then W.catcher:Hide() end
+    if GameTooltip then GameTooltip:Hide() end
+end
+
 function W.Open(held)
     if not IC.db then return end
-    IC.Menu.Close(); if IC.QuickActions then IC.QuickActions.Close() end
+    if IC.Flyout then IC.Flyout.Close() end
     if not W.frame then W.Create() end
-    W.categories = M.Categories()
-    W.root = { id = "root", label = "Categories", icon = IC.AddonIcon, items = W.categories }
-    W.category = nil
-    W.stack = {}
+    local root = IC.Collections.Get(W.Root()) or IC.Collections.Get("main")
+    W.stack = { { id = "set:" .. root.id, type = "group", collection = root.id, name = root.name, icon = root.icon } }
     W.page, W.open, W.held = 1, true, held == true
-    W.Layout()
-    local x, y = GetCursorPosition()
-    local scale = UIParent:GetEffectiveScale()
-    W.frame:SetScale(math.min(1, (UIParent:GetHeight() - 20) / (W.frame:GetHeight() + 116), (UIParent:GetWidth() - 20) / W.frame:GetWidth()))
-    local fx = x / scale / W.frame:GetScale()
-    local fy = y / scale / W.frame:GetScale()
-    W.frame:ClearAllPoints(); W.frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", fx, fy)
-    local hold = W.held and IC.Profile().wheel.mode == "hold"
-    W.help:SetText(hold and "Click categories / groups. Pause on an action, release to use. Centre: Back. Right-click / Esc: cancel."
-        or "Click a category, then an action. Centre: Back. Arrows / scroll: pages. Right-click / Esc: cancel.")
     W.catcher:Show(); W.Render()
-    -- Clamping near a screen edge can put the cursor over an action; release only counts after moving.
+    local x, y = IC.Platform.Cursor()
+    local scale = UIParent:GetEffectiveScale()
+    W.frame:ClearAllPoints(); W.frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+    -- Clamping near a screen edge can put the cursor over an item; release only counts after moving.
     local dx, dy = cursorOffset(); W.start, W.moved = { dx, dy }, false
+    W.Track()
 end
 function W.Toggle() if W.open then W.Close() else W.Open(false) end end
 function W.Binding(keystate)
@@ -256,11 +231,12 @@ function W.Binding(keystate)
         if W.open then W.Close() else W.Open(true) end
     elseif keystate == "up" and W.open and W.held then
         W.held = false
-        if IC.Profile().wheel.mode == "hold" then
+        if settings().mode == "hold" then
             W.Track()
-            local action = W.hover and W.hover.action
-            local ready = action and action.type ~= "submenu" and W.hoverSince and GetTime() - W.hoverSince >= 0.15 and GetTime() >= W.readyAt
-            if not (W.moved and ready and W.Use()) then W.Close() end
+            local node = W.hover and W.hover.node
+            -- Release only uses a plain action after the cursor moved; groups and the centre just close.
+            local usable = node and node.type ~= "group" and node.type ~= "more"
+            if not (W.moved and usable and W.Use("LeftButton")) then W.Close() end
         end
         -- Click mode stays open after the key is released; the next key press closes it.
     end
@@ -269,11 +245,16 @@ end
 _G.InCharacter_WheelBinding = W.Binding
 _G.InCharacter_ToggleEditor = function() if IC.db and IC.Editor then IC.Editor.Toggle() end end
 _G.InCharacter_FavoriteBinding = function(index)
-    if IC.db then IC.Actions.Dispatch(IC.Actions.List("favorites")[index]) end
+    if IC.db then
+        local action = IC.Actions.List("favorites")[index]
+        if action then if action.type == "group" then IC.Menu.OpenAtCursor(action) else IC.Actions.Dispatch(action) end end
+    end
 end
 _G.InCharacter_MenuBinding = function() if IC.db and IC.Menu then IC.Menu.OpenAtCursor() end end
 BINDING_HEADER_INCHARACTER = "In Character"
 BINDING_NAME_INCHARACTER_EDITOR = "Open In Character"
 BINDING_NAME_INCHARACTER_WHEEL = "Radial wheel"
 BINDING_NAME_INCHARACTER_MENU = "Emote menu at cursor"
+BINDING_NAME_INCHARACTER_BARS = "Show / hide bars"
+BINDING_NAME_INCHARACTER_EDITMODE = "Move and edit bars"
 for i = 1, 4 do _G["BINDING_NAME_INCHARACTER_FAVORITE" .. i] = "Use favorite " .. i end

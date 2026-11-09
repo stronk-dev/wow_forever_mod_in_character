@@ -1,9 +1,9 @@
 local IC = {}
 local function load(path) assert(loadfile("InCharacter/" .. path))("InCharacter", IC) end
-load("Core.lua"); load("Data/Icons.lua"); load("Defaults.lua"); load("Data/EmoteCatalog.lua"); load("Data/Emotes.lua")
-load("Services/Profiles.lua"); load("Services/Dialogue.lua"); load("Services/Actions.lua")
+load("Platform.lua"); load("Core.lua"); load("Data/Icons.lua"); load("Defaults.lua"); load("Data/EmoteCatalog.lua"); load("Data/Emotes.lua")
+load("Services/Migrations.lua"); load("Services/Profiles.lua"); load("Services/Dialogue.lua"); load("Services/Actions.lua")
 load("Services/Curation.lua")
-load("Services/Presentation.lua"); load("Services/Personas.lua")
+load("Services/WheelModel.lua"); load("Models/Bar.lua"); load("Models/Menu.lua"); load("Services/Personas.lua"); load("Services/Collections.lua")
 local total = 0
 local function test(name, fn)
     local ok, err = pcall(fn)
@@ -65,12 +65,12 @@ test("merge retains false, empty lists, user strings and adds record defaults", 
     db.profiles.account.wheel = { mode = "hold" }
     db.profiles.account.pools.quotes.lines = { "don't change me" }
     open(db); eq(#IC.Profile().favorites, 0); eq(IC.Profile().wheel.mode, "hold")
-    eq(IC.Profile().wheel.radius, 180); eq(IC.Profile().pools.quotes.lines[1], "don't change me")
+    eq(IC.Profile().wheel.iconSize, 30); eq(IC.Profile().pools.quotes.lines[1], "don't change me")
 end)
 test("v1 migration retains user and unknown data", function()
     local account = IC.Defaults.Profile(); account.pools.quotes.lines = { "old" }
     local db = open({ version = 1, account = account, customFutureKey = "keep" })
-    eq(db.version, 10); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
+    eq(db.version, IC.Profiles.VERSION); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
 end)
 test("deleted defaults stay deleted across upgrades", function()
     local db = open(); IC.Dialogue.Delete("quotes"); open(db)
@@ -121,7 +121,7 @@ assert(loadfile("tests/library.lua"))()(IC, test, eq, open)
 test("new bar defaults merge into existing layouts without restoring deleted bars", function()
     local db = open(); IC.Layout().bars = { { name = "Old", x = 55, hidden = true } }
     db.sharedLayout.bars = {}; open(db)
-    eq(IC.Layout().bars[1].source, "favorites"); eq(IC.Layout().bars[1].name, "Old"); eq(IC.Layout().bars[1].x, 55)
+    eq(IC.Layout().bars[1].collection, "favorites"); eq(IC.Layout().bars[1].name, "Old"); eq(IC.Layout().bars[1].x, 55)
     eq(IC.Layout().bars[1].hidden, true); eq(#db.sharedLayout.bars, 0)
 end)
 test("emote label/icon overrides do not change trusted tokens", function()
@@ -142,9 +142,8 @@ test("deleting preset pools clears dangling shortcuts", function()
 end)
 assert(loadfile("tests/regressions.lua"))()(IC, test, eq, open)
 assert(loadfile("tests/messages.lua"))()(IC, test, eq, open)
-assert(loadfile("tests/presentation.lua"))()(IC, test, eq, open)
 assert(loadfile("tests/curation.lua"))()(IC, test, eq, open)
-assert(loadfile("tests/catalogbars.lua"))()(IC, test, eq, open)
-assert(loadfile("tests/strips.lua"))()(IC, test, eq, open)
 assert(loadfile("tests/personas.lua"))()(IC, test, eq, open)
+assert(loadfile("tests/collections.lua"))()(IC, test, eq, open)
+assert(loadfile("tests/foundations.lua"))()(IC, test, eq, open)
 print("PASS: " .. total .. " tests")

@@ -1,7 +1,7 @@
 local addonName, IC = ...
 _G.InCharacter = IC
 IC.name = addonName or "InCharacter"
-IC.version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(IC.name, "Version") or "development"
+IC.version = IC.Platform.Version(IC.name)
 
 function IC.Copy(value)
     if type(value) ~= "table" then return value end
@@ -38,7 +38,7 @@ function IC.DisplayText(text) return (tostring(text or ""):gsub("|", "||")) end
 function IC.Print(text)
     if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cffd6b56cIn Character:|r " .. tostring(text)) end
 end
-function IC.InCombat() return InCombatLockdown and InCombatLockdown() end
+function IC.InCombat() return IC.Platform.InCombat() end
 function IC.Profile() return IC.Profiles.Get() end
 function IC.Layout() return IC.Profiles.Layout() end
 
@@ -47,8 +47,6 @@ function IC.Refresh()
     IC.refreshPending = nil
     if IC.Bars then IC.Bars.Refresh() end
     if IC.Launcher then IC.Launcher.Refresh() end
-    if IC.Menu then IC.Menu.Rebuild() end
-    if IC.QuickActions and IC.QuickActions.open then IC.QuickActions.Refresh() end
 end
 
 function IC.Changed()
@@ -56,9 +54,8 @@ function IC.Changed()
 end
 
 function IC.Help()
-    IC.Print("/ic bars shows the Roleplay bar; /ic opens settings; /ic review checks emotes; /ic quick toggles quick access.")
-    IC.Print("/ic arrange toggles emote hotbar move / resize handles.")
-    IC.Print("/ic <pool name>; /ic play random|shuffle|sequential <pool name>; /ic message <pool ID> <message ID>.")
+    IC.Print("/ic opens the window · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars")
+    IC.Print("/ic greet | quote | bye · /ic <pool name> · /ic play random|shuffle|sequential <pool> · /ic character <name>")
 end
 
 function IC.Slash(input)
@@ -68,10 +65,9 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
-    elseif command == "bars" then IC.Bars.ShowCatalog()
-    elseif command == "emote-bars" then IC.Bars.ShowEmotes()
+    elseif command == "bars" then IC.Bars.ToggleAll()
     elseif command == "character" then
-        if rest == "" then IC.Print("Loaded: " .. IC.Personas.Name()); IC.Editor.Open("Home")
+        if rest == "" then IC.Print("Loaded: " .. IC.Personas.Name()); IC.Editor.Open("Lines")
         else
             local chosen, reason = IC.Personas.Resolve(rest)
             local ok; if chosen then ok, reason = IC.Personas.Choose(chosen) end
@@ -79,13 +75,10 @@ function IC.Slash(input)
         end
     elseif command == "arrange" or command == "edit" then IC.Bars.SetEditing(not IC.Bars.editing)
     elseif command == "wheel" then IC.Wheel.Toggle()
-    elseif command == "quick" then IC.QuickActions.Toggle()
-    elseif command == "review" then
-        IC.EmoteReview.Open()
     elseif command == "menu" then
         if IC.Menu then IC.Menu.OpenAtCursor() end
-    elseif command == "emotes" or command == "setup" or command == "settings" then
-        if IC.Editor then IC.Editor.Open(command == "emotes" and "Emotes" or "Home") end
+    elseif command == "emotes" or command == "lists" or command == "lines" or command == "layout" or command == "setup" or command == "settings" then
+        if IC.Editor then IC.Editor.Open(({ lines = "Lines", layout = "Layout" })[command] or "Lists") end
     elseif command == "play" then
         local mode, name = rest:match("^(%S+)%s+(.+)$")
         local pool, problem
@@ -124,8 +117,7 @@ local function RegisterSlash()
 end
 
 function IC.LegacyCharacterKeys()
-    local name = UnitName("player")
-    local realm = GetRealmName()
+    local name, realm = IC.Platform.Player()
     if not name or not realm then return {} end
     -- These keys are only for migration. Blizzard selects the live character DB.
     return { realm .. ":" .. name, realm:gsub("%s+", "") .. ":" .. name }
@@ -138,7 +130,6 @@ function IC.Initialize(database, characterDatabase)
     IC.Emotes.Validate()
     -- Create the overlay frames out of combat; they are plain frames and work in combat afterwards.
     if IC.Wheel and not IC.Wheel.frame then IC.Wheel.Create() end
-    if IC.Menu and not IC.Menu.catcher then IC.Menu.Create() end
     if IC.SettingsPanel then IC.SettingsPanel.Register() end
     if IC.Bars.ConnectEditMode then IC.Bars.ConnectEditMode() end
     IC.Refresh()
@@ -151,7 +142,7 @@ if CreateFrame then
         if event == "ADDON_LOADED" and loaded == IC.name then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()
-            IC.Print("Loaded. Click the round button, or type /ic to set things up.")
+            IC.Print("Loaded. Use the small bar or the round button; /ic opens the settings.")
         elseif event == "PLAYER_REGEN_ENABLED" and IC.refreshPending then IC.Refresh()
         elseif event == "PLAYER_REGEN_DISABLED" then
             for _, stop in ipairs(IC.UI and IC.UI.captures or {}) do stop() end

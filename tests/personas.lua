@@ -45,7 +45,7 @@ return function(IC, test, eq, open)
         local _, _, latest = IC.Library.Install("office-stanley", true)
         IC.Library.Install("dutch-mastermovies", false)
         local p, c = IC.Profile(), IC.Profiles.Character(); p.personas, p.personaOrder, c.personaSelections = nil, nil, nil
-        db.version = 9; open(db); eq(db.version, 10)
+        db.version = 9; open(db); eq(db.version, IC.Profiles.VERSION)
         eq(IC.Personas.Active().name, "Stanley Hudson"); assert(IC.Personas.HasPool(latest)); assert(not IC.Personas.HasPool(oldPool))
         eq(IC.Profile().pools[oldPool].lines[1], "Old edit preserved")
         local owned = {}; for _, a in pairs(IC.Profile().personas) do for _, id in ipairs(a.poolIDs) do assert(not owned[id]); owned[id] = true end end

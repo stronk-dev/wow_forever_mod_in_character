@@ -1,70 +1,80 @@
 local _, IC = ...
--- Pure hierarchy and geometry. A single labeled ring starts with categories;
--- entering a category is explicit, so opening the wheel never selects an action.
+-- Pure ring geometry. Angles run clockwise from the top, in radians.
+-- The ring holds a collection's items; hovering a group or pool fans its items out beyond it.
 IC.WheelModel = { PAGE = 12 }
 local M = IC.WheelModel
+local TAU = math.pi * 2
 
-local function usable(list)
-    local result = {}
-    for _, action in ipairs(list) do
-        if action.type ~= "emote" or action.verified then result[#result + 1] = action end
-    end
+function M.Pages(count) return math.max(1, math.ceil(count / M.PAGE)) end
+function M.Slice(list, page)
+    local result, first = {}, (page - 1) * M.PAGE + 1
+    for index = first, math.min(#list, first + M.PAGE - 1) do result[#result + 1] = list[index] end
     return result
 end
-function M.Categories(raw)
-    local info = IC.Emotes.CategoryInfo
-    local settings = raw and {} or IC.Profile().wheel
-    local result = {}
-    local function category(id, actions)
-        if not raw and id ~= "Favorites" and not IC.Presentation.Enabled(id == "Roleplay" and "roleplay" or "emotes", "wheel") then return end
-        if not raw and settings.hiddenCategories[id] then return end
-        if not raw then actions = usable(actions); actions = IC.Presentation.Tree(actions, settings) end
-        result[#result + 1] = { id = id, type = "submenu", label = info[id].label, icon = info[id].icon, items = actions, children = actions }
-    end
-    category("Favorites", IC.Actions.List("favorites", raw))
-    for _, id in ipairs(IC.Emotes.categories) do
-        local actions = IC.Actions.List(id, raw)
-        if not raw then actions = usable(actions); actions = IC.Presentation.Filter(actions, settings); actions = IC.Presentation.EmoteGroups(id, actions) end
-        category(id, actions)
-    end
-    category("Roleplay", IC.Actions.RoleplayGroups())
-    return result
+-- The smallest radius that keeps icons from touching, never below 64.
+function M.Radius(count, icon)
+    local radius = 64
+    -- Axis-aligned square icons need separation on at least one axis. Arc length
+    -- alone underestimates their footprint at diagonal angles.
+    for i = 1, count do for j = i + 1, count do
+        local a, b = (i - 1) * TAU / count, (j - 1) * TAU / count
+        local separation = math.max(math.abs(math.sin(a) - math.sin(b)), math.abs(math.cos(a) - math.cos(b)))
+        if separation > 0 then radius = math.max(radius, math.ceil((icon + 4) / separation)) end
+    end end
+    return radius
 end
-function M.Children(node) return node.items or node.children or {} end
-function M.PageSize() return math.max(4, math.min(12, math.floor(tonumber(IC.Profile().wheel.pageSize) or 8))) end
-function M.Pages(category) return math.max(1, math.ceil(#M.Children(category) / M.PageSize())) end
-function M.Items(category, page)
-    local result = {}
-    local children = M.Children(category)
-    local per = M.PageSize()
-    for i = (page - 1) * per + 1, math.min(page * per, #children) do result[#result + 1] = children[i] end
-    return result
+function M.Geometry(count, icon)
+    local radius = M.Radius(count, icon)
+    return { icon = icon, radius = radius, hub = math.max(18, math.floor(radius * 0.3)), band = radius + icon * 0.75,
+        fanIcon = math.max(16, icon - 8), size = (radius + icon) * 2 }
 end
--- Angle in degrees, 0 at the top, increasing clockwise.
 function M.Angle(dx, dy)
-    local angle = math.deg(math.atan2 and math.atan2(dx, dy) or math.atan(dx, dy))
-    return angle < 0 and angle + 360 or angle
-end
-function M.Sector(angle, count)
-    if count < 1 then return nil end
-    local size = 360 / count
-    return math.floor(((angle + size / 2) % 360) / size) + 1
+    local angle = math.atan2 and math.atan2(dx, dy) or math.atan(dx, dy)
+    if angle < 0 then angle = angle + TAU end
+    return angle
 end
 function M.Position(index, count, radius)
-    local angle = math.rad((index - 1) * 360 / count)
-    return math.sin(angle) * radius, math.cos(angle) * radius
+    local angle = (index - 1) * TAU / count
+    return math.sin(angle) * radius, math.cos(angle) * radius, angle
 end
--- The full centre is neutral. Only pointing at the displayed ring selects.
-function M.Hit(dx, dy, geometry, innerCount, outerCount)
+function M.Sector(angle, count)
+    local size = TAU / count
+    return math.floor((angle + size / 2) / size) % count + 1
+end
+-- "hub", "ring" or "outside", by distance from the centre.
+function M.Zone(dx, dy, g)
     local distance = math.sqrt(dx * dx + dy * dy)
-    if distance <= geometry.hub then return "hub" end
-    if distance > geometry.outer + 40 then return "outside" end
-    local angle = M.Angle(dx, dy)
-    if distance < geometry.outer - geometry.hitWidth then return "gap" end
-    if outerCount < 1 then return "hub" end
-    return "outer", M.Sector(angle, outerCount)
+    if distance < g.hub then return "hub" end
+    if distance <= g.band then return "ring" end
+    return "outside"
 end
-function M.Geometry(radius, deadZone, buttonSize)
-    return { outer = radius, inner = 0, hub = math.min(radius * 0.65, deadZone or 62), split = 0,
-        hitWidth = math.max(28, (buttonSize or 42) * 0.7) }
+
+-- Positions for a fan of count items centred on angle, in rows outside the ring.
+-- Each row covers at most half a circle. Returns positions and how many fit.
+function M.Fan(count, angle, g, rows)
+    rows = rows or 2
+    local positions, placed = {}, 0
+    local step = math.ceil(math.sqrt(2) * (g.fanIcon + 2))
+    for row = 1, rows do
+        if placed >= count then break end
+        local radius = g.radius + math.ceil((g.icon + g.fanIcon) / 2 * math.sqrt(2)) + 8 + (row - 1) * step
+        local capacity = math.max(1, math.floor(math.pi * radius / step))
+        local here = math.min(capacity, count - placed)
+        local spread = step / radius
+        for i = 1, here do
+            local a = angle + (i - (here + 1) / 2) * spread
+            positions[#positions + 1] = { x = math.sin(a) * radius, y = math.cos(a) * radius }
+        end
+        placed = placed + here
+    end
+    return positions, placed
+end
+-- Index of the nearest position within reach, or nil.
+function M.Nearest(dx, dy, positions, reach)
+    local best, bestDistance
+    for index, p in ipairs(positions) do
+        local distance = (dx - p.x) ^ 2 + (dy - p.y) ^ 2
+        if distance <= reach * reach and (not bestDistance or distance < bestDistance) then best, bestDistance = index, distance end
+    end
+    return best
 end

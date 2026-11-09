@@ -2,7 +2,7 @@ return function(IC, test, eq, open)
     local function contains(list, id) for _, value in ipairs(list) do if value == id then return true end end end
     test("default selection trims flavour and variants without limiting what a player can keep", function()
         open(); local profile = IC.Profile()
-        eq(profile.emoteScope, "essentials"); eq(profile.quick.style, "bars")
+        eq(profile.emoteScope, "essentials")
         assert(IC.Curation.Included(IC.Actions.Resolve("emote:laugh")))
         assert(not IC.Curation.Included(IC.Actions.Resolve("emote:giggle")))
         assert(not IC.Curation.Included(IC.Actions.Resolve("emote:hug")))
@@ -50,9 +50,9 @@ return function(IC, test, eq, open)
     test("v5 migration preserves layouts quotes icons pins and explicit empty choices", function()
         local db = open(); db.version = 5
         local profile = IC.Profile(); profile.pools.quotes.lines = { "don't replace me" }; profile.favorites = {}
-        profile.quick, profile.emoteScope, profile.emoteReview = nil, nil, nil; profile.emoteFilter = "sound"
+        profile.emoteScope, profile.emoteReview = nil, nil; profile.emoteFilter = "sound"
         profile.emoteOverrides["emote:wave"] = { icon = "custom" }; IC.Layout().bars[1].x = 271
-        open(db); eq(db.version, 10); eq(IC.Profile().emoteFilter, "all"); eq(IC.Profile().emoteScope, "essentials")
+        open(db); eq(db.version, IC.Profiles.VERSION); eq(IC.Profile().emoteFilter, "all"); eq(IC.Profile().emoteScope, "essentials")
         eq(#IC.Profile().favorites, 0); eq(IC.Profile().pools.quotes.lines[1], "don't replace me"); eq(IC.Layout().bars[1].x, 271)
         eq(IC.Actions.Resolve("emote:wave").icon, "custom")
     end)

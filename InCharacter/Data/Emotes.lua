@@ -126,22 +126,7 @@ for _, category in ipairs(E.categories) do
 end
 
 function E.Validate()
-    local tokens, aliases, primary, clientAliases = {}, {}, {}, {}
-    for index = 1, 1000 do
-        local token = _G["EMOTE" .. index .. "_TOKEN"]
-        if type(token) == "string" then
-            tokens[token] = true
-            clientAliases[token] = clientAliases[token] or {}
-            for n = 1, 4 do
-                local alias = _G["EMOTE" .. index .. "_CMD" .. n]
-                if type(alias) == "string" then
-                    alias = alias:lower():gsub("^/", "")
-                    aliases[alias] = token; primary[token] = primary[token] or alias
-                    clientAliases[token][#clientAliases[token] + 1] = alias
-                end
-            end
-        end
-    end
+    local tokens, aliases, primary, clientAliases = IC.Platform.EmoteCommands()
     -- Drop entries added by an earlier validation for emotes only that client knew.
     for i = #E.list, 1, -1 do
         local action = E.list[i]

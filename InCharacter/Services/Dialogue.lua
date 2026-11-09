@@ -50,6 +50,14 @@ local function cleanPins(pool)
         local poolID, lineID = profile.favorites[i]:match("^line:(.*):([^:]+)$")
         if poolID == pool.id and not valid[lineID] then table.remove(profile.favorites, i); removed = removed + 1 end
     end
+    for _, collection in pairs(profile.collections or {}) do
+        if collection.store ~= "favorites" then
+            for i = #(collection.items or {}), 1, -1 do
+                local owner, id = collection.items[i]:match("^line:(.*):([^:]+)$")
+                if owner == pool.id and not valid[id] then table.remove(collection.items, i); removed = removed + 1 end
+            end
+        end
+    end
     return removed
 end
 
@@ -140,12 +148,21 @@ function D.Save(pool, name, channel, mode, icon, lines)
         if queue and queue[position] then ids[i] = queue[position]; consumed[line] = position end
         if not ids[i] then ids[i] = allocateLineID(pool) end
     end
+    local retained, referenced = {}, {}
+    for _, id in ipairs(ids) do retained[id] = true end
+    for _, ref in ipairs(IC.Profile().favorites) do referenced[ref] = true end
+    for _, collection in pairs(IC.Profile().collections or {}) do for _, ref in ipairs(collection.items or {}) do referenced[ref] = true end end
+    for _, id in ipairs(pool.lineIDs) do
+        if not retained[id] and referenced["line:" .. pool.id .. ":" .. id] then
+            return false, "A changed/deleted message has buttons in a list. Use Individual messages to edit it without changing its ID, or delete it explicitly there."
+        end
+    end
     pool.name, pool.channel, pool.mode, pool.icon, pool.lines = IC.Trim(name), channel, mode, icon, IC.Copy(lines)
     pool.lineIDs = ids
     local removed = cleanPins(pool)
     pool.revision = (pool.revision or 0) + 1
     IC.Changed()
-    return true, removed > 0 and ("Saved. Removed " .. removed .. " pins for replaced/deleted messages. Use Browse / edit messages to edit pinned text while keeping its ID.") or nil
+    return true, removed > 0 and ("Saved. Removed " .. removed .. " pins for replaced/deleted messages. Use Individual messages to keep button IDs when editing.") or nil
 end
 function D.SaveLine(pool, lineID, text)
     if type(text) ~= "string" or IC.Trim(text) == "" or text:find("[%z\1-\31\127]") then return false, "Enter one non-empty message without line breaks or control characters." end
@@ -186,6 +203,12 @@ function D.Delete(id)
         local playPool = value:match("^play:%a+:(.+)$")
         if value == "pool:" .. id or linePool == id or playPool == id then table.remove(profile.favorites, i) end
     end
+    for _, collection in pairs(profile.collections or {}) do
+        for i = #(collection.items or {}), 1, -1 do
+            local ref = collection.items[i]
+            if ref == "pool:" .. id or ref:match("^line:(.*):[^:]+$") == id or ref:match("^play:%a+:(.+)$") == id then table.remove(collection.items, i) end
+        end
+    end
     -- The currently loaded character and shared layout can both reference this pool.
     -- Archived pre-v3 character records remain intact as migration/recovery backups.
     for _, layout in ipairs({ IC.Profiles.Character().layout, IC.Profiles.db.sharedLayout }) do
@@ -199,13 +222,17 @@ function D.Delete(id)
     IC.Changed()
 end
 function D.Move(id, delta)
-    local order = IC.Profile().poolOrder
-    for i, value in ipairs(order) do
-        if value == id then
-            local target = i + delta
-            if target >= 1 and target <= #order then order[i], order[target] = order[target], order[i] end
-            break
+    local function move(order)
+        for i, value in ipairs(order) do
+            if value == id then
+                local target = i + delta
+                if target >= 1 and target <= #order then order[i], order[target] = order[target], order[i] end
+                break
+            end
         end
     end
+    local profile = IC.Profile()
+    move(profile.poolOrder)
+    for _, actor in pairs(profile.personas or {}) do move(actor.poolIDs) end
     IC.Changed()
 end

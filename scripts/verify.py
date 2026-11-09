@@ -30,7 +30,7 @@ for path in [*lua_files, *sorted((ROOT / "tests").glob("*.lua"))]:
 bindings = ET.parse(ADDON / "Bindings.xml").getroot()
 assert bindings.tag == "Bindings"
 names = [binding.attrib["name"] for binding in bindings]
-assert len(names) == len(set(names)) == 10
+assert len(names) == len(set(names)) == 9
 wheel = next(binding for binding in bindings if binding.attrib["name"] == "INCHARACTER_WHEEL")
 assert wheel.attrib.get("runOnUp") == "true"
-print(f"PASS: matching 16001 TOCs, {len(lua_files)} Lua modules, all test chunks, and 10 XML bindings")
+print(f"PASS: matching 16001 TOCs, {len(lua_files)} Lua modules, all test chunks, and 9 XML bindings")

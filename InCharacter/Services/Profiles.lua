@@ -1,31 +1,23 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 10 }
+IC.Profiles = { VERSION = 12 }
 local P = IC.Profiles
 
-local function CompleteLayout(layout)
-    local initializeCatalog = not layout.catalogBarInitialized
+local function CompleteLayout(layout, profiles, db, observations)
     IC.Merge(layout, IC.Defaults.Layout())
-    for index, bar in ipairs(layout.bars) do
-        -- Presentation choices are user settings. New releases add controls, not style conversions.
-        IC.Merge(bar, IC.Defaults.Bar(index)); bar.stripIntroduced = true
-    end
-    if initializeCatalog and #layout.bars > 0 then
-        local found
-        for _, bar in ipairs(layout.bars) do if bar.catalog then found = true end end
-        if not found then layout.bars[#layout.bars + 1] = IC.Defaults.CatalogBar(#layout.bars + 1) end
-    end
-    layout.catalogBarInitialized = true
+    IC.Migrations.Layout(layout, profiles, db, observations)
+    for index, bar in ipairs(layout.bars) do IC.Merge(bar, IC.Defaults.Bar(index)) end
     return layout
 end
 
-local function CompleteProfile(profile, database)
+local function CompleteProfile(profile, database, observations)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
+    local hadCollections = type(profile.collections) == "table"
+    local legacyPresentation = profile.presentations ~= nil or (profile.wheel and profile.wheel.root == nil) or (profile.menu and profile.menu.root == nil)
     local defaults = IC.Defaults.Profile()
     local pools = profile.pools
     defaults.pools = nil
     if pools ~= nil then defaults.poolOrder = nil end
     IC.Merge(profile, defaults)
-    profile.quick.barsIntroduced = true
     local filters = { all = true, heard = true, observed = true, textChecked = true }
     if not filters[profile.emoteFilter] then profile.emoteFilter = "all" end
     if profile.emoteScope ~= "all" and profile.emoteScope ~= "essentials" then profile.emoteScope = "essentials" end
@@ -57,6 +49,7 @@ local function CompleteProfile(profile, database)
         end
     end
     profile.favorites = favorites
+    if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile, hadCollections, observations, legacyPresentation) end
     return profile
 end
 
@@ -69,10 +62,6 @@ function P.Open(database, characterDatabase, legacyKeys)
     if type(character.version) == "number" and character.version > P.VERSION then
         error("In Character: character settings are newer than this addon; install the newer addon.")
     end
-    -- v1 stored the shared profile under account; retain unknown fields for future migrations.
-    if not db.profiles then db.profiles = { account = db.account or IC.Defaults.Profile() } end
-    db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile(), db)
-    db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout())
     if character.version == nil and next(character) == nil and db.characters then
         local matches, seen = {}, {}
         for _, key in ipairs(legacyKeys or {}) do
@@ -89,10 +78,16 @@ function P.Open(database, characterDatabase, legacyKeys)
     end
     -- Keep all legacy records intact so other characters can migrate when they log in.
     IC.Merge(character, { scope = "account", layoutScope = "character", emoteObservations = {} })
+    -- v1 stored the shared profile under account; retain unknown fields for future migrations.
+    if not db.profiles then db.profiles = { account = db.account or IC.Defaults.Profile() } end
+    db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile(), db, character.emoteObservations)
     character.layout = character.layout or IC.Defaults.Layout()
-    CompleteLayout(character.layout)
-    if character.profile then CompleteProfile(character.profile, db) end
+    if character.profile then CompleteProfile(character.profile, db, character.emoteObservations) end
     if character.scope == "character" and not character.profile then character.profile = IC.Copy(db.profiles.account) end
+    local profiles = { db.profiles.account }
+    if character.profile then profiles[#profiles + 1] = character.profile end
+    db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout(), profiles, db, character.emoteObservations)
+    CompleteLayout(character.layout, profiles, db, character.emoteObservations)
     db.version, character.version = P.VERSION, P.VERSION
     P.db, P.character = db, character
     return db

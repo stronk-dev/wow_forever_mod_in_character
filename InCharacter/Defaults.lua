@@ -21,43 +21,29 @@ function IC.Defaults.Profile()
         poolOrder = { "greetings", "quotes", "farewells" },
         favorites = { "emote:wave", "emote:cheer", "emote:laugh", "emote:dance", "emote:charge", "emote:healme",
             "pool:greetings", "pool:quotes", "pool:farewells" },
-        wheel = { presentation = "wheel", mode = "click", radius = 180, buttonSize = 42, pageSize = 8, deadZone = 62, hiddenActions = {}, hiddenCategories = {} },
-        menu = { presentation = "menu", hiddenActions = {}, hiddenCategories = {}, pageSize = 12 },
-        quick = { style = "bars", columns = 3, barsIntroduced = true },
+        -- hiddenActions / hiddenCategories are read only by the persona migration of older saves.
+        wheel = { mode = "click", root = "main", iconSize = 30, hiddenActions = {}, hiddenCategories = {} },
+        menu = { root = "main", hiddenActions = {}, hiddenCategories = {} },
         emoteScope = "essentials", emoteReview = {},
         emoteFilter = "all", hideUnverified = true,
         installedPacks = {},
-        presentations = { emotes = { bar = true, menu = true, wheel = true, view = "profile" }, roleplay = { bar = true, menu = true, wheel = true } },
         shortcuts = {},
         emoteOverrides = {},
     }
 end
 function IC.Defaults.Bar(index)
-    return { name = "Quick bar " .. (index or 1), source = "favorites", vertical = false,
-        size = 36, columns = 12, rows = 0, labels = true, buttonStyle = "icons", buttonWidth = 148,
-        poolMode = "pool", strip = false, stripWidth = 388, stripRows = 1, categories = {}, emoteView = "profile", includedActions = {}, hiddenActions = {}, locked = false, hidden = false, collapsed = false, page = 1,
-        x = 0, y = -160 - ((index or 1) - 1) * 70 }
+    return { name = "Bar " .. (index or 1), collection = "favorites", size = 28, perRow = 0, vertical = false, labels = false,
+        hidden = false, locked = false, x = 0, y = -330 + ((index or 1) - 1) * 40 }
 end
-function IC.Defaults.EmoteBar(index, source)
+-- One compact bar showing a collection (Services/Collections.lua). Default: the combined main collection.
+function IC.Defaults.CollectionBar(index, collection)
     local bar = IC.Defaults.Bar(index)
-    bar.name, bar.source, bar.strip, bar.labels = "Emotes", source or "favoriteEmotes", true, false
-    bar.size = 24
-    if source == "categories" then for _, id in ipairs(IC.Emotes.categories) do bar.categories[id] = true end end
-    return bar
-end
-function IC.Defaults.CatalogBar(index)
-    local bar = IC.Defaults.Bar(index or 2)
-    bar.name, bar.source, bar.catalog = "Roleplay", "pools", true
-    bar.buttonStyle, bar.buttonWidth, bar.columns, bar.rows, bar.size = "text", 144, 3, 0, 32
-    bar.poolMode, bar.hideEmpty, bar.catalogGroup = "random", true, "all"
-    bar.x, bar.y = 0, -250
+    bar.name, bar.collection, bar.y = "Main bar", collection or "main", -330
     return bar
 end
 function IC.Defaults.Launcher()
-    -- Left-click toggles the configured quick access style; menu remains optional.
-    return { shown = true, click = "wheel", rightClick = "menu", middleClick = "edit", size = 36, x = -420, y = 180 }
+    return { shown = true, click = "menu", rightClick = "editor", middleClick = "edit", size = 36, x = -420, y = 180 }
 end
 function IC.Defaults.Layout()
-    local emotes = IC.Defaults.EmoteBar(1)
-    return { bars = { emotes, IC.Defaults.CatalogBar(2) }, launcher = IC.Defaults.Launcher(), catalogBarInitialized = true }
+    return { bars = { IC.Defaults.CollectionBar(1) }, launcher = IC.Defaults.Launcher(), collectionBarIntroduced = true }
 end

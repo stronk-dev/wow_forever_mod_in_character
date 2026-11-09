@@ -110,7 +110,7 @@ function R.Load(id)
     if not IC.Profile().personas[id] then return false, "Character not found." end
     local c = IC.Profiles.Character(); c.personaSelections = c.personaSelections or {}; c.personaSelections[c.scope] = id
     if IC.Editor and IC.Editor.OnCharacterLoaded then IC.Editor.OnCharacterLoaded() end
-    if IC.Menu then IC.Menu.Close() end; if IC.Wheel then IC.Wheel.Close() end; if IC.QuickActions then IC.QuickActions.Close() end
+    if IC.Flyout then IC.Flyout.Close() end; if IC.Wheel then IC.Wheel.Close() end
     IC.Changed(); return true
 end
 function R.AddPool(id)

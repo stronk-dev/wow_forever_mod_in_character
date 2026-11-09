@@ -190,7 +190,7 @@ function U.Dropdown(parent, x, y, width, options, changed)
         for i, row in ipairs(list.rows) do row:SetWidth(self:GetWidth() - 4); if i > count then row:Hide() end end
         list:SetSize(self:GetWidth(), count * 24 + 4)
         list:ClearAllPoints(); list:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -2)
-        list:Render(); list:Show()
+        list:Render(); list:Show(); list:Raise()
     end)
     if button.values[1] then button:SetValue(button.values[1].value) end
     return button
@@ -301,10 +301,10 @@ U.MOUSE_KEYS = { MiddleButton = "BUTTON3", Button4 = "BUTTON4", Button5 = "BUTTO
 local MOUSE_KEYS = U.MOUSE_KEYS
 local stopCapture
 function U.Modifiers()
-    return (IsAltKeyDown() and "ALT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsShiftKeyDown() and "SHIFT-" or "")
+    return IC.Platform.Modifiers()
 end
 function U.KeyLabel(action)
-    local key = GetBindingKey and GetBindingKey(action)
+    local key = IC.Platform.BindingKeys(action)
     return key or "not set"
 end
 function U.KeyCapture(parent, x, y, width, action, caption, changed)
@@ -339,11 +339,11 @@ function U.KeyCapture(parent, x, y, width, action, caption, changed)
         safely(function()
             if IC.InCombat() then IC.Print("Key bindings cannot be changed in combat."); return end
             local combo = U.Modifiers() .. key
-            local previous = GetBindingAction and GetBindingAction(combo)
-            local old = { GetBindingKey(action) }
-            if not SetBinding(combo, action) then IC.Print("Binding was refused; existing keys were kept."); return end
-            for _, key in ipairs(old) do if key ~= combo then SetBinding(key) end end
-            SaveBindings(GetCurrentBindingSet())
+            local previous = IC.Platform.BindingAction(combo)
+            local old = { IC.Platform.BindingKeys(action) }
+            if not IC.Platform.SetBinding(combo, action) then IC.Print("Binding was refused; existing keys were kept."); return end
+            for _, key in ipairs(old) do if key ~= combo then IC.Platform.SetBinding(key) end end
+            IC.Platform.SaveBindings()
             if previous and previous ~= "" and previous ~= action then
                 IC.Print(combo .. " replaced " .. (_G["BINDING_NAME_" .. previous] or previous) .. ".")
             end
@@ -363,22 +363,21 @@ function U.KeyCapture(parent, x, y, width, action, caption, changed)
         if stopCapture then stopCapture() end
         if mouse == "RightButton" then
             safely(function()
-                local old, guard = GetBindingKey(action), 0
-                while old and guard < 4 do SetBinding(old); old = GetBindingKey(action); guard = guard + 1 end
-                SaveBindings(GetCurrentBindingSet()); refresh()
+                local old, guard = IC.Platform.BindingKeys(action), 0
+                while old and guard < 4 do IC.Platform.SetBinding(old); old = IC.Platform.BindingKeys(action); guard = guard + 1 end
+                IC.Platform.SaveBindings(); refresh()
                 if changed then changed() end
             end)
             return
         end
-        local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
-        if focus then focus:ClearFocus() end
+        IC.Platform.ClearKeyboardFocus()
         stopCapture = finish
         self.capturing = true; self:SetSelected(true)
         self:SetText("Press a key... (Esc / click cancels)")
         self:SetScript("OnKeyDown", keyDown)
         self:SetPropagateKeyboardInput(false); self:EnableKeyboard(true)
-        local deadline = GetTime() + 15
-        self:SetScript("OnUpdate", function() if GetTime() >= deadline then finish() end end)
+        local deadline = IC.Platform.Time() + 15
+        self:SetScript("OnUpdate", function() if IC.Platform.Time() >= deadline then finish() end end)
     end)
     button:SetScript("OnMouseDown", function(self, mouse)
         if self.capturing and MOUSE_KEYS[mouse] then assign(MOUSE_KEYS[mouse]) end

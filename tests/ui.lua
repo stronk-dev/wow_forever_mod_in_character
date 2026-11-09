@@ -38,235 +38,205 @@ local function pointAt(Stub, IC, slot)
     Stub.cursorX, Stub.cursorY = x * scale, y * scale; IC.Wheel.Track()
 end
 
-test("load registers commands, Settings page and shows the launcher without sending", function(IC, Stub, env)
+local function ringSlot(IC, id)
+    for _, slot in ipairs(IC.Wheel.slots) do if slot:IsShown() and slot.node.id == id then return slot end end
+    error("No ring slot: " .. id)
+end
+local function flyRow(IC, depth, id)
+    for _, row in ipairs(IC.Flyout.levels[depth].rows) do if row:IsShown() and row.node.id == id then return row end end
+    error("No flyout row: " .. id)
+end
+
+test("load registers commands, Settings page, launcher and the main bar without sending", function(IC, Stub, env)
     assert(IC.db); eq(env.SLASH_INCHARACTER1, "/incharacter"); eq(env.SLASH_INCHARACTER2, nil)
     eq(Stub.settingsCategory.name, "In Character"); assert(Stub.settingsPanel)
-    assert(IC.Launcher.button:IsShown()); assert(IC.Bars.frames[1]:IsShown())
+    assert(IC.Launcher.button:IsShown()); assert(IC.Bars.frames[1]:IsShown()); eq(IC.Layout().launcher.click, "menu")
+    Stub.Button(Stub.settingsPanel, "Move & edit bars"):Click(); assert(IC.Bars.editing); IC.Bars.SetEditing(false)
     eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
 
-test("every page of the window builds and switching pages sends nothing", function(IC, Stub)
-    for _, name in ipairs({ "Home", "Emotes", "Dialogue", "Favorites", "Layouts", "Profiles" }) do
+test("every page builds, old page names still open and switching sends nothing", function(IC, Stub)
+    for _, name in ipairs({ "Lists", "Lines", "Layout", "Profiles" }) do
         page(IC, name); assert(IC.Editor.pages[name]:IsShown())
         for other, p in pairs(IC.Editor.pages) do if other ~= name then assert(not p:IsShown()) end end
     end
+    IC.Editor.Open("Home"); eq(IC.Editor.tab, "Lists"); IC.Editor.Open("Dialogue"); eq(IC.Editor.tab, "Lines")
     eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
 
-test("options exposes independent presentations and visible emote bar recovery", function(IC, Stub)
-    local p = page(IC, "Home")
-    p.launcherShown:SetChecked(false); p.launcherShown:Click(); assert(not IC.Launcher.button:IsShown())
-    p.launcherShown:SetChecked(true); p.launcherShown:Click(); assert(IC.Launcher.button:IsShown())
-    local rp = p.presentations.roleplay.bar; rp:SetChecked(false); rp:Click(); assert(not IC.Bars.frames[2]:IsShown())
-    rp:SetChecked(true); rp:Click(); assert(IC.Bars.frames[2]:IsShown())
-    local emotes = p.presentations.emotes.bar; emotes:SetChecked(false); emotes:Click(); assert(not IC.Bars.frames[1]:IsShown())
-    p.favToggle:Click(); assert(IC.Bars.frames[1]:IsShown()); assert(IC.Profile().presentations.emotes.bar)
-    p.launcherClick:Choose("menu"); IC.Launcher.button:Click(); assert(IC.Menu.IsOpen()); eq(#Stub.sends + #Stub.emotes, 0)
+test("lists page filters the library by sound, searches aliases and edits list membership", function(IC, Stub)
+    local p = page(IC, "Lists")
+    IC.Editor.list = "Combat"; IC.Editor.RefreshLists()
+    p.missing:SetChecked(true); p.missing:Click()
+    p.kind:Choose("sound"); assert(#p.shown > 10)
+    for _, action in ipairs(p.shown) do assert(action.kind == "sound" or action.kind == "voice", action.id) end
+    p.kind:Choose("all"); p.search:SetText("sob"); eq(p.shown[1].id, "emote:cry")
+    p.libRows[1]:Click("RightButton"); assert(IC.Collections.Contains("Combat", "emote:cry"))
+    p.libRows[1]:Click("RightButton"); assert(not IC.Collections.Contains("Combat", "emote:cry"))
+    local before = IC.Collections.Refs("Combat")[1]
+    p.itemRows[1]:Click(); Stub.Button(p, "Down"):Click(); eq(IC.Collections.Refs("Combat")[2], before)
+    Stub.Button(p, "Remove"):Click(); assert(not IC.Collections.Contains("Combat", before))
+    Stub.Button(p, "+ New list"):Click(); IC.Editor.nameDialog.name:SetText("Tavern"); Stub.Button(IC.Editor.nameDialog, "Save"):Click()
+    local tavern = IC.Editor.list; eq(IC.Collections.Get(tavern).name, "Tavern")
+    p.groupChoice:SetValue("Social"); Stub.Button(p, "+ Group"):Click(); assert(IC.Collections.Contains(tavern, "set:Social"))
+    p.inline:SetChecked(true); p.groupChoice:SetValue("favorites"); Stub.Button(p, "+ Group"):Click(); assert(IC.Collections.Contains(tavern, "all:favorites"))
+    eq(#Stub.sends + #Stub.emotes, 0)
 end)
 
-test("emote editor filters recorded sound and animation, searches, pins and tries emotes", function(IC, Stub)
-    local p = page(IC, "Emotes")
-    IC.Editor.emoteCategory = "all"; IC.Editor.RefreshEmotes()
-    local everything = #p.shown
-    IC.Curation.Save("emote:chicken", "keep", "nearby", "yes")
-    IC.Curation.Save("emote:dance", "keep", "silent", "yes")
-    for _, chip in ipairs(p.chips) do if chip.value == "heard" then chip:Click() end end
-    assert(#p.shown > 0 and #p.shown < everything)
-    for _, action in ipairs(p.shown) do assert(IC.Emotes.IsAudible(action)) end
-    for _, chip in ipairs(p.chips) do if chip.value == "observed" then chip:Click() end end
-    for _, action in ipairs(p.shown) do eq(IC.Curation.Observation(action.id).animation, "yes") end
-    for _, chip in ipairs(p.chips) do if chip.value == "all" then chip:Click() end end
-    p.search:SetText("chick"); eq(#p.shown, 1); eq(p.shown[1].command, "chicken")
-    p.tiles[1]:Click("RightButton"); assert(IC.Actions.IsFavorite("emote:chicken"))
-    p.tiles[1]:Click("LeftButton"); assert(p.detail:IsShown()); eq(IC.Editor.emote.command, "chicken")
-    p.dTry:Click(); eq(Stub.emotes[1], "CHICKEN")
-    p.search:SetText("")
-    p.hide:SetChecked(true); p.hide:Click()
-    for _, action in ipairs(p.shown) do assert(action.verified) end
+test("library detail tries, renames and records what others heard; bars follow", function(IC, Stub)
+    local p = page(IC, "Lists"); local d = p.detail
+    IC.Editor.selected = "emote:wave"; IC.Editor.RefreshLibrary()
+    Stub.Button(d, "Try it"):Click(); eq(Stub.emotes[1], "WAVE")
+    d.rename:SetText("Hiya"); Stub.Button(d, "Rename"):Click()
+    IC.Editor.frame:Hide()
+    local wave = IC.Bars.frames[1].actionButtons[1]; eq(wave.node.name, "Hiya"); eq(wave.node.payload, "WAVE"); assert(not wave.dot:IsShown())
+    page(IC, "Lists"); IC.Editor.selected = "emote:wave"; IC.Editor.RefreshLibrary(); d.sound:Choose("nearby")
+    eq(IC.Curation.Observation("emote:wave").sound, "nearby"); IC.Editor.frame:Hide(); IC.Refresh()
+    assert(IC.Bars.frames[1].actionButtons[1].dot:IsShown())
+    Stub.Button(d, "Reset look"):Click(); eq(IC.Actions.Resolve("emote:wave").name, "Wave")
 end)
 
-test("emote library shows client-only emotes and disables unknown ones", function(IC, Stub)
-    local p = page(IC, "Emotes")
-    p.hide:SetChecked(false); p.hide:Click()
-    IC.Editor.emoteCategory = "all"; p.search:SetText("foreveronly"); eq(#p.shown, 1); eq(p.shown[1].kind, "unknown")
-    p.search:SetText("flex"); eq(#p.shown, 1); assert(not p.shown[1].verified); assert(p.tiles[1].icon.desaturated)
-    p.tiles[1]:Click(); IC.Editor.RefreshEmoteDetail(); eq(p.dTry.enabled, false)
-end)
-
-test("dialogue: preset copy, drafts survive switching, save, preview and shortcuts", function(IC, Stub)
-    local p = page(IC, "Dialogue")
+test("lines page: preset copy, drafts survive switching, save, preview and shortcuts", function(IC, Stub)
+    local p = page(IC, "Lines")
     p.pack:Choose("office-stanley"); Stub.Button(p, "Copy + use for /ic greet, quote, bye"):Click()
     local first = IC.Editor.poolID; eq(#IC.Profile().pools[first].lines, 5)
     p.lines:SetText("Hello, 'friend'.\nHé, hoe gaat het?")
-    IC.Editor.SelectPool("quotes"); IC.Editor.SelectPool(first)
+    IC.Editor.SelectPool(IC.Personas.Pools()[2]); IC.Editor.SelectPool(first)
     eq(p.lines:GetText(), "Hello, 'friend'.\nHé, hoe gaat het?"); assert(p.info:GetText():find("unsaved"))
-    eq(#IC.Profile().pools[first].lines, 5)
     p.mode:Choose("sequential"); Stub.Button(p, "Save"):Click()
     eq(#IC.Profile().pools[first].lines, 2); assert(not p.info:GetText():find("unsaved"))
     Stub.Button(p, "Preview"):Click(); eq(#Stub.sends, 0)
     IC.Slash("greet"); eq(Stub.sends[1][1], "Hello, 'friend'.")
+    -- The main bar's RP group follows the loaded character.
+    IC.Editor.frame:Hide(); eq(IC.Collections.Get("rp").name, IC.Personas.Name())
 end)
 
-test("launcher menu lists favorites and categories, uses an emote and pins without closing", function(IC, Stub)
-    IC.Layout().launcher.click = "menu"
-    IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen())
-    local root = IC.Menu.levels[1]
-    eq(root.entries[1].label, "My character")
-    local categories
-    for i, entry in ipairs(root.entries) do if entry.id == "emote-categories" then categories = i end end
-    assert(categories); root.rows[categories]:Fire("OnEnter")
-    local level = IC.Menu.levels[2]; local combat
-    for i, entry in ipairs(level.entries) do if entry.id == "Combat" then combat = i end end
-    assert(combat); level.rows[combat]:Fire("OnEnter")
-    local flyout = IC.Menu.levels[3]; assert(flyout:IsShown()); assert(flyout.back:IsShown()); eq(flyout.entries[1].action.command, "charge")
-    flyout.rows[1]:Click("RightButton"); assert(IC.Menu.IsOpen()); assert(flyout:IsShown())
-    flyout.rows[1]:Click("LeftButton"); assert(not IC.Menu.IsOpen()); eq(Stub.emotes[1], "CHARGE")
+test("layout page binds keys, switches the launcher to the wheel and adds or hides bars", function(IC, Stub)
+    local p = page(IC, "Layout"); local key = p.keys[1]
+    key:Click("LeftButton"); assert(key.capturing)
+    Stub.modifiers.shift = true; key:Fire("OnKeyDown", "F"); Stub.modifiers.shift = nil
+    eq(Stub.bindings["SHIFT-F"], "INCHARACTER_WHEEL"); assert(not key.capturing)
+    key:Click("RightButton"); eq(Stub.bindings["SHIFT-F"], nil)
+    p.launcherClick:Choose("wheel"); Stub.Button(p, "+ A bar per category"):Click(); eq(#IC.Layout().bars, 6)
+    eq(IC.Layout().bars[2].collection, "Combat")
+    p.barsToggle:Click(); assert(IC.Layout().barsHidden); IC.Editor.frame:Hide()
+    for _, frame in ipairs(IC.Bars.frames) do assert(not frame:IsShown()) end
+    IC.Slash("bars"); assert(IC.Bars.frames[1]:IsShown())
+    IC.Launcher.button:Click(); assert(IC.Wheel.open)
 end)
 
-test("wheel starts with categories, requires explicit navigation and leaves the hub neutral", function(IC, Stub)
-    IC.Wheel.Open(false); assert(IC.Wheel.open); eq(#IC.Wheel.stack, 0)
-    point(Stub, IC, 0, 0); eq(IC.Wheel.hover, nil)
-    local combat = IC.Wheel.outer[2]
-    pointAt(Stub, IC, combat); eq(#IC.Wheel.stack, 0); eq(IC.Wheel.hover.action.id, "Combat")
-    IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(IC.Wheel.Current().id, "Combat")
-    eq(#IC.Wheel.items, 1); eq(IC.Wheel.items[1].command, "charge")
-    pointAt(Stub, IC, IC.Wheel.outer[1]); eq(IC.Wheel.hover, IC.Wheel.outer[1])
-    point(Stub, IC, 0, 0); eq(IC.Wheel.hover, nil); eq(#Stub.emotes, 0)
-    pointAt(Stub, IC, IC.Wheel.outer[1])
+test("ring: pointing at a group fans it out without sending; clicking an item sends once", function(IC, Stub, env)
+    env.InCharacter_WheelBinding("down"); assert(IC.Wheel.open); env.InCharacter_WheelBinding("up"); assert(IC.Wheel.open)
+    eq(#IC.Wheel.items, 9); assert(IC.Wheel.geometry.radius < 100, "compact ring")
+    local combat = ringSlot(IC, "set:Combat"); assert(combat.previews[1]:IsShown())
+    pointAt(Stub, IC, combat); eq(IC.Wheel.hover, combat); assert(IC.Wheel.fan); eq(#Stub.emotes, 0)
+    pointAt(Stub, IC, IC.Wheel.fanSlots[1]); eq(IC.Wheel.hover.node.id, "emote:charge"); eq(#Stub.emotes, 0)
     IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(Stub.emotes[1], "CHARGE"); assert(not IC.Wheel.open)
-    IC.Wheel.Open(false); point(Stub, IC, 0, 0); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
-    assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
-    IC.Wheel.Open(false); IC.Wheel.catcher:Fire("OnMouseDown", "RightButton"); assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
+    IC.Wheel.Open(false); pointAt(Stub, IC, ringSlot(IC, "emote:wave")); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(Stub.emotes[2], "WAVE")
+    IC.Wheel.Open(false); point(Stub, IC, 0, 0); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); assert(not IC.Wheel.open); eq(#Stub.emotes, 2)
 end)
 
-test("wheel hold mode uses the action under the cursor on release only", function(IC, Stub)
+test("ring: clicking a group enters it, the centre goes back, right-click and Esc cancel", function(IC, Stub)
+    IC.Wheel.Open(false); pointAt(Stub, IC, ringSlot(IC, "set:Voice/Fun"))
+    IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(IC.Wheel.Current().collection, "Voice/Fun"); assert(IC.Wheel.open)
+    point(Stub, IC, 0, 0); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton"); eq(IC.Wheel.Current().collection, "main")
+    IC.Wheel.catcher:Fire("OnMouseDown", "RightButton"); assert(not IC.Wheel.open)
+    IC.Wheel.Open(false); IC.Wheel.catcher:Hide(); assert(not IC.Wheel.open); eq(#Stub.emotes, 0)
+end)
+
+test("ring hold mode uses the item under the cursor on release only after moving", function(IC, Stub, env)
     IC.Profile().wheel.mode = "hold"
-    IC.Wheel.Binding("down"); assert(IC.Wheel.open)
-    pointAt(Stub, IC, IC.Wheel.outer[1]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
-    point(Stub, IC, 0, 0)
-    pointAt(Stub, IC, IC.Wheel.outer[1]); local expected = IC.Wheel.items[1]
-    Stub.clock = Stub.clock + 0.2
-    eq(#Stub.emotes + #Stub.sends, 0)
-    IC.Wheel.Binding("up"); assert(not IC.Wheel.open)
-    if expected.type == "emote" then eq(Stub.emotes[1], expected.payload) else eq(#Stub.sends, 1) end
-    IC.Wheel.Binding("down"); point(Stub, IC, 0, 0); IC.Wheel.Binding("up")
-    assert(not IC.Wheel.open); eq(#Stub.emotes + #Stub.sends, 1)
-    IC.Profile().wheel.mode = "click"; IC.Wheel.Binding("down"); IC.Wheel.Binding("up"); assert(IC.Wheel.open)
-    IC.Wheel.Binding("down"); assert(not IC.Wheel.open)
+    env.InCharacter_WheelBinding("down"); env.InCharacter_WheelBinding("up"); assert(not IC.Wheel.open); eq(#Stub.emotes, 0)
+    env.InCharacter_WheelBinding("down"); pointAt(Stub, IC, ringSlot(IC, "set:Combat")); env.InCharacter_WheelBinding("up")
+    assert(not IC.Wheel.open); eq(#Stub.emotes, 0)
+    env.InCharacter_WheelBinding("down"); pointAt(Stub, IC, ringSlot(IC, "emote:dance")); env.InCharacter_WheelBinding("up"); eq(Stub.emotes[1], "DANCE")
+    -- A mouse-button binding is swallowed by the catcher, so its release still reaches the binding.
+    Stub.bindings["BUTTON4"] = "INCHARACTER_WHEEL"
+    env.InCharacter_WheelBinding("down"); IC.Wheel.catcher:Fire("OnMouseUp", "Button4"); assert(not IC.Wheel.open); eq(#Stub.emotes, 1)
 end)
 
-test("wheel pages long categories with the mouse wheel and opens in combat", function(IC, Stub, env, event)
-    for i = 1, 14 do IC.Dialogue.Create("Line pool " .. i) end
-    Stub.combat = true; event("PLAYER_REGEN_DISABLED")
-    IC.Wheel.Open(false); assert(IC.Wheel.open)
-    pointAt(Stub, IC, IC.Wheel.outer[#IC.Wheel.categories]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
-    eq(IC.Wheel.Current().id, "Roleplay")
-    eq(#IC.Wheel.items, 8); IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2); eq(#IC.Wheel.items, 8)
-    IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 3); eq(#IC.Wheel.items, 1)
-    IC.Wheel.Close()
+test("ring pages long lists with the mouse wheel and works in combat", function(IC, Stub)
+    for i = 1, 18 do local pool = IC.Dialogue.Create("Pool " .. i); IC.Dialogue.Save(pool, pool.name, "SAY", "sequential", pool.icon, { "line " .. i }) end
+    IC.Profile().wheel.root = "rp"; Stub.combat = true
+    IC.Wheel.Open(false); eq(IC.Wheel.pages, 2); eq(#IC.Wheel.items, 12)
+    IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2)
+    local last = IC.Wheel.slots[#IC.Wheel.items]; pointAt(Stub, IC, last); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
+    eq(#Stub.sends, 1); eq(Stub.sends[1][1], "line 18")
 end)
 
-test("category bars show only their category and dispatch on click", function(IC, Stub)
-    IC.Curation.Save("emote:chicken", "keep", "nearby", "yes")
-    local p = page(IC, "Layouts"); Stub.Button(p, "Bars per category"):Click()
-    local frame
-    for i, bar in ipairs(IC.Layout().bars) do if bar.source == "Voice/Fun" then frame = IC.Bars.frames[i] end end
-    local shown = 0
-    for _, slot in ipairs(frame.buttons) do
-        if slot:IsShown() then shown = shown + 1; assert(slot.action.categories["Voice/Fun"]) end
-    end
-    eq(shown, #IC.Actions.List("Voice/Fun"))
-    for _, slot in ipairs(frame.buttons) do
-        if slot.action.command == "chicken" then slot:Click(); assert(slot.kind:IsShown()) end
-        if slot.action.command == "moo" then assert(slot.icon.desaturated) end
-    end
-    eq(Stub.emotes[1], "CHICKEN")
-    frame.config.strip = false; IC.Bars.Refresh() -- Classic grids retain their title/collapse controls.
-    frame.header:Click("LeftButton"); assert(frame.config.collapsed)
-    frame.config.collapsed, frame.config.locked = false, true; IC.Bars.Refresh(); assert(not frame.header:IsShown())
+test("ring geometry: sectors start at the top and run clockwise; fans sit outside the ring", function(IC)
+    local M = IC.WheelModel
+    eq(M.Sector(M.Angle(0, 10), 4), 1); eq(M.Sector(M.Angle(10, 0), 4), 2); eq(M.Sector(M.Angle(0, -10), 4), 3)
+    local g = M.Geometry(8, 30); eq(g.radius, 64); eq(M.Zone(0, 5, g), "hub"); eq(M.Zone(0, 64, g), "ring"); eq(M.Zone(0, 120, g), "outside")
+    assert(M.Geometry(16, 30).radius > 64)
+    local positions, placed = M.Fan(22, 0, g); eq(placed, 22)
+    for _, p in ipairs(positions) do assert(math.sqrt(p.x ^ 2 + p.y ^ 2) > g.band) end
+    eq(M.Nearest(positions[1].x + 2, positions[1].y, positions, 20), 1)
 end)
 
-test("layouts page edits bars with dropdowns and sliders", function(IC, Stub)
-    local p = page(IC, "Layouts")
-    Stub.Button(p, "+ Add bar"):Click(); eq(#IC.Layout().bars, 3); eq(IC.Editor.barIndex, 3)
-    p.bSource:Choose("Combat"); eq(IC.Layout().bars[3].source, "Combat")
-    p.bSize:SetValue(48); eq(IC.Layout().bars[3].size, 48)
-    p.bColumns:SetValue(3); eq(IC.Layout().bars[3].columns, 3)
-    p.bOrientation:Choose("vertical"); assert(IC.Layout().bars[3].vertical)
-    p.which:Choose(1); eq(IC.Editor.barIndex, 1); eq(p.bSource.value, "favoriteEmotes")
-    p.lSize:SetValue(52); eq(IC.Layout().launcher.size, 52); eq(IC.Launcher.button:GetWidth(), 52)
-    p.wRadius:SetValue(200); eq(IC.Profile().wheel.radius, 200)
+test("launcher menu is the compact flyout: groups open on hover and a click sends once", function(IC, Stub, env)
+    IC.Launcher.button:Click(); assert(IC.Menu.IsOpen())
+    flyRow(IC, 1, "set:Combat"):Fire("OnEnter"); assert(IC.Flyout.levels[2]:IsShown()); eq(#Stub.emotes, 0)
+    flyRow(IC, 2, "emote:charge"):Click(); eq(Stub.emotes[1], "CHARGE"); assert(not IC.Flyout.IsOpen())
+    env.InCharacter_MenuBinding(); assert(IC.Menu.IsOpen()); IC.Flyout.catcher:Hide(); assert(not IC.Menu.IsOpen())
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", { buttonName = "LeftButton" }); assert(IC.Menu.IsOpen()); IC.Flyout.Close()
+    env.InCharacter_OnAddonCompartmentClick("InCharacter", "RightButton"); assert(IC.Editor.frame:IsShown()); eq(IC.Editor.tab, "Lists")
 end)
 
-test("key capture binds the wheel with modifiers and right-click clears it", function(IC, Stub)
-    local p = page(IC, "Layouts")
-    p.wKey:Click("LeftButton"); assert(p.wKey.capturing)
-    p.wKey:Fire("OnKeyDown", "LSHIFT"); assert(p.wKey.capturing)
-    Stub.modifiers.shift = true; p.wKey:Fire("OnKeyDown", "F"); Stub.modifiers.shift = nil
-    eq(Stub.bindings["SHIFT-F"], "INCHARACTER_WHEEL"); assert(not p.wKey.capturing); assert(p.wKey:GetText():find("SHIFT%-F"))
-    p.wKey:Click("RightButton"); eq(Stub.bindings["SHIFT-F"], nil); eq(Stub.savedBindings, 2)
-    p.wKey:Click("LeftButton"); p.wKey:Fire("OnKeyDown", "ESCAPE"); assert(not p.wKey.capturing); eq(Stub.savedBindings, 2)
+test("edit mode: middle-click, add a bar, resize, delete, undo; clicks never play", function(IC, Stub)
+    IC.Launcher.button:Click("MiddleButton"); assert(IC.Bars.editing); local p = IC.Bars.inspector
+    IC.Bars.frames[1].actionButtons[1]:Click(); eq(#Stub.emotes, 0)
+    Stub.Button(p, "+ Bar"):Click(); eq(#IC.Layout().bars, 2); eq(IC.Bars.selectedBar, 2); eq(IC.Layout().bars[2].collection, "favorites")
+    p.source:Choose("Reactions"); eq(IC.Layout().bars[2].collection, "Reactions"); eq(IC.Layout().bars[2].name, "Reactions")
+    p.size:SetValue(36); eq(IC.Layout().bars[2].size, 36); p.perRow:SetValue(3); eq(IC.Layout().bars[2].perRow, 3)
+    p.delete:Click(); eq(#IC.Layout().bars, 2); p.delete:Click(); eq(#IC.Layout().bars, 1)
+    Stub.Button(p, "Undo"):Click(); eq(#IC.Layout().bars, 1); eq(IC.Layout().bars[1].collection, "main")
+    p.which:Choose("launcher"); assert(p.launcherForm:IsShown()); p.launcherSize:SetValue(30); eq(IC.Layout().launcher.size, 30)
+    p:Hide(); assert(not IC.Bars.editing); eq(#Stub.emotes, 0)
 end)
 
-test("missing icon files fall back instead of showing a blank texture", function(IC, Stub, env)
+test("missing icon files fall back and the picker returns the chosen icon", function(IC, Stub, env)
     local texture = env.UIParent:CreateTexture()
     Stub.missing["Interface\\Icons\\Gone"] = true
     IC.UI.SetIcon(texture, "Interface\\Icons\\Gone", "Interface\\Icons\\INV_Misc_Book_09"); eq(texture.texture, "Interface\\Icons\\INV_Misc_Book_09")
-    local p = page(IC, "Dialogue")
+    page(IC, "Lines")
     IC.Editor.PickIcon(nil, function(icon) IC.Editor.pickedIcon = icon end)
     IC.Editor.picker.slots[9]:Click(); Stub.Button(IC.Editor.picker, "Use icon"):Click(); eq(IC.Editor.pickedIcon, 134400)
 end)
 
 test("combat hides only the window, defers rebuilds and never replays chat", function(IC, Stub, env, event)
-    page(IC, "Home"); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
-    assert(not IC.Editor.frame:IsShown())
+    page(IC, "Lists"); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
+    assert(not IC.Editor.frame:IsShown()); IC.Editor.Open("Lists"); assert(not IC.Editor.frame:IsShown())
     IC.Refresh(); assert(IC.refreshPending)
-    IC.Launcher.button:Click("LeftButton"); assert(IC.Wheel.open); IC.Wheel.Close()
+    IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen()); IC.Flyout.Close()
     Stub.combat = false; event("PLAYER_REGEN_ENABLED"); assert(not IC.refreshPending); eq(#Stub.sends, 0)
 end)
 
-test("addon compartment opens its independent launcher and settings", function(IC, Stub, env)
-    env.InCharacter_OnAddonCompartmentClick("InCharacter", "LeftButton"); assert(IC.Wheel.open); IC.Wheel.Close()
-    env.InCharacter_OnAddonCompartmentClick("InCharacter", "RightButton"); assert(IC.Editor.frame:IsShown()); eq(IC.Editor.tab, "Home")
+test("upgraded saves preserve bar visibility and create explicit lists without an extra bar", function(IC, Stub, env, event)
+    local layout = { bars = { { name = "Social bar", source = "Social", x = 5 }, { name = "RP", source = "pools", catalog = true } }, launcher = { click = "quick" } }
+    IC.Profiles.Open({ version = 10 }, { version = 10, layout = layout }); IC.Refresh()
+    eq(#layout.bars, 2); assert(layout.bars[1].collection:match("^layout%-")); assert(layout.bars[2].collection:match("^layout%-")); eq(layout.bars[1].source, "Social")
+    assert(not layout.bars[1].hidden and not layout.bars[1].hiddenByUpgrade); assert(layout.preFoundation)
+    eq(IC.Layout().launcher.click, "menu"); assert(IC.Bars.frames[1]:IsShown()); assert(IC.Bars.frames[2]:IsShown())
 end)
-
-test("wheel geometry: sectors start at the top and go clockwise; hub is a dead zone", function(IC)
-    local M = IC.WheelModel
-    eq(M.Sector(M.Angle(0, 10), 4), 1); eq(M.Sector(M.Angle(10, 0), 4), 2)
-    eq(M.Sector(M.Angle(0, -10), 4), 3); eq(M.Sector(M.Angle(-10, 0), 4), 4)
-    eq(M.Sector(M.Angle(-1, 10), 4), 1)
-    local g = M.Geometry(160)
-    eq(M.Hit(5, 5, g, 7, 12), "hub")
-    local kind, index = M.Hit(0, g.hub + 4, g, 7, 12); eq(kind, "gap"); eq(index, nil)
-    kind, index = M.Hit(g.outer, 0, g, 7, 12); eq(kind, "outer"); eq(index, 4)
-    eq(M.Hit(0, 400, g, 7, 0), "outside")
-    for i = 1, 12 do local x, y = M.Position(i, 12, g.outer); local _, hit = M.Hit(x, y, g, 7, 12); eq(hit, i) end
+test("review fixes: vertical names, pin keeps the list on its group, sub-lists beside the parent, combat ends drags", function(IC, Stub, env, event)
+    local g = IC.CollectionBar.Geometry({ size = 28, vertical = true, labels = true }, { { segment = 1 }, { segment = 1 } })
+    eq(g.width, 28); eq(g.positions[2].y, 28 + 12 + 2); eq(g.height, 28 * 2 + 12 * 2 + 2)
+    local bar = IC.Bars.frames[1]; local combat
+    for _, button in ipairs(bar.actionButtons) do if button.node.id == "set:Voice/Fun" then combat = button end end
+    combat:Click(); local level = IC.Flyout.levels[1]
+    local chicken; for _, row in ipairs(level.rows) do if row:IsShown() and row.node.id == "emote:chicken" then chicken = row end end
+    chicken:Click("RightButton"); assert(IC.Actions.IsFavorite("emote:chicken")); assert(IC.Flyout.IsOpen())
+    eq(level.anchor.node.id, "set:Voice/Fun"); assert(level.anchor ~= combat, "followed the moved group button")
+    IC.Flyout.Close(); IC.Launcher.button:Click()
+    local group; for _, row in ipairs(IC.Flyout.levels[1].rows) do if row:IsShown() and row.node.id == "set:Combat" then group = row end end
+    group:Fire("OnEnter"); eq(IC.Flyout.levels[2].relative, IC.Flyout.levels[1]); IC.Flyout.Close()
+    IC.Bars.SetEditing(true); local frame = IC.Bars.frames[1]
+    frame.moveHandle:Fire("OnDragStart"); assert(frame.moving); assert(frame:IsShown())
+    Stub.combat = true; event("PLAYER_REGEN_DISABLED"); assert(not frame.moving); assert(not IC.Bars.editing)
 end)
-test("review fixes: mouse-button wheel key, unmoved hold release, Esc closes flyouts, compartment table args", function(IC, Stub, env)
-    IC.Layout().launcher.click = "menu"
-    Stub.bindings["BUTTON4"] = "INCHARACTER_WHEEL"; IC.Profile().wheel.mode = "hold"
-    IC.Wheel.Binding("down"); assert(IC.Wheel.open)
-    -- The catcher swallows the mouse button, so its release must still reach the binding.
-    IC.Wheel.catcher:Fire("OnMouseUp", "Button4"); assert(not IC.Wheel.open)
-    -- Opening with the cursor already over an action (edge clamping) and releasing without moving does nothing.
-    IC.Wheel.Binding("down"); local slot = IC.Wheel.outer[1]; IC.Wheel.hover = slot; IC.Wheel.moved = false
-    local x, y = slot:GetCenter(); Stub.cursorX, Stub.cursorY = x, y; IC.Wheel.start = { x - 960, y - 540 }
-    IC.Wheel.Binding("up"); eq(#Stub.emotes + #Stub.sends, 0); assert(not IC.Wheel.open)
-    IC.Launcher.button:Click("LeftButton"); IC.Menu.levels[1].rows[3]:Fire("OnEnter")
-    local combat; for i, entry in ipairs(IC.Menu.levels[1].entries) do if entry.children then combat = i; break end end
-    IC.Menu.levels[1].rows[combat]:Fire("OnEnter"); assert(IC.Menu.levels[2]:IsShown())
-    IC.Menu.catcher:Hide(); assert(not IC.Menu.levels[2].shown)
-    env.InCharacter_OnAddonCompartmentClick("InCharacter", { buttonName = "RightButton" }); assert(IC.Editor.frame:IsShown())
-    local key = IC.Editor.pages.Home.wheelKey; key:Click("LeftButton"); assert(key.capturing)
-    IC.Editor.frame:Hide(); key:Fire("OnHide"); assert(not key.capturing)
-end)
-assert(loadfile("tests/ui_enhancements.lua"))()(test, eq, page, point, pointAt)
+assert(loadfile("tests/ui_collections.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_layouts.lua"))()(test, eq, page, point, pointAt)
-assert(loadfile("tests/ui_quick.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_review.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_catalogbars.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_strips.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_fullcontrols.lua"))()(test, eq, page)
-assert(loadfile("tests/ui_options.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_audit.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_foundations.lua"))()(test, eq, page)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

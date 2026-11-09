@@ -39,7 +39,7 @@ function R.Save(id, choice, sound, animation, duplicateOf, notes, iconReviewed)
     end
     if choice == "text" then sound, animation = "silent", "no" end
     IC.Profile().emoteReview[id] = { choice = choice, duplicateOf = other and other.id, notes = tostring(notes or ""), iconReviewed = iconReviewed == true }
-    local build = GetBuildInfo and select(2, GetBuildInfo())
+    local build = IC.Platform.Build()
     IC.Profiles.Character().emoteObservations[id] = { sound = sound, animation = animation, build = build }
     IC.Changed(); return true
 end

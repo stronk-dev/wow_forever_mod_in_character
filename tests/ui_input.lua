@@ -7,7 +7,7 @@ return function(test, eq, page)
 
     test("ordinary keys reach the game at login and throughout every addon UI", function(IC, Stub)
         assert(Stub.KeyDown("W"))
-        for _, tab in ipairs({ "Home", "Emotes", "Dialogue", "Favorites", "Layouts", "Profiles" }) do
+        for _, tab in ipairs({ "Lists", "Lines", "Layout", "Profiles" }) do
             page(IC, tab)
             assert(Stub.KeyDown("W"), "Keyboard consumed on " .. tab)
             for _, stop in ipairs(IC.UI.captures) do assert(type(stop) == "function") end
@@ -19,7 +19,7 @@ return function(test, eq, page)
     end)
 
     test("key assignment consumes only the captured press and then releases keyboard input", function(IC, Stub)
-        local key = page(IC, "Layouts").wKey
+        local key = page(IC, "Layout").keys[1]
         released(key); eq(key.propagateKeyboard, true)
         key:Click(); assert(key.capturing); eq(key.keyboard, true)
         assert(not Stub.KeyDown("LSHIFT")); assert(key.capturing)
@@ -31,7 +31,7 @@ return function(test, eq, page)
     end)
 
     test("Escape and clicking cancel capture without binding or blocking subsequent keys", function(IC, Stub)
-        local key = page(IC, "Layouts").wKey
+        local key = page(IC, "Layout").keys[1]
         key:Click(); assert(not Stub.KeyDown("ESCAPE")); released(key)
         Stub.Tick(); eq(key.propagateKeyboard, true); assert(Stub.KeyDown("W"))
         for _, mouse in ipairs({ "LeftButton", "RightButton" }) do
@@ -41,10 +41,10 @@ return function(test, eq, page)
     end)
 
     test("capture is exclusive and closes on tab, parent window and settings panel hides", function(IC, Stub)
-        local layout = page(IC, "Layouts")
-        layout.wKey:Click(); layout.mKey:Click(); released(layout.wKey); assert(layout.mKey.capturing)
-        page(IC, "Home"); released(layout.mKey); assert(Stub.KeyDown("W"))
-        local key = IC.Editor.pages.Home.wheelKey
+        local layout = page(IC, "Layout")
+        layout.keys[1]:Click(); layout.keys[2]:Click(); released(layout.keys[1]); assert(layout.keys[2].capturing)
+        page(IC, "Lists"); released(layout.keys[2]); assert(Stub.KeyDown("W"))
+        local key = page(IC, "Layout").keys[1]
         key:Click(); IC.Editor.frame:Hide(); released(key); assert(Stub.KeyDown("W"))
         local settings = IC.SettingsPanel.panel
         settings:Show(); settings.wheelKey:Click(); settings:Hide()
@@ -52,14 +52,14 @@ return function(test, eq, page)
     end)
 
     test("abandoned capture expires without changing any bindings", function(IC, Stub)
-        local key = page(IC, "Layouts").wKey
+        local key = page(IC, "Layout").keys[1]
         key:Click(); Stub.Tick(14); assert(key.capturing)
         Stub.Tick(1); released(key); eq(key.propagateKeyboard, true)
         assert(Stub.KeyDown("W")); eq(next(Stub.bindings), nil); eq(Stub.savedBindings, nil)
     end)
 
     test("binding API errors cannot strand a keyboard listener", function(IC, Stub, env)
-        local key = page(IC, "Layouts").wKey
+        local key = page(IC, "Layout").keys[1]
         local set, save = env.SetBinding, env.SaveBindings
         for _, api in ipairs({ "SetBinding", "SaveBindings" }) do
             env.SetBinding, env.SaveBindings = set, save
@@ -71,27 +71,27 @@ return function(test, eq, page)
     end)
 
     test("combat cancels active capture without touching restricted propagation or saving bindings", function(IC, Stub, env, event)
-        local key = page(IC, "Layouts").wKey
+        local key = page(IC, "Layout").keys[1]
         key:Click(); Stub.combat = true; event("PLAYER_REGEN_DISABLED")
         released(key); assert(Stub.KeyDown("W")); eq(Stub.savedBindings, nil)
         Stub.combat = false; event("PLAYER_REGEN_ENABLED")
-        page(IC, "Layouts"); key:Click(); assert(not Stub.KeyDown("ESCAPE"))
+        page(IC, "Layout"); key:Click(); assert(not Stub.KeyDown("ESCAPE"))
         Stub.Tick(); released(key); assert(Stub.KeyDown("ENTER"))
     end)
 
     test("emote Try button uses Charades dispatch without false rejection messages", function(IC, Stub, env)
-        local p = page(IC, "Emotes")
-        IC.Editor.emoteCategory = "all"; p.search:SetText("wave"); p.tiles[1]:Click()
+        local p = page(IC, "Lists")
+        p.search:SetText("wave"); p.libRows[1]:Click()
         local modernCalls = 0
         env.C_ChatInfo.PerformEmote = function() modernCalls = modernCalls + 1 end
         local before = #Stub.messages
         for _, result in ipairs({ "nil", false, true }) do
             env.DoEmote = function(token) eq(token, "WAVE"); Stub.emotes[#Stub.emotes + 1] = token; if result ~= "nil" then return result end end
-            p.dTry:Click(); eq(#Stub.messages, before)
+            p.detail.try:Click(); eq(#Stub.messages, before)
         end
         eq(#Stub.emotes, 3); eq(modernCalls, 0)
         env.DoEmote = function() error("client refused") end
-        p.dTry:Click(); eq(#Stub.messages, before + 1); eq(modernCalls, 0)
+        p.detail.try:Click(); eq(#Stub.messages, before + 1); eq(modernCalls, 0)
         assert(Stub.messages[#Stub.messages]:find("Client blocked the emote", 1, true))
     end)
 end

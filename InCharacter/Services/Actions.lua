@@ -1,37 +1,7 @@
 local _, IC = ...
 IC.Actions = {}
 local A = IC.Actions
-function A.EmoteVisible(action)
-    local settings = IC.Profile().presentations
-    if settings and settings.emotes.view == "all" then return action.verified end
-    return IC.Emotes.Visible(action, IC.Profile())
-end
-local function readBoolean(fn, ...)
-    local ok, value = pcall(fn, ...)
-    if not ok or (issecretvalue and issecretvalue(value)) or type(value) ~= "boolean" then return nil end
-    return value
-end
-
-function A.ChatAllowed()
-    local checks = {}
-    if C_ChatInfo and type(C_ChatInfo.InChatMessagingLockdown) == "function" then
-        checks[#checks + 1] = { fn = C_ChatInfo.InChatMessagingLockdown, blocked = true, reason = "Client chat messaging lockdown is active." }
-    end
-    local chat = Enum and Enum.AddOnRestrictionType and Enum.AddOnRestrictionType.Chat
-    if chat ~= nil and C_RestrictedActions and type(C_RestrictedActions.IsAddOnRestrictionActive) == "function" then
-        checks[#checks + 1] = { fn = C_RestrictedActions.IsAddOnRestrictionActive, argument = chat, blocked = true, reason = "Client addon chat restriction is active." }
-    end
-    if C_SocialRestrictions and type(C_SocialRestrictions.CanSendChat) == "function" then
-        checks[#checks + 1] = { fn = C_SocialRestrictions.CanSendChat, blocked = false, reason = "Your account cannot send chat right now." }
-    end
-    for _, check in ipairs(checks) do
-        local value
-        if check.argument ~= nil then value = readBoolean(check.fn, check.argument) else value = readBoolean(check.fn) end
-        if value == nil then return false, "Cannot establish current chat permissions; no message sent." end
-        if value == check.blocked then return false, check.reason end
-    end
-    return true
-end
+function A.ChatAllowed() return IC.Platform.ChatAllowed() end
 
 function A.ChatText(text)
     -- Treat every quote as literal text, including WoW color/link/texture escapes.
@@ -126,62 +96,14 @@ function A.Lines(pool)
     end
     return result
 end
-function A.PoolNode(pool)
-    local nextAction = A.Resolve("pool:" .. pool.id); nextAction.name = "Play next (" .. pool.mode .. ")"
-    local children = { nextAction }
-    for _, mode in ipairs({ "random", "shuffle", "sequential" }) do
-        local action = A.Resolve("play:" .. mode .. ":" .. pool.id)
-        action.name = ({ random = "Random message", shuffle = "Shuffle next", sequential = "In order next" })[mode]
-        children[#children + 1] = action
-    end
-    children[#children + 1] = { id = "messages:" .. pool.id, type = "submenu", label = "Choose a specific message", icon = pool.icon, children = A.Lines(pool) }
-    return { id = "browse:" .. pool.id, type = "submenu", label = IC.Personas and IC.Personas.PoolLabel(pool) or pool.name, icon = pool.icon, children = children }
-end
-function A.RoleplayGroups()
-    if IC.Personas then
-        local result = {}; for _, id in ipairs(IC.Personas.Pools()) do local pool = IC.Profile().pools[id]; if pool then result[#result + 1] = A.PoolNode(pool) end end
-        return result
-    end
-    local result, groups = {}, {}
-    for _, id in ipairs(IC.Personas and IC.Personas.Pools() or IC.Profile().poolOrder) do
-        local pool = IC.Profile().pools[id]
-        local pack = pool.provenance and IC.Library.packs[pool.provenance.pack]
-        local key = pack and pack.id or "custom"
-        if not groups[key] then
-            groups[key] = { id = "group:" .. key, type = "submenu", label = pack and pack.title or "My dialogue", icon = pool.icon, children = {} }
-            result[#result + 1] = groups[key]
-        end
-        table.insert(groups[key].children, A.PoolNode(pool))
-    end
-    return result
-end
-function A.List(source, raw)
-    source = source or "favorites"
-    local result, profile = {}, IC.Profile()
-    if source == "favorites" or source == "favoriteEmotes" then
-        for _, id in ipairs(profile.favorites) do
-            local action = A.Resolve(id)
-            if action and (source ~= "favoriteEmotes" or action.type == "emote") and (raw or action.type ~= "emote" or A.EmoteVisible(action)) then result[#result + 1] = action end
-        end
-    elseif source == "pools" then
-        for _, id in ipairs(profile.poolOrder) do
-            local action = A.Resolve("pool:" .. id)
-            if action then result[#result + 1] = action end
-        end
+-- Resolved actions for slash commands and favorite key bindings. Surfaces use IC.Collections.
+function A.List(source)
+    local result = {}
+    if source == "favorites" or source == nil then
+        for _, node in ipairs(IC.Collections.Nodes("favorites")) do result[#result + 1] = node end
     elseif source:match("^lines:") then
-        local pool = profile.pools[source:sub(7)]
+        local pool = IC.Profile().pools[source:sub(7)]
         if pool then result = A.Lines(pool) end
-    elseif source:match("^pool:") or source:match("^line:") or source:match("^play:") then
-        local action = A.Resolve(source)
-        if action then result[1] = action end
-    else
-        local emotes = source == "all" and IC.Emotes.list or IC.Emotes.byCategory[source] or {}
-        for _, action in ipairs(emotes) do
-            if raw or A.EmoteVisible(action) then result[#result + 1] = A.Resolve(action.id) end
-        end
-    end
-    if not raw and IC.Personas then
-        local filtered = {}; for _, action in ipairs(result) do if IC.Personas.ActionAllowed(action) then filtered[#filtered + 1] = action end end; result = filtered
     end
     return result
 end
@@ -195,18 +117,9 @@ function A.Dispatch(action)
         local known = IC.Emotes.byID[action.id]
         if not known then IC.Print("Unknown emote."); return false end
         if not known.verified then IC.Print(known.label .. " is not recognized by this client."); return false end
-        -- Follow Charades' Forever path: pass the client's token to DoEmote.
-        -- Only use the namespaced API if that entry point does not exist.
-        local perform = type(DoEmote) == "function" and DoEmote
-            or (C_ChatInfo and C_ChatInfo.PerformEmote)
-        if type(perform) ~= "function" then IC.Print("Emote API is unavailable."); return false end
-        local ok, result = pcall(perform, known.payload)
-        if not ok then IC.Print("Client blocked the emote: " .. tostring(result)); return false end
-        -- Charades does not infer acceptance from this return. Forever's actual
-        -- chat handler calls it "restricted", while generated docs call it
-        -- "success". Do not invent a rejection or retry the action. A successful
-        -- Lua call establishes submission only, not an observed animation.
-        return true
+        local ok, reason = IC.Platform.Emote(known.payload)
+        if not ok then IC.Print(reason) end
+        return ok, reason
     elseif action.type == "pool" or action.type == "line" then
         if IC.Personas and not IC.Personas.ActionAllowed(action) then
             local reason = "This pool belongs to another character. Loaded: " .. IC.Personas.Name() .. "."
@@ -217,8 +130,6 @@ function A.Dispatch(action)
         if pool.channel ~= "SAY" and pool.channel ~= "YELL" and pool.channel ~= "EMOTE" then IC.Print("Invalid chat channel."); return false end
         local allowed, reason = A.ChatAllowed()
         if not allowed then IC.Print(reason .. " Selection unchanged; nothing queued."); return false, reason end
-        local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-        if type(send) ~= "function" then IC.Print("Chat API is unavailable."); return false end
         if action.selectionMode and action.selectionMode ~= "random" and action.selectionMode ~= "shuffle" and action.selectionMode ~= "sequential" then IC.Print("Invalid selection mode."); return false end
         local key = IC.Dialogue.StateKey(pool, action.selectionMode)
         local state = IC.Copy(IC.Dialogue.states[key])
@@ -233,10 +144,10 @@ function A.Dispatch(action)
             IC.Print("Selected line cannot be sent (255 UTF-8 bytes maximum per message; no control characters). Edit or preview it in /ic.")
             return false
         end
-        local ok, result = pcall(send, text, pool.channel)
-        if not ok or result == false then
+        local ok, reason = IC.Platform.SendChat(text, pool.channel)
+        if not ok then
             IC.Dialogue.states[key] = state
-            IC.Print(ok and "Client declined chat. Nothing is queued for later." or ("Client blocked chat: " .. tostring(result) .. ". Nothing is queued for later."))
+            IC.Print(reason .. " Nothing is queued for later.")
             return false
         end
         return true
