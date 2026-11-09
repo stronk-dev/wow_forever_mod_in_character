@@ -20,11 +20,13 @@ local function row(level, index)
     button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     button.label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight"); button.label:SetPoint("LEFT", 24, 0)
     button.label:SetPoint("RIGHT", -70, 0); button.label:SetJustifyH("LEFT"); button.label:SetWordWrap(false)
-    button.right = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); button.right:SetPoint("RIGHT", -4, 0)
+    button.right = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); button.right:SetPoint("RIGHT", -26, 0)
+    button.more = U.Button(button, ">", nil, nil, 22, function() if button.entry.children then Menu.OpenLevel(level.depth + 1, button.entry, button) end end)
+    button.more:SetPoint("RIGHT", -2, 0); button.more:SetHeight(22)
     button:SetScript("OnEnter", function(self)
         if self.entry.kind == "header" then Menu.CloseFrom(level.depth + 1); return end
         self.bg:Show()
-        if self.entry.children then Menu.OpenLevel(level.depth + 1, self.entry, self)
+        if self.entry.children and not self.entry.action then Menu.OpenLevel(level.depth + 1, self.entry, self)
         else Menu.CloseFrom(level.depth + 1) end
         local action = self.entry.action
         if action then
@@ -49,7 +51,7 @@ local function row(level, index)
             end
             IC.Actions.Favorite(entry.action.id); Menu.Rebuild(); return
         end
-        if mouse == "LeftButton" and entry.children then Menu.OpenLevel(level.depth + 1, entry, self); return end
+        if mouse == "LeftButton" and entry.children and not entry.action then Menu.OpenLevel(level.depth + 1, entry, self); return end
         if mouse ~= "LeftButton" or entry.kind == "header" then return end
         if entry.back then entry.run(); return end
         Menu.Close()
@@ -85,7 +87,7 @@ end
 
 function Menu.RenderLevel(level)
     local count = math.min(#level.entries, visible())
-    level.title:SetText(level.source and level.source.label or "In Character · choose a category")
+    level.title:SetText(level.source and level.source.label or "In Character")
     level.back:SetShown(level.depth > 1)
     level.title:SetPoint("TOPLEFT", level.depth > 1 and 42 or 8, -8)
     level.title:SetWidth(WIDTH - (level.depth > 1 and 50 or 16))
@@ -101,8 +103,9 @@ function Menu.RenderLevel(level)
         else
             local star = entry.action and IC.Actions.IsFavorite(entry.action.id) and "|cffffd100*|r " or ""
             button.label:SetText(star .. entry.label)
-            button.right:SetText(entry.children and ("|cff999999" .. #entry.children .. "|r  >") or (entry.right or ""))
+            button.right:SetText(entry.action and (entry.right or "") or (entry.children and ">" or (entry.right or "")))
         end
+        button.more:SetShown(entry.children ~= nil and entry.action ~= nil)
         button:Show()
     end
     level.more = level.more or level:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -140,44 +143,59 @@ local function actionEntry(action)
     return { id = action.id, label = action.name or action.label, icon = action.icon, action = action, right = right }
 end
 function Menu.Entries()
-    local entries, info = {}, IC.Emotes.CategoryInfo
-    local config = IC.Profile().menu
-    if not config.hiddenCategories.Favorites then
-    entries[1] = { kind = "header", label = "Favorites" }
-    local favorites = IC.Presentation.Filter(IC.Actions.List("favorites"), config)
-    for i = 1, math.min(#favorites, 6) do entries[#entries + 1] = actionEntry(favorites[i]) end
-    if #favorites == 0 then entries[#entries + 1] = { kind = "header", label = "  right-click any emote to pin it" } end
-    if #favorites > 6 then
-        local more = { label = "More favorites", icon = info.Favorites.icon, children = {} }
-        for i = 7, #favorites do more.children[#more.children + 1] = actionEntry(favorites[i]) end
-        entries[#entries + 1] = more
+    local entries, info, config = {}, IC.Emotes.CategoryInfo, IC.Profile().menu
+    local actors = {}
+    for _, option in ipairs(IC.Personas.Options(true)) do
+        local value = option.value
+        actors[#actors + 1] = { label = option.label, right = value == (IC.Personas.Active() or {}).id and "Loaded" or "", run = function() IC.Personas.Choose(value) end }
     end
-    end
-    entries[#entries + 1] = { kind = "header", label = "Emotes" }
-    for _, id in ipairs(IC.Emotes.categories) do
-        local actions = {}
-        for _, action in ipairs(IC.Actions.List(id)) do
-            if action.verified then actions[#actions + 1] = action end
+    actors[#actors + 1] = { label = "Create / manage characters...", run = function() IC.Editor.Open("Home") end }
+    entries[#entries + 1] = { id = "loaded-character", label = IC.Personas.Name(), icon = IC.AddonIcon, right = "Loaded", children = actors }
+    if IC.Presentation.Enabled("roleplay", "menu") and not config.hiddenCategories.Roleplay then
+        entries[#entries + 1] = { kind = "header", label = "Roleplay" }
+        local pools = {}
+        for _, id in ipairs(IC.Personas.Pools()) do
+            local pool = IC.Profile().pools[id]
+            if pool and #pool.lines > 0 and not config.hiddenActions["pool:" .. id] and not config.hiddenActions["browse:" .. id] then
+                local details = actionEntry(IC.Actions.PoolNode(pool))
+                pools[#pools + 1] = { id = "pool:" .. id, label = IC.Personas.PoolLabel(pool), icon = pool.icon,
+                    action = IC.Actions.Resolve("pool:" .. id), children = details.children, right = pool.mode }
+            end
         end
-        actions = IC.Presentation.EmoteGroups(id, IC.Presentation.Filter(actions, config))
-        local category = { id = id, label = info[id].label, icon = info[id].icon, children = {} }
-        for _, action in ipairs(IC.Presentation.Tree(actions, config)) do category.children[#category.children + 1] = actionEntry(action) end
-        if #category.children > 0 and not config.hiddenCategories[id] then entries[#entries + 1] = category end
+        for i = 1, math.min(3, #pools) do entries[#entries + 1] = pools[i] end
+        if #pools > 3 then
+            local more = { id = "more-roleplay", label = "More RP pools", children = {} }
+            for i = 4, #pools do more.children[#more.children + 1] = pools[i] end; entries[#entries + 1] = more
+        end
+        if #pools == 0 then entries[#entries + 1] = { label = "Add lines for " .. IC.Personas.Name() .. "...", run = function() IC.Editor.Open("Dialogue") end } end
     end
-    local all = { id = "all", label = "All emotes · A–Z", icon = info.all.icon, children = {} }
-    local allActions = {}
-    for _, action in ipairs(IC.Emotes.list) do
-        if action.verified and IC.Emotes.Visible(action, IC.Profile()) then allActions[#allActions + 1] = IC.Actions.Resolve(action.id) end
+    if IC.Presentation.Enabled("emotes", "menu") then
+        entries[#entries + 1] = { kind = "header", label = "Emotes" }
+        local favorites = IC.Presentation.Filter(IC.Actions.List("favoriteEmotes"), config)
+        if not config.hiddenCategories.Favorites then for i = 1, math.min(2, #favorites) do entries[#entries + 1] = actionEntry(favorites[i]) end end
+        local categories = { id = "emote-categories", label = "Emote categories", icon = info.all.icon, children = {} }
+        for _, id in ipairs(IC.Emotes.categories) do
+            local actions = {}; for _, action in ipairs(IC.Actions.List(id)) do if action.verified then actions[#actions + 1] = action end end
+            actions = IC.Presentation.EmoteGroups(id, IC.Presentation.Filter(actions, config))
+            local category = { id = id, label = info[id].label, icon = info[id].icon, children = {} }
+            for _, action in ipairs(IC.Presentation.Tree(actions, config)) do category.children[#category.children + 1] = actionEntry(action) end
+            if #category.children > 0 and not config.hiddenCategories[id] then categories.children[#categories.children + 1] = category end
+        end
+        if not config.hiddenCategories.Favorites then
+            local favoritesEntry = { id = "Favorites", label = "All favorites", icon = info.Favorites.icon, children = {} }
+            for _, action in ipairs(IC.Presentation.Filter(IC.Actions.List("favorites"), config)) do favoritesEntry.children[#favoritesEntry.children + 1] = actionEntry(action) end
+            if #favoritesEntry.children > 0 then categories.children[#categories.children + 1] = favoritesEntry end
+        end
+        if not config.hiddenCategories.all then
+            local all = { id = "all", label = "All recognized emotes A–Z", icon = info.all.icon, children = {} }; local actions = {}
+            for _, action in ipairs(IC.Emotes.list) do if action.verified then actions[#actions + 1] = IC.Actions.Resolve(action.id) end end
+            for _, group in ipairs(IC.Presentation.Alphabetical(IC.Presentation.Filter(actions, config))) do all.children[#all.children + 1] = actionEntry(group) end
+            categories.children[#categories.children + 1] = all
+        end
+        entries[#entries + 1] = categories
     end
-    for _, group in ipairs(IC.Presentation.Alphabetical(IC.Presentation.Filter(allActions, config))) do all.children[#all.children + 1] = actionEntry(group) end
-    if not config.hiddenCategories.all then entries[#entries + 1] = all end
-    entries[#entries + 1] = { kind = "header", label = "Roleplay" }
-    if not config.hiddenCategories.Roleplay then
-        for _, group in ipairs(IC.Presentation.Tree(IC.Actions.RoleplayGroups(), config)) do entries[#entries + 1] = actionEntry(group) end
-    end
-    entries[#entries + 1] = { label = "Edit menu items...", run = function() IC.Editor.Open("Layouts"); IC.LayoutUI.Open("menu") end }
-    entries[#entries + 1] = { label = "Quick actions", icon = IC.AddonIcon, run = function() IC.QuickActions.Toggle() end }
-    entries[#entries + 1] = { label = "Open In Character...", icon = "Interface\\Icons\\INV_Misc_Book_09", run = function() IC.Editor.Open() end }
+    entries[#entries + 1] = { id = "show-emote-bars", label = "Show emote bars", run = function() IC.Bars.ShowEmotes() end }
+    entries[#entries + 1] = { id = "options", label = "Options...", icon = IC.Icons[1], run = function() IC.Editor.Open("Home") end }
     return entries
 end
 

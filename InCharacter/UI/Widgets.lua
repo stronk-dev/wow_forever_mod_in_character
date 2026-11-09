@@ -1,15 +1,14 @@
 local _, IC = ...
 local unpack = unpack or table.unpack
--- Small widget kit. It only uses templates other Forever addons rely on (BackdropTemplate,
--- InputBoxTemplate, UICheckButtonTemplate); dropdowns, sliders, lists and scrolling are plain frames.
+-- Shared Blizzard templates and artwork; custom lists retain the same fonts and palette.
 IC.UI = {}
 local U = IC.UI
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 U.CIRCLE_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 U.Colors = {
-    bg = { 0.05, 0.05, 0.07, 0.97 }, panel = { 0.09, 0.09, 0.12, 1 }, raised = { 0.14, 0.14, 0.18, 1 },
-    hover = { 0.2, 0.2, 0.26, 1 }, border = { 0.24, 0.24, 0.3, 1 }, accent = { 1, 0.78, 0.25, 1 },
-    accentDim = { 0.45, 0.35, 0.12, 1 }, text = { 0.92, 0.92, 0.95, 1 }, muted = { 0.6, 0.6, 0.66, 1 },
+    bg = { 0.05, 0.05, 0.05, 0.97 }, panel = { 0.09, 0.09, 0.08, 1 }, raised = { 0.14, 0.13, 0.11, 1 },
+    hover = { 0.23, 0.2, 0.14, 1 }, border = { 0.32, 0.29, 0.23, 1 }, accent = { 1, 0.82, 0, 1 },
+    accentDim = { 0.35, 0.28, 0.1, 1 }, text = { 1, 1, 1, 1 }, muted = { 0.65, 0.65, 0.65, 1 },
 }
 local C = U.Colors
 
@@ -18,15 +17,17 @@ function U.Backdrop(frame, color, border)
     frame:SetBackdropColor(unpack(color or C.panel))
     frame:SetBackdropBorderColor(unpack(border or C.border))
 end
-function U.GameBackdrop(frame)
-    frame:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
-    frame:SetBackdropColor(0.06, 0.06, 0.08, 0.9); frame:SetBackdropBorderColor(0.65, 0.65, 0.65, 0.9)
+function U.GameBackdrop(frame, dialog)
+    frame:SetBackdrop({ bgFile = dialog and "Interface\\DialogFrame\\UI-DialogBox-Background" or "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = dialog and "Interface\\DialogFrame\\UI-DialogBox-Border" or "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = dialog and 16 or 10, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    local tint = dialog and 1 or 0.06
+    frame:SetBackdropColor(tint, tint, tint, 0.96); frame:SetBackdropBorderColor(1, 1, 1, 1)
 end
 function U.Panel(parent, width, height, color, name)
     local frame = CreateFrame("Frame", name, parent, "BackdropTemplate")
     if width then frame:SetSize(width, height) end
-    U.Backdrop(frame, color)
+    U.GameBackdrop(frame, true)
     return frame
 end
 function U.Label(parent, text, x, y, width, font)
@@ -66,27 +67,32 @@ function U.Circle(parent, layer, size, color)
     return texture
 end
 
--- Flat button. style = "accent" for the main action on a page.
+-- Native panel buttons; style = "flat" only for explicitly custom-painted cards.
 function U.Button(parent, text, x, y, width, click, style)
     local native = UIPanelButtonHeightScaledMixin and "UIPanelButtonHeightScaledTemplate" or "UIPanelButtonTemplate"
-    local button = CreateFrame("Button", nil, parent, style == "native" and native or "BackdropTemplate")
+    local isNative = style ~= "flat"
+    local button = CreateFrame("Button", nil, parent, isNative and native or "BackdropTemplate")
     button:SetSize(width or 120, 26)
     if x then button:SetPoint("TOPLEFT", x, y) end
-    button.style = style
-    if style ~= "native" then U.Backdrop(button, style == "accent" and C.accentDim or C.raised, style == "accent" and C.accent or C.border) end
-    button.label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    button.style, button.native = style, isNative
+    if not isNative then U.Backdrop(button, C.raised, C.border) end
+    button.label = isNative and button.GetFontString and button:GetFontString() or button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    button.label:ClearAllPoints()
     button.label:SetPoint("LEFT", 8, 0); button.label:SetPoint("RIGHT", -8, 0)
     button.label:SetJustifyH("CENTER"); button.label:SetWordWrap(false)
     function button:SetText(value) self.text = value; self.label:SetText(value) end
     function button:GetText() return self.text or "" end
     function button:SetSelected(selected)
         self.selected = selected
-        if self.style == "native" then return end
+        if self.native then
+            if self.LockHighlight then if selected then self:LockHighlight() else self:UnlockHighlight() end end
+            return
+        end
         U.Backdrop(self, selected and C.accentDim or (self.style == "accent" and C.accentDim or C.raised),
             selected and C.accent or (self.style == "accent" and C.accent or C.border))
     end
     button:SetScript("OnEnter", function(self)
-        if not self.selected and self.style ~= "native" then self:SetBackdropColor(unpack(C.hover)) end
+        if not self.selected and not self.native then self:SetBackdropColor(unpack(C.hover)) end
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(self.tooltip, 1, 1, 1, 1, true); GameTooltip:Show()
         end
@@ -138,7 +144,7 @@ local popup
 local function Popup()
     if popup then return popup end
     popup = CreateFrame("Frame", "InCharacterDropdownList", UIParent, "BackdropTemplate")
-    U.Backdrop(popup, C.bg, C.accent); popup:SetFrameStrata("FULLSCREEN_DIALOG"); popup:SetClampedToScreen(true)
+    U.GameBackdrop(popup); popup:SetFrameStrata("FULLSCREEN_DIALOG"); popup:SetClampedToScreen(true)
     popup:EnableMouse(true); popup:EnableMouseWheel(true); popup.rows = {}; popup.offset = 0; popup:Hide()
     popup:SetScript("OnMouseWheel", function(self, delta)
         self.offset = math.max(0, math.min(#self.options - #self.rows, self.offset - delta)); self:Render()
@@ -206,12 +212,12 @@ end
 -- Horizontal slider with a caption that shows the current value.
 function U.Slider(parent, text, x, y, width, minimum, maximum, step, changed)
     local caption = U.Label(parent, text, x, y, width)
-    local slider = CreateFrame("Slider", nil, parent, "BackdropTemplate")
+    local slider = CreateFrame("Slider", nil, parent, "UISliderTemplate")
     slider:SetPoint("TOPLEFT", x, y - 20); slider:SetSize(width, 14)
     slider:SetOrientation("HORIZONTAL"); slider:SetMinMaxValues(minimum, maximum); slider:SetValueStep(step)
-    slider:SetObeyStepOnDrag(true); U.Backdrop(slider, C.raised); slider:EnableMouse(true)
-    slider:SetThumbTexture(WHITE)
-    local thumb = slider:GetThumbTexture(); thumb:SetSize(10, 18); thumb:SetVertexColor(unpack(C.accent))
+    slider:SetObeyStepOnDrag(true); slider:EnableMouse(true)
+    if not slider:GetThumbTexture() then slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal") end
+    local thumb = slider:GetThumbTexture(); thumb:SetSize(24, 30)
     slider.caption, slider.text = caption, text
     slider:SetScript("OnValueChanged", function(self, value)
         value = math.floor(value / step + 0.5) * step

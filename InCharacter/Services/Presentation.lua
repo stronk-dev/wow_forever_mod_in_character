@@ -1,18 +1,23 @@
 local _, IC = ...
 IC.Presentation = {}
 local P = IC.Presentation
+function P.Enabled(primitive, presentation)
+    local settings = IC.Profile().presentations
+    return not settings or not settings[primitive] or settings[primitive][presentation] ~= false
+end
 function P.BarEmoteIncluded(action, config)
     if action.type ~= "emote" then return true end
     if action.verified and config.includedActions and config.includedActions[action.id] then return true end
     if config.emoteView == "all" then return action.verified end
     if config.emoteView == "kept" then return action.verified and IC.Curation.Record(action.id).choice == "keep" end
-    return IC.Emotes.Visible(action, IC.Profile())
+    return IC.Actions.EmoteVisible(action)
 end
 function P.Filter(actions, config)
     local result = {}
     local hidden = config and config.hiddenActions or {}
     for _, action in ipairs(actions) do
-        if not hidden[IC.Actions.CanonicalID(action.id)] and not (action.sourceID and hidden[action.sourceID]) then result[#result + 1] = action end
+        local primitiveAllowed = not config or not config.presentation or action.type == "submenu" or P.Enabled(action.type == "emote" and "emotes" or "roleplay", config.presentation)
+        if primitiveAllowed and (not IC.Personas or IC.Personas.ActionAllowed(action)) and not hidden[IC.Actions.CanonicalID(action.id)] and not (action.sourceID and hidden[action.sourceID]) then result[#result + 1] = action end
     end
     return result
 end
@@ -35,7 +40,7 @@ function P.BarActions(config, raw)
     for _, action in ipairs(actions) do
         local pool = action.type == "pool" and IC.Profile().pools[action.payload]
         local group = pool and pool.provenance and pool.provenance.pack or "custom"
-        if P.BarEmoteIncluded(action, config) and (not config.catalog or not config.catalogGroup or config.catalogGroup == "all" or config.catalogGroup == group)
+        if P.Enabled(action.type == "emote" and "emotes" or "roleplay", "bar") and P.BarEmoteIncluded(action, config) and (not config.catalog or not config.catalogGroup or config.catalogGroup == "all" or config.catalogGroup == group)
             and (not config.hideEmpty or not pool or #pool.lines > 0) then
             if pool and config.poolMode and config.poolMode ~= "pool" then
                 local override = IC.Actions.Resolve("play:" .. config.poolMode .. ":" .. pool.id)
@@ -46,7 +51,7 @@ function P.BarActions(config, raw)
                 local prefix = pack and (pack.title .. " / ")
                 if prefix and pool.name:sub(1, #prefix) == prefix then
                     local label = pool.name:sub(#prefix + 1)
-                    if not config.catalogGroup or config.catalogGroup == "all" then
+                    if not IC.Personas and (not config.catalogGroup or config.catalogGroup == "all") then
                         label = (pack.title:match(":%s*(.+)$") or pack.title) .. " · " .. label
                     end
                     action = IC.Copy(action); action.label, action.name, action.fullName = label, label, pool.name
@@ -59,13 +64,13 @@ function P.BarActions(config, raw)
 end
 -- Pure geometry. Keep a readable minimum; overflow pages instead of shrinking indefinitely.
 function P.StripGeometry(config, count, screenWidth)
-    local gap, padding, minimum = 2, 4, 20
+    local gap, padding, minimum = 2, 1, 12
     local width = math.max(80, math.min(tonumber(config.stripWidth) or 388, math.max(80, (screenWidth or 1920) - 56)))
     local rows = math.max(1, math.min(4, math.floor(tonumber(config.stripRows) or 1)))
     local maximum = math.max(minimum, math.min(64, tonumber(config.size) or 36))
     local fixedHeight = tonumber(config.stripHeight)
     if fixedHeight then
-        fixedHeight = math.max(config.labels and 42 or 28, math.min(500, fixedHeight))
+        fixedHeight = math.max(config.labels and 28 or 14, math.min(500, fixedHeight))
         maximum = math.min(maximum, fixedHeight - 2 * padding - (config.labels and 14 or 0))
         rows = math.max(1, math.min(4, math.floor((fixedHeight - 2 * padding + gap) / (maximum + gap + (config.labels and 14 or 0)))))
     end
@@ -77,7 +82,12 @@ function P.StripGeometry(config, count, screenWidth)
     local columns = math.max(1, math.floor((available + gap) / (size + gap)))
     local capacity = math.min(48, columns * rows)
     local cellHeight = size + gap + (config.labels and 14 or 0)
+    local countShown = math.min(count, capacity)
+    local usedColumns = math.min(columns, countShown)
+    local usedRows = countShown > 0 and math.ceil(countShown / columns) or 0
     return { width = width, size = size, columns = columns, rows = rows, capacity = capacity, gap = gap, padding = padding,
+        contentWidth = padding * 2 + math.max(0, usedColumns * (size + gap) - gap) + controls,
+        contentHeight = padding * 2 + math.max(0, usedRows * cellHeight - gap),
         height = fixedHeight or (padding * 2 + rows * cellHeight - gap), cellHeight = cellHeight, controls = controls }
 end
 function P.CatalogGroups(config)

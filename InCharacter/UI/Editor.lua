@@ -8,7 +8,7 @@ local E = IC.Editor
 local WIDTH, HEIGHT, NAV = 960, 620, 150
 local PAGE_W, PAGE_H = WIDTH - NAV - 24, HEIGHT - 70
 local TABS = { "Home", "Emotes", "Dialogue", "Favorites", "Layouts", "Profiles" }
-local TAB_LABELS = { Home = "Home / setup", Emotes = "Emote library", Dialogue = "Dialogue & messages", Favorites = "Favorite actions", Layouts = "Bars, wheel & button", Profiles = "Profiles" }
+local TAB_LABELS = { Home = "Options", Emotes = "Emote library", Dialogue = "Dialogue & messages", Favorites = "Favorite actions", Layouts = "Bars, wheel & button", Profiles = "Profiles" }
 
 local function status(text) if E.status then E.status:SetText(text or "") end end
 local function changed() IC.Changed() end
@@ -25,7 +25,7 @@ function E.PickIcon(current, done)
     local picker = E.picker
     if not picker then
         picker = CreateFrame("Frame", "InCharacterIconPicker", UIParent, "BackdropTemplate")
-        E.picker = picker; U.Backdrop(picker, C.bg, C.accent)
+        E.picker = picker; U.GameBackdrop(picker, true)
         picker:SetSize(PICK_COLS * 40 + 24, PICK_ROWS * 40 + 162); picker:SetPoint("CENTER"); picker:SetFrameStrata("FULLSCREEN_DIALOG")
         picker:EnableMouse(true); picker:EnableMouseWheel(true)
         U.Heading(picker, "Choose an icon", 12, -10)
@@ -100,14 +100,6 @@ function E.PickIcon(current, done)
 end
 
 -- Home --------------------------------------------------------------------------------------------
-local function card(page, x, y, icon, title, text)
-    local frame = U.Panel(page, (PAGE_W - 12) / 2, 178, C.raised); frame:SetPoint("TOPLEFT", x, y)
-    local art = U.IconButton(frame, 40, true); art:SetPoint("TOPLEFT", 14, -14); art:SetIcon(icon); art:EnableMouse(false)
-    U.Heading(frame, title, 66, -16, frame:GetWidth() - 80)
-    U.Muted(frame, text, 66, -40, frame:GetWidth() - 80)
-    frame.state = U.Label(frame, "", 14, -150, frame:GetWidth() - 28, "GameFontHighlightSmall")
-    return frame
-end
 local function categoryBars(create)
     local bars = IC.Layout().bars
     for i = #bars, 1, -1 do if bars[i].auto then table.remove(bars, i) end end
@@ -122,65 +114,106 @@ local function categoryBars(create)
     changed()
 end
 local function hasCategoryBars() for _, bar in ipairs(IC.Layout().bars) do if bar.auto then return true end end end
-local function favoritesBar()
-    for _, bar in ipairs(IC.Layout().bars) do
-        if bar.source == "favorites" or bar.source == "favoriteEmotes" or bar.source == "categories" or bar.source == "all" or IC.Emotes.byCategory[bar.source] then return bar end
+local function characterNameDialog(rename)
+    local dialog = E.characterDialog
+    if not dialog then
+        dialog = U.Panel(E.frame, 360, 140, C.bg, "InCharacterNameDialog"); E.characterDialog = dialog
+        dialog:SetPoint("CENTER"); dialog:SetFrameStrata("FULLSCREEN_DIALOG"); dialog:EnableMouse(true)
+        dialog.title = U.Heading(dialog, "", 14, -12)
+        dialog.name = U.Input(dialog, 14, -44, 332)
+        dialog:SetScript("OnHide", function() dialog.name:ClearFocus() end)
+        U.Button(dialog, "Cancel", 14, -94, 130, function() dialog:Hide() end)
+        U.Button(dialog, "Save", 216, -94, 130, function()
+            local name = IC.Trim(dialog.name:GetText()); if name == "" then status("Enter a character name."); return end
+            if dialog.actorID then IC.Profile().personas[dialog.actorID].name = name; changed()
+            else local actor = IC.Personas.Create(name); IC.Personas.Load(actor.id) end
+            dialog:Hide(); E.RefreshHome()
+        end)
+        table.insert(UISpecialFrames, "InCharacterNameDialog")
     end
-end
-local function catalogBar()
-    for _, bar in ipairs(IC.Layout().bars) do if bar.catalog then return bar end end
+    local actor = rename and IC.Personas.Active()
+    dialog.actorID = actor and actor.id; dialog.title:SetText(rename and "Rename RP character" or "Create RP character")
+    dialog.name:SetText(actor and actor.name or ""); dialog:Show(); dialog.name:SetFocus()
 end
 function E.RefreshHome()
-    local p = E.pages.Home
-    local launcher = IC.Layout().launcher
-    p.launcherToggle:SetText(launcher.shown and "Hide the button" or "Show the button")
-    p.launcherClick:SetValue(launcher.click)
-    p.launcher.state:SetText(launcher.shown and "|cff66dd66On|r - shift-drag it anywhere." or "|cff999999Off|r")
+    local p = E.pages.Home; local actor = IC.Personas.Active()
+    p.character:SetOptions(IC.Personas.Options(true)); p.character:SetValue(actor and actor.id)
+    for primitive, controls in pairs(p.presentations) do
+        for presentation, control in pairs(controls) do control:SetChecked(IC.Presentation.Enabled(primitive, presentation)) end
+    end
+    local count, shown = 0, 0
+    for i, bar in ipairs(IC.Layout().bars) do if IC.Bars.IsEmoteConfig(bar) then count = count + 1; if IC.Bars.frames[i] and IC.Bars.frames[i]:IsShown() then shown = shown + 1 end end end
+    p.emoteCount:SetText(shown .. " / " .. count .. " emote bars visible · bare bars fit their buttons")
+    local main
+    for _, bar in ipairs(IC.Layout().bars) do if IC.Bars.IsEmoteConfig(bar) then main = bar; break end end
+    p.emoteSource:SetValue(main and main.source or "favoriteEmotes"); p.emoteSize:Set(main and main.size or 24)
+    p.emoteView:SetValue(IC.Profile().presentations.emotes.view)
+    p.launcherShown:SetChecked(IC.Layout().launcher.shown)
+    p.launcherClick:SetValue(IC.Layout().launcher.click); p.launcherRight:SetValue(IC.Layout().launcher.rightClick); p.launcherMiddle:SetValue(IC.Layout().launcher.middleClick)
     p.wheelKey.Refresh(); p.menuKey.Refresh()
-    local fav = favoritesBar()
-    p.favToggle:SetText(fav and not fav.hidden and "Hide favorites bar" or "Show favorites bar")
-    p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Presentation.BarActions(fav) .. " visible pins.") or "|cff999999Off|r")
-    local rp = catalogBar()
-    p.rpToggle:SetText(rp and not rp.hidden and "Hide Roleplay bar" or "Show Roleplay bar")
-    p.rp.state:SetText(rp and not rp.hidden and "|cff66dd66On|r - stays on screen between clicks." or "|cff999999Off|r")
 end
 local function createHome(p)
-    U.Heading(p, "Your actions, one press away", 0, 0)
-    U.Muted(p, "Start small. Pin what you use, keep useful emotes, and write any named pools you want.", 0, -22, PAGE_W)
-    local half = (PAGE_W - 12) / 2 + 12
-    p.launcher = card(p, 0, -48, IC.AddonIcon, "Launcher button",
-        "Choose what each mouse button opens. The radial, context menu and RP bars are independent; settings use Shift-right-click.")
-    p.launcherToggle = U.Button(p.launcher, "", 66, -104, 150, function()
-        local launcher = IC.Layout().launcher; launcher.shown = not launcher.shown; changed(); E.RefreshHome()
-    end, "accent")
-    p.launcherClick = U.Dropdown(p.launcher, 224, -104, 150, IC.Launcher.choices, function(value) IC.Layout().launcher.click = value; E.RefreshHome() end)
-    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Radial and context menu",
-        "Open either directly, with its own key. Their contents and visibility controls remain independent of every bar.")
-    p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Radial key", function() E.RefreshHome() end)
-    p.menuKey = U.KeyCapture(p.wheel, 66, -128, 200, "INCHARACTER_MENU", "Menu key", function() E.RefreshHome() end)
-    p.openWheel = U.Button(p.wheel, "Radial", 274, -100, 100, function() E.frame:Hide(); IC.Wheel.Toggle() end)
-    p.openMenu = U.Button(p.wheel, "Menu", 274, -128, 100, function() E.frame:Hide(); IC.Menu.OpenAtCursor() end)
-    p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Pinned emote bar",
-        "A compact emote hotbar. Arrange lets you drag its width; icons fit that space. Choose pinned emotes or combine enabled categories in bar settings.")
-    p.favToggle = U.Button(p.fav, "", 66, -104, 170, function()
-        local bar = favoritesBar()
-        if not bar then bar = IC.Defaults.EmoteBar(#IC.Layout().bars + 1); table.insert(IC.Layout().bars, bar)
-        else bar.hidden = not bar.hidden end
-        changed(); E.RefreshHome()
-    end, "accent")
-    p.favArrange = U.Button(p.fav, "Edit layouts", 244, -104, 124, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
-    p.rp = card(p, half, -238, "Interface\\Icons\\INV_Misc_Book_09", "Roleplay action bar",
-        "Labeled buttons for any named pools. Click to play; right-click for a bar of specific lines. Visible tabs switch your preset sets.")
-    p.rpToggle = U.Button(p.rp, "", 66, -104, 190, function() IC.Bars.ToggleCatalog(); E.RefreshHome() end, "accent")
-    U.Button(p.rp, "Edit", 264, -104, 100, function()
-        local _, index = IC.Bars.EnsureCatalog(); E.frame:Hide(); IC.Bars.SetEditing(true); IC.Bars.SelectBar(index)
+    U.Heading(p, "Options", 0, 0)
+    U.Muted(p, "Loaded RP character (saved separately for each of your WoW characters)", 0, -28, PAGE_W)
+    p.character = U.Dropdown(p, 0, -48, 312, {}, function(value)
+        E.StoreDraft(); local ok, problem = IC.Personas.Choose(value)
+        if ok then E.poolID = nil; E.RefreshHome() else status(problem) end
     end)
-    local legend = U.Panel(p, PAGE_W, 112, C.panel); legend:SetPoint("TOPLEFT", 0, -428)
-    U.Label(legend, "Keep everyday use small", 12, -10, nil, "GameFontNormal")
-    U.Muted(legend, "The emote list starts trimmed. All commands remain available in the editor; nothing is deleted.", 12, -34, PAGE_W - 24)
-    U.Button(legend, "Check emotes one by one", 12, -68, 240, function() IC.EmoteReview.Open() end)
-    p.editAll = U.Button(legend, "Edit all layouts", 266, -68, 180, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
-    U.Button(legend, "Show RP bar", 458, -68, 160, function() IC.Bars.ShowCatalog() end)
+    p.newCharacter = U.Button(p, "New character", 324, -48, 140, function() characterNameDialog(false) end)
+    p.renameCharacter = U.Button(p, "Rename", 476, -48, 112, function() characterNameDialog(true) end)
+    U.Button(p, "Edit RP lines", 600, -48, PAGE_W - 600, function() E.Open("Dialogue") end)
+    U.Label(p, "Choose the interfaces for each action type", 0, -100, PAGE_W, "GameFontNormal")
+    U.Muted(p, "Action type", 0, -128); U.Muted(p, "Bars", 174, -128); U.Muted(p, "Context menu", 280, -128); U.Muted(p, "Radial", 430, -128)
+    p.presentations = {}
+    for n, definition in ipairs({ { "emotes", "Emotes" }, { "roleplay", "RP dialogue" } }) do
+        local primitive, label = definition[1], definition[2]; local y = -150 - (n - 1) * 44
+        U.Label(p, label, 0, y - 6, 160); p.presentations[primitive] = {}
+        for k, presentation in ipairs({ "bar", "menu", "wheel" }) do
+            local x = ({ 170, 276, 426 })[k]
+            p.presentations[primitive][presentation] = U.Check(p, "", x, y, function(value)
+                IC.Profile().presentations[primitive][presentation] = value
+                if value and presentation == "bar" then if primitive == "emotes" then IC.Bars.ShowEmotes() else IC.Bars.ShowCatalog() end else changed() end
+                E.RefreshHome()
+            end)
+        end
+        U.Button(p, primitive == "emotes" and "Emote contents" or "RP lines", 500, y, 126, function() E.Open(primitive == "emotes" and "Emotes" or "Dialogue") end)
+        U.Button(p, "Bar settings", 638, y, PAGE_W - 638, function()
+            local index
+            if primitive == "emotes" then index = IC.Bars.ShowEmotes() else local _; _, index = IC.Bars.EnsureCatalog() end
+            E.Open("Layouts", index); E.pages.Layouts.layoutScroll:ScrollTo(392)
+        end)
+    end
+    p.emoteSource = U.Dropdown(p, 0, -232, 250, {
+        { value = "favoriteEmotes", label = "Bar: pinned emotes" }, { value = "categories", label = "Bar: combined categories" }, { value = "all", label = "Bar: all emotes" },
+        { value = "Combat", label = "Bar: combat" }, { value = "Social", label = "Bar: social" }, { value = "Reactions", label = "Bar: reactions" },
+        { value = "Idle", label = "Bar: idle" }, { value = "Voice/Fun", label = "Bar: voice / fun" }, { value = "favorites", label = "Bar: mixed favorites" },
+    }, function(value)
+        local bar = IC.Bars.EnsureEmote(); bar.source, bar.page = value, 1
+        if value == "categories" and not next(bar.categories) then for _, id in ipairs(IC.Emotes.categories) do bar.categories[id] = true end end
+        changed(); E.RefreshHome()
+    end)
+    p.emoteView = U.Dropdown(p, 266, -232, 250, { { value = "profile", label = "My reviewed emotes" }, { value = "all", label = "All recognized emotes" } }, function(value)
+        IC.Profile().presentations.emotes.view = value; changed(); E.RefreshHome()
+    end)
+    p.emoteSize = U.Slider(p, "Main bar icon size", 532, -218, PAGE_W - 532, 12, 48, 2, function(value) local bar = IC.Bars.EnsureEmote(); bar.size = value; changed() end)
+    p.emoteCount = U.Muted(p, "", 0, -298, PAGE_W)
+    p.bareBar = U.Button(p, "Bare emote bar", 0, -266, 160, function() IC.Bars.MakeBare(); E.RefreshHome() end)
+    p.favToggle = U.Button(p, "Show emote bars", 172, -266, 160, function() IC.Bars.ShowEmotes(); E.RefreshHome() end)
+    p.editAll = U.Button(p, "Move / resize", 344, -266, 146, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
+    p.favArrange = p.editAll
+    U.Button(p, "Check emotes one by one", 502, -266, PAGE_W - 502, function() IC.EmoteReview.Open() end)
+    U.Label(p, "Main button: choose each mouse action", 0, -318, PAGE_W, "GameFontNormal")
+    U.Muted(p, "Left click", 0, -344); U.Muted(p, "Right click", 266, -344); U.Muted(p, "Middle click", 532, -344)
+    p.launcherClick = U.Dropdown(p, 0, -362, 250, IC.Launcher.choices, function(value) IC.Layout().launcher.click = value end)
+    p.launcherRight = U.Dropdown(p, 266, -362, 250, IC.Launcher.choices, function(value) IC.Layout().launcher.rightClick = value end)
+    p.launcherMiddle = U.Dropdown(p, 532, -362, PAGE_W - 532, IC.Launcher.choices, function(value) IC.Layout().launcher.middleClick = value end)
+    p.openMenu = U.Button(p, "Open menu", 0, -404, 150, function() E.frame:Hide(); IC.Menu.OpenAtCursor() end)
+    p.openWheel = U.Button(p, "Open radial", 162, -404, 150, function() E.frame:Hide(); IC.Wheel.Toggle() end)
+    U.Button(p, "Show RP bar", 324, -404, 150, function() IC.Bars.ShowCatalog() end)
+    p.launcherShown = U.Check(p, "Show main button", 500, -404, function(value) IC.Layout().launcher.shown = value; changed() end)
+    p.wheelKey = U.KeyCapture(p, 0, -458, 250, "INCHARACTER_WHEEL", "Radial key")
+    p.menuKey = U.KeyCapture(p, 266, -458, 250, "INCHARACTER_MENU", "Menu key")
+    U.Muted(p, "These choices are independent. Emotes stay available when you load a different RP character.", 0, -502, PAGE_W)
 end
 
 -- Emote library -----------------------------------------------------------------------------------
@@ -393,6 +426,10 @@ function E.SelectPool(id)
     setFormIcon(draft and draft.icon or pool.icon)
     p.pin:SetText(IC.Actions.IsFavorite("pool:" .. id) and "Unpin" or "Pin")
     p.delete.confirming = nil; p.delete:SetText("Delete pool")
+    p.owner:SetOptions(IC.Personas.Options(false))
+    local owner
+    for _, actorID in ipairs(profile.personaOrder) do for _, poolID in ipairs(profile.personas[actorID].poolIDs) do if poolID == id then owner = actorID end end end
+    p.owner:SetValue(owner)
     local source = pool.provenance and IC.Library.packs[pool.provenance.pack]
     p.info:SetText("ID: " .. pool.id .. (source and ("   |   copied from " .. source.title) or "") .. (draft and "   |   |cffffd100unsaved changes|r" or ""))
     counter()
@@ -401,7 +438,8 @@ end
 function E.RefreshPoolList()
     local p, profile = E.pages.Dialogue, IC.Profile()
     for _, row in ipairs(p.rows) do row:Hide() end
-    for i, id in ipairs(profile.poolOrder) do
+    local ids = p.poolView.value == "all" and profile.poolOrder or IC.Personas.Pools()
+    for i, id in ipairs(ids) do
         local row = p.rows[i]
         if not row then
             row = U.Button(p.list.content, "", 0, 0, LIST_W - 22, function(self) E.SelectPool(self.poolID) end)
@@ -411,21 +449,25 @@ function E.RefreshPoolList()
         end
         local pool = profile.pools[id]
         row.poolID = id; row:ClearAllPoints(); row:SetPoint("TOPLEFT", 0, -(i - 1) * 28)
-        row:SetText(pool.name .. "  |cff888888" .. #pool.lines .. "|r"); U.SetIcon(row.icon, pool.icon, IC.Icons[1])
+        row:SetText((p.poolView.value == "all" and pool.name or IC.Personas.PoolLabel(pool)) .. "  |cff888888" .. #pool.lines .. "|r"); U.SetIcon(row.icon, pool.icon, IC.Icons[1])
         row:SetSelected(id == E.poolID); row:Show()
     end
-    p.list:SetContentHeight(#profile.poolOrder * 28)
+    p.list:SetContentHeight(#ids * 28)
 end
 function E.RefreshDialogue()
     local profile = IC.Profile()
-    local id = E.poolID and profile.pools[E.poolID] and E.poolID or profile.poolOrder[1]
+    local ids = E.pages.Dialogue.poolView.value == "all" and profile.poolOrder or IC.Personas.Pools()
+    local id; for _, candidate in ipairs(ids) do if candidate == E.poolID then id = candidate end end
+    id = id or ids[1]
     E.formID = nil
     E.SelectPool(id); E.RefreshPoolList()
 end
 local function createDialogue(p)
     p.rows = {}
     U.Label(p, "Your dialogue pools", 0, 0, LIST_W, "GameFontNormal")
-    p.list = U.Scroll(p, 0, -20, LIST_W, 300)
+    p.poolView = U.Dropdown(p, 0, -22, LIST_W, { { value = "active", label = "Loaded character" }, { value = "all", label = "All stored pools" } }, function() E.StoreDraft(); E.poolID = nil; E.RefreshDialogue() end)
+    p.poolView:SetValue("active")
+    p.list = U.Scroll(p, 0, -54, LIST_W, 266)
     U.Button(p, "+ New pool", 0, -326, LIST_W, function()
         E.StoreDraft()
         local pool = IC.Dialogue.Create("New pool"); E.formID = nil; E.SelectPool(pool.id)
@@ -451,6 +493,8 @@ local function createDialogue(p)
         { value = "shuffle", label = "Shuffle: each line once" }, { value = "random", label = "Random: repeats possible" },
         { value = "sequential", label = "In order, then loop" },
     })
+    U.Muted(f, "Character", 380, -48)
+    p.owner = U.Dropdown(f, 380, -62, FW - 380, {}, function(value) if E.poolID then E.StoreDraft(); IC.Personas.Assign(E.poolID, value); E.RefreshDialogue() end end)
     U.Muted(f, "One line per row. Each click sends exactly one line.", 0, -96, FW)
     p.lines = U.TextArea(f, 0, -112, FW, 180)
     p.lines.changed = counter
@@ -495,17 +539,27 @@ local function createDialogue(p)
     p.packNote = U.Muted(lib, "", 12, -70, PAGE_W - 24)
     p.pack = U.Dropdown(lib, 12, -34, 280, packs, function(value)
         local pack = IC.Library.packs[value]
-        p.packNote:SetText(pack.contentNote .. "\n|cff888888Source: " .. pack.source .. "|r")
+        p.packNote:SetText(IC.ShortText(pack.contentNote, 240)); p.pack.tooltip = pack.contentNote .. "\nSource: " .. pack.source
     end)
     p.pack:Choose(IC.Library.order[1])
     local function install(shortcuts)
         E.StoreDraft()
         local _, message, first = IC.Library.Install(p.pack.value, shortcuts)
+        p.poolView:SetValue(shortcuts and "active" or "all")
         E.formID = nil; if first then E.SelectPool(first) end
         status(message .. (shortcuts and " /ic greet, /ic quote and /ic bye now use these copies." or ""))
     end
     U.Button(lib, "Copy preset", 300, -34, 120, function() install(false) end)
     U.Button(lib, "Copy + use for /ic greet, quote, bye", 426, -34, PAGE_W - 438, function() install(true) end, "accent")
+    p.loadCharacter = U.Button(lib, "Load character", 12, -108, 180, function()
+        E.StoreDraft(); local ok, problem = IC.Library.Load(p.pack.value)
+        if ok then E.poolID = nil; E.RefreshDialogue(); status("Loaded " .. IC.Personas.Name() .. ".") else status(problem) end
+    end)
+end
+function E.OnCharacterLoaded()
+    E.StoreDraft(); E.formID, E.poolID, E.formProfile = nil, nil, nil
+    if E.pages.Dialogue then E.pages.Dialogue.poolView:SetValue("active") end
+    if E.frame and E.frame:IsShown() then E.SelectTab(E.tab) end
 end
 
 -- Layouts -----------------------------------------------------------------------------------------
@@ -641,7 +695,7 @@ local function createLayouts(p)
         { value = "horizontal", label = "Fill rows first" }, { value = "vertical", label = "Fill columns first" },
     }, function(value) local bar = currentBar(); if bar then bar.vertical = value == "vertical"; changed() end end)
     p.bChooseCategories = U.Button(b, "Choose categories", 552, -60, 174, function() p.layoutScroll:ScrollTo(830) end)
-    p.bSize = U.Slider(b, "Button size", 12, -96, 250, 24, 64, 2, function(value) local bar = currentBar(); if bar then bar.size = value; changed() end end)
+    p.bSize = U.Slider(b, "Button size", 12, -96, 250, 12, 64, 2, function(value) local bar = currentBar(); if bar then bar.size = value; changed() end end)
     p.bColumns = U.Slider(b, "Columns", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; bar.width, bar.height = nil, nil; bar.page = 1; changed() end end)
     p.bStripWidth = U.Slider(b, "Hotbar width (or drag in Arrange)", 296, -96, 250, 80, 1200, 4, function(value)
         local bar = currentBar(); if bar then bar.stripWidth = value; bar.page = 1; changed() end
@@ -735,6 +789,7 @@ local creators = { Home = createHome, Emotes = createEmotes, Dialogue = createDi
 local refreshers = { Home = "RefreshHome", Emotes = "RefreshEmotes", Dialogue = "RefreshDialogue", Favorites = "RefreshFavorites", Layouts = "RefreshLayouts", Profiles = "RefreshProfiles" }
 function E.SelectTab(name)
     E.StoreDraft()
+    if E.characterDialog then E.characterDialog:Hide() end
     if InCharacterDropdownList then InCharacterDropdownList:Hide() end
     if E.picker then E.picker:Hide() end
     if E.messages then E.messages:Hide() end
@@ -748,7 +803,7 @@ function E.SelectTab(name)
 end
 function E.Create()
     local frame = CreateFrame("Frame", "InCharacterEditor", UIParent, "BackdropTemplate"); E.frame = frame
-    U.GameBackdrop(frame)
+    U.GameBackdrop(frame, true)
     frame:SetSize(WIDTH, HEIGHT); frame:SetPoint("CENTER"); frame:SetFrameStrata("DIALOG"); frame:SetToplevel(true)
     frame:SetClampedToScreen(true); frame:EnableMouse(true); frame:SetMovable(true); frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving); frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
@@ -771,6 +826,7 @@ function E.Create()
     table.insert(UISpecialFrames, "InCharacterEditor"); frame:Hide()
     frame:SetScript("OnHide", function()
         E.StoreDraft()
+        if E.characterDialog then E.characterDialog:Hide() end
         if InCharacterDropdownList then InCharacterDropdownList:Hide() end
         if E.picker then E.picker:Hide() end
         if E.messages then E.messages:Hide() end

@@ -1,6 +1,11 @@
 local _, IC = ...
 IC.Actions = {}
 local A = IC.Actions
+function A.EmoteVisible(action)
+    local settings = IC.Profile().presentations
+    if settings and settings.emotes.view == "all" then return action.verified end
+    return IC.Emotes.Visible(action, IC.Profile())
+end
 local function readBoolean(fn, ...)
     local ok, value = pcall(fn, ...)
     if not ok or (issecretvalue and issecretvalue(value)) or type(value) ~= "boolean" then return nil end
@@ -130,11 +135,15 @@ function A.PoolNode(pool)
         children[#children + 1] = action
     end
     children[#children + 1] = { id = "messages:" .. pool.id, type = "submenu", label = "Choose a specific message", icon = pool.icon, children = A.Lines(pool) }
-    return { id = "browse:" .. pool.id, type = "submenu", label = pool.name, icon = pool.icon, children = children }
+    return { id = "browse:" .. pool.id, type = "submenu", label = IC.Personas and IC.Personas.PoolLabel(pool) or pool.name, icon = pool.icon, children = children }
 end
 function A.RoleplayGroups()
+    if IC.Personas then
+        local result = {}; for _, id in ipairs(IC.Personas.Pools()) do local pool = IC.Profile().pools[id]; if pool then result[#result + 1] = A.PoolNode(pool) end end
+        return result
+    end
     local result, groups = {}, {}
-    for _, id in ipairs(IC.Profile().poolOrder) do
+    for _, id in ipairs(IC.Personas and IC.Personas.Pools() or IC.Profile().poolOrder) do
         local pool = IC.Profile().pools[id]
         local pack = pool.provenance and IC.Library.packs[pool.provenance.pack]
         local key = pack and pack.id or "custom"
@@ -152,7 +161,7 @@ function A.List(source, raw)
     if source == "favorites" or source == "favoriteEmotes" then
         for _, id in ipairs(profile.favorites) do
             local action = A.Resolve(id)
-            if action and (source ~= "favoriteEmotes" or action.type == "emote") and (raw or action.type ~= "emote" or IC.Emotes.Visible(action, profile)) then result[#result + 1] = action end
+            if action and (source ~= "favoriteEmotes" or action.type == "emote") and (raw or action.type ~= "emote" or A.EmoteVisible(action)) then result[#result + 1] = action end
         end
     elseif source == "pools" then
         for _, id in ipairs(profile.poolOrder) do
@@ -161,15 +170,18 @@ function A.List(source, raw)
         end
     elseif source:match("^lines:") then
         local pool = profile.pools[source:sub(7)]
-        if pool then return A.Lines(pool) end
+        if pool then result = A.Lines(pool) end
     elseif source:match("^pool:") or source:match("^line:") or source:match("^play:") then
         local action = A.Resolve(source)
         if action then result[1] = action end
     else
         local emotes = source == "all" and IC.Emotes.list or IC.Emotes.byCategory[source] or {}
         for _, action in ipairs(emotes) do
-            if raw or IC.Emotes.Visible(action, profile) then result[#result + 1] = A.Resolve(action.id) end
+            if raw or A.EmoteVisible(action) then result[#result + 1] = A.Resolve(action.id) end
         end
+    end
+    if not raw and IC.Personas then
+        local filtered = {}; for _, action in ipairs(result) do if IC.Personas.ActionAllowed(action) then filtered[#filtered + 1] = action end end; result = filtered
     end
     return result
 end
@@ -196,6 +208,10 @@ function A.Dispatch(action)
         -- Lua call establishes submission only, not an observed animation.
         return true
     elseif action.type == "pool" or action.type == "line" then
+        if IC.Personas and not IC.Personas.ActionAllowed(action) then
+            local reason = "This pool belongs to another character. Loaded: " .. IC.Personas.Name() .. "."
+            IC.Print(reason); return false, reason
+        end
         local pool = IC.Profile().pools[action.payload]
         if not pool or #pool.lines == 0 then IC.Print("This pool is empty. Add lines or install a library preset in /ic."); return false end
         if pool.channel ~= "SAY" and pool.channel ~= "YELL" and pool.channel ~= "EMOTE" then IC.Print("Invalid chat channel."); return false end

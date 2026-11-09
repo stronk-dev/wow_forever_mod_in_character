@@ -61,12 +61,12 @@ return function(test, eq, page)
         env.C_ChatInfo.InChatMessagingLockdown = function() return false end; eq(#Stub.sends, 0)
     end)
     test("panel group choices follow actual pack provenance and custom pools", function(IC, Stub)
-        local ok, _, first = IC.Library.Install("office-stanley", false); assert(ok)
-        pool(IC, "My original joke", { "hello" })
+        local ok, _, first, actorID = IC.Library.Install("office-stanley", false); assert(ok)
+        pool(IC, "My original joke", { "hello" }); IC.Personas.Load(actorID)
         IC.QuickActions.Open(); IC.QuickActions.Select("Roleplay"); IC.QuickActions.groupChoice:Choose("office-stanley")
         assert(#IC.QuickActions.items > 0)
         for _, action in ipairs(IC.QuickActions.items) do eq(IC.Profile().pools[action.payload].provenance.pack, "office-stanley") end
-        IC.QuickActions.groupChoice:Choose("custom"); for _, action in ipairs(IC.QuickActions.items) do assert(not IC.Profile().pools[action.payload].provenance) end
+        IC.Personas.Load("custom"); IC.QuickActions.Open(); IC.QuickActions.Select("Roleplay"); IC.QuickActions.groupChoice:Choose("custom"); for _, action in ipairs(IC.QuickActions.items) do assert(not IC.Profile().pools[action.payload].provenance) end
         eq(#Stub.sends, 0); assert(first)
     end)
     test("quick actions respect item visibility and close safely on a profile switch", function(IC, Stub)

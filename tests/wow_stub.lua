@@ -95,6 +95,7 @@ function methods:CreateMaskTexture() return widget("MaskTexture", nil, self) end
 function methods:SetHighlightTexture(path) self.highlight = path end
 function methods:SetNormalTexture(path) self.normal = widget("Texture", nil, self); self.normal:SetTexture(path) end
 function methods:GetNormalTexture() return self.normal end
+function methods:GetFontString() return self.Text end
 function methods:SetThumbTexture(path) self.thumb = widget("Texture", nil, self); self.thumb:SetTexture(path) end
 function methods:GetThumbTexture() return self.thumb end
 function methods:SetChecked(value) self.checked = value end
@@ -160,7 +161,9 @@ function Stub.Install()
     DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) Stub.messages[#Stub.messages + 1] = text end }
     CreateFrame = function(kind, name, parent, template)
         local frame = widget(kind, name, parent); frame.template = template
-        if template and template:find("^UIPanelButton") then frame:SetNormalTexture("native-panel-up") end
+        if template and template:find("^UIPanelButton") then
+            frame:SetNormalTexture("native-panel-up"); frame.Text = widget("FontString", nil, frame); frame.Text:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        end
         return frame
     end
     GetTime = function() return Stub.clock end

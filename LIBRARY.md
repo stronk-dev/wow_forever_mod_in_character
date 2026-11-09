@@ -1,6 +1,6 @@
 # Community preset library
 
-Presets are optional data packs. Nothing is installed into a player's profile or sent to chat automatically. In `/ic` → **Dialogue & messages**, choose a pack from the library dropdown, read the content/source notes, and click **Copy preset**. Each click makes new editable copies with unique IDs. **Copy + use for /ic greet, quote, bye** also maps available shortcuts to those copies. Installing a pack containing only Quotes leaves Greetings and Farewells mappings unchanged.
+Presets are optional data packs. Nothing is installed into a player's profile or sent to chat automatically. In `/ic` → **Dialogue & messages**, choose a pack from the library dropdown, read the content/source notes, and click **Copy preset**. Each click makes new editable copies with unique IDs under a separate stored RP character. It does not change the loaded character. **Copy + use for /ic greet, quote, bye** also maps available shortcuts to those copies. The loaded character controls playback: a Quotes-only character has no Greetings or Farewells fallback into another character, even if old mappings remain stored.
 
 | Pack ID | Contents | Provenance |
 | --- | --- | --- |
@@ -14,5 +14,7 @@ Presets are optional data packs. Nothing is installed into a player's profile or
 The Mastermovies pack includes the owner's explicit language and sexual insults. Stanley includes profanity. They remain opt-in and carry content notes in the editor. These are text presets; no custom voice clips are sent to nearby players.
 
 The small additional Office samples are deliberately sourced rather than generated in a character's style. Pack metadata records culture, locale, source, author, content note and version. Contributing more characters, regional Dutch expressions, or independently verified Mastermovies provenance requires only a small data file and manifest entries; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+**Load character** (in Options or the library) reuses the latest editable character for that preset. The menu, radial, RP bars and shortcuts show only the loaded character’s pools; emote choices stay independent. Loading does not send chat.
 
 Installed copies record `provenance = { pack, version, source }`. Updating pack files changes the library for future copies; it never replaces edited pools. Re-copying after an update creates a new version beside the old one. Delete unwanted copies in the editor. Preset versioning is independent of the SavedVariables schema.

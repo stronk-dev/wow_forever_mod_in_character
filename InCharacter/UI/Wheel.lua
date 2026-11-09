@@ -201,9 +201,9 @@ function W.Create()
     local frame = CreateFrame("Frame", nil, catcher); W.frame = frame
     frame:SetClampedToScreen(true)
     frame:SetClampRectInsets(0, 0, 0, -116) -- include breadcrumbs, info and help under the wheel
-    W.discOuter = U.Circle(frame, "BACKGROUND", 100, { 0.03, 0.03, 0.05, 0.72 }); W.discOuter:SetPoint("CENTER")
-    W.discInner = U.Circle(frame, "BORDER", 100, { 0.1, 0.1, 0.14, 0.9 }); W.discInner:SetPoint("CENTER")
-    W.discHub = U.Circle(frame, "ARTWORK", 100, { 0.02, 0.02, 0.03, 0.95 }); W.discHub:SetPoint("CENTER")
+    W.discOuter = U.Circle(frame, "BACKGROUND", 100, { 0.03, 0.03, 0.03, 0.72 }); W.discOuter:SetPoint("CENTER")
+    W.discInner = U.Circle(frame, "BORDER", 100, { 0.12, 0.11, 0.09, 0.9 }); W.discInner:SetPoint("CENTER")
+    W.discHub = U.Circle(frame, "ARTWORK", 100, { 0.02, 0.02, 0.02, 0.95 }); W.discHub:SetPoint("CENTER")
     -- The hub only shows an icon; names and explanations go in the info strip under the wheel.
     W.hubIcon = frame:CreateTexture(nil, "OVERLAY"); W.hubIcon:SetSize(40, 40); W.hubIcon:SetPoint("CENTER")
     local hubMask = frame:CreateMaskTexture()

@@ -16,6 +16,7 @@ function M.Categories(raw)
     local settings = raw and {} or IC.Profile().wheel
     local result = {}
     local function category(id, actions)
+        if not raw and id ~= "Favorites" and not IC.Presentation.Enabled(id == "Roleplay" and "roleplay" or "emotes", "wheel") then return end
         if not raw and settings.hiddenCategories[id] then return end
         if not raw then actions = usable(actions); actions = IC.Presentation.Tree(actions, settings) end
         result[#result + 1] = { id = id, type = "submenu", label = info[id].label, icon = info[id].icon, items = actions, children = actions }

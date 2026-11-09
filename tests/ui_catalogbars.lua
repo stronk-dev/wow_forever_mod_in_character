@@ -31,21 +31,18 @@ return function(test, eq, page)
         button:Click(); eq(#Stub.sends, 1); assert(Stub.sends[1][1] == "hello" or Stub.sends[1][1] == "another joke")
         assert(frame:IsShown() and button:IsShown()); assert(not IC.QuickActions.open); eq(next(IC.Profile().shortcuts), nil)
     end)
-    test("visible preset tabs switch pools without sending or changing the bar anchor", function(IC, Stub)
+    test("loaded character switches RP pools without mixing actors or moving the bar", function(IC, Stub)
         assert(IC.Library.Install("office-stanley", false)); assert(IC.Library.Install("dutch-mastermovies", false))
         local p = pool(IC, "My terrible joke", { "hello" }); local frame = IC.Bars.frames[2]
         local x, y, width = frame.x, frame.y, frame:GetWidth()
-        tab(frame, "office-stanley"):Click(); eq(frame.config.catalogGroup, "office-stanley")
-        assert(#IC.Presentation.BarActions(frame.config) > 0)
-        for _, action in ipairs(IC.Presentation.BarActions(frame.config)) do
-            eq(IC.Profile().pools[action.payload].provenance.pack, "office-stanley")
-            assert(not action.label:find("The Office", 1, true))
-        end
-        eq(frame.point, "TOP"); eq(frame.x, x); eq(frame.y, y); eq(frame:GetWidth(), width)
-        tab(frame, "custom"):Click(); eq(#IC.Presentation.BarActions(frame.config), 1); slot(frame, p.id)
-        tab(frame, "all"):Click(); assert(#IC.Presentation.BarActions(frame.config) > 1)
+        IC.Library.Load("office-stanley")
+        eq(#IC.Presentation.BarActions(frame.config), 3)
+        for _, action in ipairs(IC.Presentation.BarActions(frame.config)) do eq(IC.Profile().pools[action.payload].provenance.pack, "office-stanley") end
+        eq(frame.header.text:GetText(), "Stanley Hudson"); eq(frame.point, "TOP"); eq(frame.x, x); eq(frame.y, y); eq(frame:GetWidth(), width)
+        IC.Personas.Load("custom"); eq(#IC.Presentation.BarActions(frame.config), 1); slot(frame, p.id)
         eq(#Stub.sends + #Stub.emotes, 0)
     end)
+
     test("bar playback controls change modes without sending and preserve each pool's settings", function(IC, Stub)
         local p = pool(IC, "Jokes", { "one", "two", "three" }, "sequential"); local frame = IC.Bars.frames[2]
         frame.mode:Click(); eq(frame.config.poolMode, "shuffle")

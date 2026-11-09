@@ -4,7 +4,7 @@ local BLUE = { 0.25, 0.62, 0.95, 1 }
 function B.ClampBounds(frame, width, height)
     width, height = math.floor(width + 0.5), math.floor(height + 0.5)
     local c = frame.config
-    if B.IsStrip(c) then return math.max(80, math.min(width, UIParent:GetWidth() - 56)), math.max(c.labels and 42 or 28, math.min(height, 500)) end
+    if B.IsStrip(c) then return math.max(80, math.min(width, UIParent:GetWidth() - 56)), math.max(c.labels and 28 or 14, math.min(height, 500)) end
     local buttonWidth = c.buttonStyle == "text" and c.buttonWidth or c.size
     local minWidth = math.max(c.catalog and 240 or 96, buttonWidth + 8)
     width = math.max(minWidth, math.min(width, UIParent:GetWidth() - 40))
@@ -19,8 +19,13 @@ function B.EndStripDrag(frame, refresh)
     if not frame.manipulation then return end
     frame.manipulation = nil; frame:StopMovingOrSizing()
     local x, y = frame:GetCenter(); local px, py = UIParent:GetCenter()
-    frame.config.x = x - px
-    frame.config.y = ((frame.config.catalog or frame.config.catalogCompanion) and frame:GetTop() or y) - py
+    if B.IsStrip(frame.config) and not B.editing then
+        local g = P.StripGeometry(frame.config, #P.BarActions(frame.config), UIParent:GetWidth())
+        frame.config.x, frame.config.y = frame:GetLeft() - px + g.width / 2, frame:GetTop() - py - g.height / 2
+    else
+        frame.config.x = x - px
+        frame.config.y = ((frame.config.catalog or frame.config.catalogCompanion) and frame:GetTop() or y) - py
+    end
     frame.suppressUntil = GetTime() + 0.15
     if refresh and not IC.InCombat() then B.Refresh() end
 end
@@ -179,7 +184,7 @@ local function createInspector()
     end
     p.width = U.Slider(f, "Width", 12, -104, 138, 80, 1200, 1, function(value) dimension(value, false) end)
     p.height = U.Slider(f, "Height", 166, -104, 138, 28, 600, 1, function(value) dimension(value, true) end)
-    p.size = U.Slider(f, "Button size / max icon size", 12, -152, 292, 24, 64, 2, function(value) if not p.refreshing then change(function(c) c.size = value end) end end)
+    p.size = U.Slider(f, "Button size / max icon size", 12, -152, 292, 12, 64, 2, function(value) if not p.refreshing then change(function(c) c.size = value end) end end)
     p.hidden = U.Check(f, "Hidden", 12, -202, function(value) change(function(c) c.hidden = value end) end)
     p.locked = U.Check(f, "Lock position", 146, -202, function(value) change(function(c) c.locked = value end) end)
     p.tabs = U.Check(f, "Show RP tabs", 12, -232, function(value) change(function(c) c.hideCatalogTabs = not value end) end)

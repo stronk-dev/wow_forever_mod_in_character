@@ -10,7 +10,9 @@ local modes = { "random", "shuffle", "sequential", "pool" }
 local modeNames = { random = "Random", shuffle = "Shuffle", sequential = "In order", pool = "Pool mode" }
 function B.GroupRows(config, width)
     if not config.catalog or config.hideCatalogTabs or config.collapsed then return 0 end
-    local count = 1 + #IC.Presentation.CatalogGroups(config)
+    local groups = IC.Presentation.CatalogGroups(config)
+    if IC.Personas and #groups <= 1 then return 0 end
+    local count = 1 + #groups
     return math.max(1, math.ceil(count / math.max(1, math.floor((width - GAP) / 112))))
 end
 function B.Capacity(config)
@@ -35,7 +37,7 @@ end
 
 local function tooltip(button)
     local action = button.action
-    if button.textStyle and button.style ~= "native" then button:SetBackdropColor(unpack(C.hover)) end
+    if button.textStyle and not button.native then button:SetBackdropColor(unpack(C.hover)) end
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT"); GameTooltip:SetText(action.fullName or action.name or action.label, 1, 1, 1)
     if action.type == "emote" then
         local badge, info = IC.Emotes.Badge(action)
@@ -114,12 +116,37 @@ function B.EnsureCatalog()
     local config = IC.Defaults.CatalogBar(#bars + 1); bars[#bars + 1] = config
     return config, #bars, true
 end
+function B.IsEmoteConfig(config)
+    return config.source == "favorites" or config.source == "favoriteEmotes" or config.source == "categories" or config.source == "all" or IC.Emotes.byCategory[config.source] ~= nil
+end
+function B.EnsureEmote()
+    for index, config in ipairs(IC.Layout().bars) do if B.IsEmoteConfig(config) then return config, index end end
+    local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.EmoteBar(#bars + 1, "categories")
+    return bars[#bars], #bars
+end
+function B.ShowEmotes()
+    IC.Profile().presentations.emotes.bar = true
+    local first
+    for index, config in ipairs(IC.Layout().bars) do
+        if B.IsEmoteConfig(config) then config.hidden, config.collapsed = false, false; first = first or index end
+    end
+    if not first then local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.EmoteBar(#bars + 1, "categories"); first = #bars end
+    IC.Changed(); return first
+end
+function B.MakeBare()
+    local index = B.ShowEmotes(); local config = IC.Layout().bars[index]
+    config.strip, config.buttonStyle, config.labels, config.stripRows = true, "icons", false, 1
+    config.stripHeight, config.width, config.height = nil, nil, nil
+    config.size = math.min(config.size, 24); IC.Changed(); return index
+end
 function B.ShowCatalog()
+    IC.Profile().presentations.roleplay.bar = true
     local config = B.EnsureCatalog(); config.hidden, config.collapsed = false, false; IC.Changed()
 end
 function B.ToggleCatalog()
     local config, _, created = B.EnsureCatalog()
-    if created then config.hidden = false else config.hidden = not config.hidden end
+    if created or not IC.Presentation.Enabled("roleplay", "bar") then config.hidden = false else config.hidden = not config.hidden end
+    IC.Profile().presentations.roleplay.bar = true
     IC.Changed()
 end
 function B.SelectCatalog(index, group)
@@ -219,14 +246,15 @@ local function renderGrid(frame, config)
     frame.header:SetShown(showHeader)
     frame.header:SetHeight(headerHeight)
     frame.header.text:SetPoint("RIGHT", config.catalog and -160 or ((config.catalogCompanion and -54) or -4), 0)
-    frame.header.text:SetText((config.collapsed and "+ " or "") .. config.name .. (frame.missing and " (message removed)" or ""))
+    local title = config.catalog and config.name == "Roleplay" and IC.Personas and IC.Personas.Name() or config.name
+    frame.header.text:SetText((config.collapsed and "+ " or "") .. title .. (frame.missing and " (message removed)" or ""))
     local paged = pages > 1 and not config.collapsed
     frame:SetSize(width, config.collapsed and headerHeight or (config.height or (top + rows * cellHeight + GAP + (paged and 28 or 0))))
     frame.mode:SetShown(config.catalog == true); frame.mode:SetText(modeNames[config.poolMode] or "Pool mode")
     frame.close:SetShown(config.catalog or config.catalogCompanion)
     frame.edit:SetShown(config.catalog or config.catalogCompanion)
     for _, tab in ipairs(frame.catalogTabs) do tab:Hide() end
-    if config.catalog and not config.hideCatalogTabs and not config.collapsed then
+    if config.catalog and not config.hideCatalogTabs and not config.collapsed and tabRows > 0 then
         local tabs = { { id = "all", label = "All pools" } }; for _, group in ipairs(groups) do tabs[#tabs + 1] = group end
         local perRow = math.max(1, math.floor((width - GAP) / 112)); local tabWidth = (width - GAP) / perRow - GAP
         for n, group in ipairs(tabs) do
@@ -277,6 +305,12 @@ function B.RenderFrame(frame, config)
     frame.renderingLayout = true
     if B.IsStrip and B.IsStrip(config) then B.RenderStrip(frame, config) else renderGrid(frame, config) end
     if B.UpdateEditControls then B.UpdateEditControls(frame) end
+    if not B.editing and IC.Personas then
+        local raw, foreign = IC.Presentation.BarActions(config, true), true
+        for _, action in ipairs(raw) do if IC.Personas.ActionAllowed(action) then foreign = false; break end end
+        if #raw > 0 and foreign then frame:Hide() end
+    end
+    if not B.editing and #IC.Presentation.BarActions(config) == 0 and not IC.Presentation.Enabled(B.IsEmoteConfig(config) and "emotes" or "roleplay", "bar") then frame:Hide() end
     frame.renderingLayout = nil
 end
 function B.Refresh()

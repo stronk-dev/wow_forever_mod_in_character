@@ -69,6 +69,14 @@ function IC.Slash(input)
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
     elseif command == "bars" then IC.Bars.ShowCatalog()
+    elseif command == "emote-bars" then IC.Bars.ShowEmotes()
+    elseif command == "character" then
+        if rest == "" then IC.Print("Loaded: " .. IC.Personas.Name()); IC.Editor.Open("Home")
+        else
+            local chosen, reason = IC.Personas.Resolve(rest)
+            local ok; if chosen then ok, reason = IC.Personas.Choose(chosen) end
+            if not ok then IC.Print(reason or "Choose a character in /ic options.") end
+        end
     elseif command == "arrange" or command == "edit" then IC.Bars.SetEditing(not IC.Bars.editing)
     elseif command == "wheel" then IC.Wheel.Toggle()
     elseif command == "quick" then IC.QuickActions.Toggle()
@@ -80,7 +88,8 @@ function IC.Slash(input)
         if IC.Editor then IC.Editor.Open(command == "emotes" and "Emotes" or "Home") end
     elseif command == "play" then
         local mode, name = rest:match("^(%S+)%s+(.+)$")
-        local pool, problem = IC.Dialogue.Find(name or "")
+        local pool, problem
+        if IC.Personas then pool, problem = IC.Personas.FindPool(name or "") else pool, problem = IC.Dialogue.Find(name or "") end
         if pool and (mode == "random" or mode == "shuffle" or mode == "sequential") then IC.Actions.Dispatch("play:" .. mode .. ":" .. pool.id)
         else IC.Print(problem or "Use /ic play random|shuffle|sequential <pool name>.") end
     elseif command == "message" then
@@ -90,8 +99,10 @@ function IC.Slash(input)
     else
         local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
         local shortcut = aliases[command]
-        local requested = shortcut and (IC.Profile().shortcuts[shortcut] or shortcut) or input
-        local pool, problem = IC.Dialogue.Find(command == "pool" and rest or requested)
+        local requested = shortcut and ((IC.Personas and IC.Personas.Shortcut(shortcut)) or shortcut) or input
+        local pool, problem
+        if IC.Personas then pool, problem = IC.Personas.FindPool(command == "pool" and rest or requested)
+        else pool, problem = IC.Dialogue.Find(command == "pool" and rest or requested) end
         if pool then IC.Actions.Dispatch({ type = "pool", payload = pool.id })
         else IC.Print(problem or "Unknown pool. Use /ic help.") end
     end

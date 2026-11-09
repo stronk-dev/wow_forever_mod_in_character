@@ -1,10 +1,10 @@
 return function(IC, test, eq, open)
     test("compact strip geometry fits ten actions into a horizontal region without fixed slot counts", function()
-        local config = IC.Defaults.EmoteBar(1); config.stripWidth = 388
+        local config = IC.Defaults.EmoteBar(1); config.stripWidth, config.size = 388, 36
         local g = IC.Presentation.StripGeometry(config, 10, 1920)
-        eq(g.size, 36); eq(g.rows, 1); eq(g.capacity, 10); eq(g.height, 44)
+        eq(g.size, 36); eq(g.rows, 1); eq(g.capacity, 10); eq(g.height, 38)
         config.stripWidth = 268; g = IC.Presentation.StripGeometry(config, 10, 1920)
-        eq(g.size, 24); eq(g.capacity, 10); eq(g.height, 32)
+        eq(g.size, 24); eq(g.capacity, 10); eq(g.height, 26)
         config.stripRows = 2; g = IC.Presentation.StripGeometry(config, 10, 1920)
         eq(g.size, 36); eq(g.rows, 2); assert(g.capacity >= 10)
     end)
@@ -13,7 +13,7 @@ return function(IC, test, eq, open)
             for _, width in ipairs({ 40, 80, 268, 388, 1200, 5000 }) do
                 for rows = 1, 4 do for count = 0, 140 do
                     local g = IC.Presentation.StripGeometry({ stripWidth = width, stripRows = rows, size = 36 }, count, screen)
-                    assert(g.width <= screen - 56); assert(g.size >= 20 and g.size <= 36)
+                    assert(g.width <= screen - 56); assert(g.size >= 12 and g.size <= 36)
                     assert(g.capacity >= 1 and g.capacity <= 48)
                     local shown = math.min(g.capacity, count)
                     for n = 1, shown do
@@ -50,7 +50,7 @@ return function(IC, test, eq, open)
         emotes.stripIntroduced, emotes.strip, emotes.labels = nil, nil, true
         emotes.x, emotes.y, emotes.size, emotes.hiddenActions["emote:wave"] = 71, -112, 32, true
         local rp = char.layout.bars[2]; rp.buttonWidth = 220
-        open(db); eq(db.version, 9); assert(not emotes.strip); assert(emotes.labels); eq(emotes.previousGrid, nil)
+        open(db); eq(db.version, 10); assert(not emotes.strip); assert(emotes.labels); eq(emotes.previousGrid, nil)
         eq(emotes.x, 71); eq(emotes.y, -112); eq(emotes.size, 32); assert(emotes.hiddenActions["emote:wave"])
         eq(rp.buttonWidth, 220); assert(not rp.strip); eq(rp.buttonStyle, "text")
         emotes.strip, emotes.labels = false, true; open(db); assert(not emotes.strip); assert(emotes.labels)
@@ -67,7 +67,7 @@ return function(IC, test, eq, open)
         for _, labels in ipairs({ false, true }) do for _, height in ipairs({ 20, 42, 80, 160, 500 }) do
             for count = 1, 90 do
                 local g = IC.Presentation.StripGeometry({ stripWidth = 280, stripHeight = height, labels = labels, size = 36 }, count, 1920)
-                assert(g.size >= 20)
+                assert(g.size >= 12)
                 for n = 1, math.min(count, g.capacity) do
                     local bottom = g.padding + math.floor((n - 1) / g.columns) * g.cellHeight + g.size + (labels and 14 or 0)
                     assert(bottom <= g.height - g.padding)

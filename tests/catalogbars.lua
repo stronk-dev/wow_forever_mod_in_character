@@ -6,7 +6,7 @@ return function(IC, test, eq, open)
         local db = { version = 6, profiles = { account = profile }, sharedLayout = IC.Copy(old) }
         local char = { version = 6, scope = "character", profile = IC.Copy(profile), layout = IC.Copy(old) }
         IC.Profiles.Open(db, char)
-        eq(db.version, 9); eq(char.version, 9)
+        eq(db.version, 10); eq(char.version, 10)
         for _, layout in ipairs({ db.sharedLayout, char.layout }) do
             eq(#layout.bars, 2); eq(layout.bars[1].name, "My old bar"); eq(layout.bars[1].x, 135)
             eq(layout.bars[1].source, "Social"); eq(layout.bars[1].columns, 3); assert(layout.bars[1].hiddenActions["emote:bow"])
@@ -38,10 +38,10 @@ return function(IC, test, eq, open)
         IC.Profiles.SetLayoutScope("character"); eq(IC.Layout().bars[2].poolMode, "sequential")
     end)
     test("catalogue presentation keeps source IDs and custom names while disambiguating preset pools", function()
-        open(); local ok, _, id = IC.Library.Install("office-stanley", false); assert(ok)
+        open(); local ok, _, id, actorID = IC.Library.Install("office-stanley", false); assert(ok); IC.Personas.Load(actorID)
         local bar = IC.Defaults.CatalogBar(); local p = IC.Profile().pools[id]; local fullName = p.name
         local actions = IC.Presentation.BarActions(bar); local first = actions[1]
-        eq(first.sourceID, "pool:" .. id); assert(first.label:find("Stanley Hudson", 1, true)); eq(p.name, fullName)
+        eq(first.sourceID, "pool:" .. id); eq(first.label, "Greetings"); eq(p.name, fullName)
         bar.catalogGroup = "office-stanley"; actions = IC.Presentation.BarActions(bar); eq(actions[1].label, "Greetings")
         p.name = "Dry jokes, including terrible puns"; actions = IC.Presentation.BarActions(bar); eq(actions[1].label, p.name)
         bar.hiddenActions["pool:" .. id] = true

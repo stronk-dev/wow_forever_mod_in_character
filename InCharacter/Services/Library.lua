@@ -44,12 +44,26 @@ function L.Install(id, useShortcuts)
         pool.lines, pool.channel, pool.mode = IC.Copy(definition.lines), definition.channel, definition.mode
         pool.icon = definition.icon or pack.icon or IC.Icons[1]
         pool.provenance = { pack = id, version = pack.version, source = pack.source }
+        pool.shortcut = definition.shortcut
         profile.pools[poolID] = pool; profile.poolOrder[#profile.poolOrder + 1] = poolID
         IC.Dialogue.EnsureLines(pool)
         installed.pools[#installed.pools + 1] = poolID
         if useShortcuts and definition.shortcut then profile.shortcuts[definition.shortcut] = poolID end
     end
     profile.installedPacks[id] = installed
+    if IC.Personas then
+        local actor = IC.Personas.Create((pack.title:match(":%s*(.+)$") or pack.title), installed.pools, id)
+        installed.persona = actor.id
+        if useShortcuts then IC.Personas.Load(actor.id) end
+    end
     IC.Changed()
-    return true, "Copied " .. pack.title .. ". Existing pools were preserved.", installed.pools[1]
+    return true, "Copied " .. pack.title .. ". Existing pools were preserved.", installed.pools[1], installed.persona
+end
+function L.Load(id)
+    local installed = IC.Profile().installedPacks[id]
+    if not installed or not installed.persona or not IC.Profile().personas[installed.persona] then
+        local ok, reason = L.Install(id, false); if not ok then return false, reason end
+        installed = IC.Profile().installedPacks[id]
+    end
+    return IC.Personas.Load(installed.persona)
 end

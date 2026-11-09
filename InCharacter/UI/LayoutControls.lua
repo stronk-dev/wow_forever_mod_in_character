@@ -17,7 +17,10 @@ local function config(frame)
     return frame.profile[frame.kind]
 end
 function L.Items(frame)
-    if frame.kind == "bar" then return P.BarActions(config(frame), true) end
+    if frame.kind == "bar" then
+        local result = {}; for _, action in ipairs(P.BarActions(config(frame), true)) do if not IC.Personas or IC.Personas.ActionAllowed(action) then result[#result + 1] = action end end
+        return result
+    end
     if frame.source == "categories" then
         local result = {}
         for _, id in ipairs({ "Favorites", "Combat", "Social", "Reactions", "Idle", "Voice/Fun", "Roleplay", "all" }) do

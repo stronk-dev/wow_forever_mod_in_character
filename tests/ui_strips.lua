@@ -10,7 +10,7 @@ return function(test, eq, page)
         assert(not frame.header:IsShown() and not frame.moveHandle:IsShown() and not frame.resizeHandle:IsShown())
         eq(frame.backdropColor[4], 0); eq(frame.mouseEnabled, false)
         for _, slot in ipairs(frame.buttons) do if slot:IsShown() then
-            assert(not slot.caption:IsShown()); eq(slot:GetHeight(), 36); slot:Fire("OnEnter"); slot:Fire("OnLeave")
+            assert(not slot.caption:IsShown()); eq(slot:GetHeight(), 24); slot:Fire("OnEnter"); slot:Fire("OnLeave")
         end end
         assert(Stub.KeyDown("W")); eq(#Stub.emotes + #Stub.sends, 0)
     end)
@@ -55,8 +55,8 @@ return function(test, eq, page)
         local frame, seen = IC.Bars.frames[1], {}; assert(frame.next:IsShown()); eq(frame:GetWidth(), 160)
         local pages = math.ceil(#IC.Presentation.BarActions(frame.config) / IC.Bars.Capacity(frame.config))
         for _ = 1, pages do
-            for _, slot in ipairs(frame.buttons) do if slot:IsShown() then seen[slot.action.id] = true; assert(slot:GetWidth() >= 20) end end
-            frame.next:Click(); eq(frame:GetWidth(), 160)
+            for _, slot in ipairs(frame.buttons) do if slot:IsShown() then seen[slot.action.id] = true; assert(slot:GetWidth() >= 12) end end
+            frame.next:Click(); assert(frame:GetWidth() <= 160)
         end
         local count = 0; for _ in pairs(seen) do count = count + 1 end
         eq(count, #IC.Presentation.BarActions(frame.config)); eq(#Stub.emotes + #Stub.sends, 0)

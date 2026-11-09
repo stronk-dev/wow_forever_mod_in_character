@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: In Character
 ## Notes: Emotes, reactions, and roleplay dialogue
-## Version: 0.10.0
+## Version: 0.11.0
 ## SavedVariables: InCharacterDB
 ## SavedVariablesPerCharacter: InCharacterCharDB
 ## IconTexture: Interface\Icons\Ability_Warrior_RallyingCry
@@ -21,6 +21,7 @@ Services/Actions.lua
 Services/Curation.lua
 Services/Presentation.lua
 Services/Library.lua
+Services/Personas.lua
 Data/Library/OfficeStanley.lua
 Data/Library/DutchMastermovies.lua
 Data/Library/DutchEveryday.lua

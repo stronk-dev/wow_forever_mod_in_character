@@ -53,14 +53,15 @@ test("every page of the window builds and switching pages sends nothing", functi
     eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
 
-test("home cards turn each layout option on and off", function(IC, Stub)
+test("options exposes independent presentations and visible emote bar recovery", function(IC, Stub)
     local p = page(IC, "Home")
-    p.launcherToggle:Click(); assert(not IC.Launcher.button:IsShown())
-    p.launcherToggle:Click(); assert(IC.Launcher.button:IsShown())
-    p.rpToggle:Click(); assert(IC.Layout().bars[2].hidden); assert(not IC.Bars.frames[2]:IsShown())
-    p.rpToggle:Click(); assert(IC.Bars.frames[2]:IsShown()); eq(#IC.Layout().bars, 2)
-    p.favToggle:Click(); assert(IC.Layout().bars[1].hidden); assert(not IC.Bars.frames[1]:IsShown())
-    p.launcherClick:Choose("quick"); IC.Launcher.button:Click("LeftButton"); assert(IC.Layout().bars[2].hidden); assert(not IC.QuickActions.open)
+    p.launcherShown:SetChecked(false); p.launcherShown:Click(); assert(not IC.Launcher.button:IsShown())
+    p.launcherShown:SetChecked(true); p.launcherShown:Click(); assert(IC.Launcher.button:IsShown())
+    local rp = p.presentations.roleplay.bar; rp:SetChecked(false); rp:Click(); assert(not IC.Bars.frames[2]:IsShown())
+    rp:SetChecked(true); rp:Click(); assert(IC.Bars.frames[2]:IsShown())
+    local emotes = p.presentations.emotes.bar; emotes:SetChecked(false); emotes:Click(); assert(not IC.Bars.frames[1]:IsShown())
+    p.favToggle:Click(); assert(IC.Bars.frames[1]:IsShown()); assert(IC.Profile().presentations.emotes.bar)
+    p.launcherClick:Choose("menu"); IC.Launcher.button:Click(); assert(IC.Menu.IsOpen()); eq(#Stub.sends + #Stub.emotes, 0)
 end)
 
 test("emote editor filters recorded sound and animation, searches, pins and tries emotes", function(IC, Stub)
@@ -110,12 +111,14 @@ test("launcher menu lists favorites and categories, uses an emote and pins witho
     IC.Layout().launcher.click = "menu"
     IC.Launcher.button:Click("LeftButton"); assert(IC.Menu.IsOpen())
     local root = IC.Menu.levels[1]
-    eq(root.entries[1].label, "Favorites")
-    local combat
-    for i, entry in ipairs(root.entries) do if entry.label == IC.Emotes.CategoryInfo.Combat.label then combat = i end end
-    assert(combat and combat <= 16)
-    root.rows[combat]:Fire("OnEnter")
-    local flyout = IC.Menu.levels[2]; assert(flyout:IsShown()); assert(flyout.back:IsShown()); eq(flyout.entries[1].action.command, "charge")
+    eq(root.entries[1].label, "My character")
+    local categories
+    for i, entry in ipairs(root.entries) do if entry.id == "emote-categories" then categories = i end end
+    assert(categories); root.rows[categories]:Fire("OnEnter")
+    local level = IC.Menu.levels[2]; local combat
+    for i, entry in ipairs(level.entries) do if entry.id == "Combat" then combat = i end end
+    assert(combat); level.rows[combat]:Fire("OnEnter")
+    local flyout = IC.Menu.levels[3]; assert(flyout:IsShown()); assert(flyout.back:IsShown()); eq(flyout.entries[1].action.command, "charge")
     flyout.rows[1]:Click("RightButton"); assert(IC.Menu.IsOpen()); assert(flyout:IsShown())
     flyout.rows[1]:Click("LeftButton"); assert(not IC.Menu.IsOpen()); eq(Stub.emotes[1], "CHARGE")
 end)
@@ -158,7 +161,6 @@ test("wheel pages long categories with the mouse wheel and opens in combat", fun
     IC.Wheel.Open(false); assert(IC.Wheel.open)
     pointAt(Stub, IC, IC.Wheel.outer[#IC.Wheel.categories]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
     eq(IC.Wheel.Current().id, "Roleplay")
-    eq(#IC.Wheel.items, 1); pointAt(Stub, IC, IC.Wheel.outer[1]); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
     eq(#IC.Wheel.items, 8); IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 2); eq(#IC.Wheel.items, 8)
     IC.Wheel.catcher:Fire("OnMouseWheel", -1); eq(IC.Wheel.page, 3); eq(#IC.Wheel.items, 1)
     IC.Wheel.Close()
@@ -266,4 +268,5 @@ assert(loadfile("tests/ui_review.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_catalogbars.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_strips.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_fullcontrols.lua"))()(test, eq, page)
+assert(loadfile("tests/ui_options.lua"))()(test, eq, page)
 print("PASS: " .. tests .. " isolated mocked UI/integration tests (not a live-client test)")

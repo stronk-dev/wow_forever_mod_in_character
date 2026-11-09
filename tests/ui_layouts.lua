@@ -4,7 +4,7 @@ return function(test, eq, page, point, pointAt)
         for _, row in ipairs(frame.rows) do if row:IsShown() and row.action.id == id then return row end end
         error("Missing layout item: " .. id)
     end
-    local function has(actions, id) for _, action in ipairs(actions) do if action.id == id then return true end end end
+    local function has(actions, id) for _, action in ipairs(actions) do if action.id == id or (action.children and has(action.children, id)) then return true end end; return false end
     local function wheelClick(IC, Stub, id)
         for _ = 1, IC.WheelModel.Pages(IC.Wheel.Current()) do
             for i, action in ipairs(IC.Wheel.items) do
@@ -87,7 +87,7 @@ return function(test, eq, page, point, pointAt)
         for i, action in ipairs(IC.Emotes.list) do env["EMOTE" .. i .. "_TOKEN"] = action.payload; env["EMOTE" .. i .. "_CMD1"] = "/" .. action.command end
         IC.Emotes.Validate(); IC.Profile().menu.pageSize = 6; IC.Menu.OpenAtCursor()
         local entries = IC.Menu.Entries(); local social, all
-        for _, entry in ipairs(entries) do if entry.id == "Social" then social = entry elseif entry.id == "all" then all = entry end end
+        for _, root in ipairs(entries) do for _, entry in ipairs(root.children or {}) do if entry.id == "Social" then social = entry elseif entry.id == "all" then all = entry end end end
         assert(social.children[1].children); assert(all.children[1].children); assert(#all.children[1].children <= 12)
         local root, seen = IC.Menu.levels[1], {}
         for _ = 1, #root.entries do

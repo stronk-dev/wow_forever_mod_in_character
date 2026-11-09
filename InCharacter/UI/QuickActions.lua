@@ -17,7 +17,7 @@ function Q.Items()
     end
     if Q.section == "Roleplay" then
         local result = {}; if settings.hiddenCategories.Roleplay then return result end
-        for _, id in ipairs(IC.Profile().poolOrder) do
+        for _, id in ipairs(IC.Personas and IC.Personas.Pools() or IC.Profile().poolOrder) do
             local pool = IC.Profile().pools[id]
             local group = pool.provenance and pool.provenance.pack or "custom"
             if (Q.group == "all" or Q.group == group) and not settings.hiddenActions["group:" .. group] and not settings.hiddenActions["browse:" .. id] then result[#result + 1] = A.Resolve("pool:" .. id) end
@@ -50,7 +50,7 @@ local function card(index)
     button = U.Button(Q.frame, "", 0, 0, 100, function(self, mouse)
         if mouse == "RightButton" then A.Favorite(self.action.id); return end
         send(self.action.id)
-    end)
+    end, "flat")
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp"); button.label:Hide()
     button.icon = button:CreateTexture(nil, "ARTWORK"); button.icon:SetSize(24, 24); button.icon:SetPoint("TOPLEFT", 8, -9)
     button.name = U.Label(button, "", 40, -8, 110); button.name:SetWordWrap(true)

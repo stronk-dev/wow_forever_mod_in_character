@@ -21,12 +21,13 @@ function IC.Defaults.Profile()
         poolOrder = { "greetings", "quotes", "farewells" },
         favorites = { "emote:wave", "emote:cheer", "emote:laugh", "emote:dance", "emote:charge", "emote:healme",
             "pool:greetings", "pool:quotes", "pool:farewells" },
-        wheel = { mode = "click", radius = 180, buttonSize = 42, pageSize = 8, deadZone = 62, hiddenActions = {}, hiddenCategories = {} },
-        menu = { hiddenActions = {}, hiddenCategories = {}, pageSize = 12 },
+        wheel = { presentation = "wheel", mode = "click", radius = 180, buttonSize = 42, pageSize = 8, deadZone = 62, hiddenActions = {}, hiddenCategories = {} },
+        menu = { presentation = "menu", hiddenActions = {}, hiddenCategories = {}, pageSize = 12 },
         quick = { style = "bars", columns = 3, barsIntroduced = true },
         emoteScope = "essentials", emoteReview = {},
         emoteFilter = "all", hideUnverified = true,
         installedPacks = {},
+        presentations = { emotes = { bar = true, menu = true, wheel = true, view = "profile" }, roleplay = { bar = true, menu = true, wheel = true } },
         shortcuts = {},
         emoteOverrides = {},
     }
@@ -40,6 +41,7 @@ end
 function IC.Defaults.EmoteBar(index, source)
     local bar = IC.Defaults.Bar(index)
     bar.name, bar.source, bar.strip, bar.labels = "Emotes", source or "favoriteEmotes", true, false
+    bar.size = 24
     if source == "categories" then for _, id in ipairs(IC.Emotes.categories) do bar.categories[id] = true end end
     return bar
 end

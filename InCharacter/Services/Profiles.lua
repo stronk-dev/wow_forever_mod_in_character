@@ -1,5 +1,5 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 9 }
+IC.Profiles = { VERSION = 10 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
@@ -45,6 +45,7 @@ local function CompleteProfile(profile, database)
     table.sort(missing)
     for _, id in ipairs(missing) do order[#order + 1] = id end
     profile.poolOrder = order
+    if IC.Personas then IC.Personas.Migrate(profile) end
     -- Canonicalize legacy aliases without losing a pin or creating duplicates.
     local favorites, pinned = {}, {}
     for _, id in ipairs(profile.favorites) do
@@ -107,7 +108,12 @@ function P.Layout()
 end
 function P.SetScope(scope)
     assert(scope == "account" or scope == "character", "invalid profile scope")
-    if scope == "character" and not P.Character().profile then P.Character().profile = IC.Copy(P.db.profiles.account) end
+    if scope == "character" and not P.Character().profile then
+        local actor = IC.Personas and IC.Personas.Active()
+        P.Character().profile = IC.Copy(P.db.profiles.account)
+        P.Character().personaSelections = P.Character().personaSelections or {}
+        P.Character().personaSelections.character = actor and actor.id
+    end
     P.Character().scope = scope
     IC.Dialogue.Clear()
     IC.Changed()
@@ -120,11 +126,14 @@ end
 function P.CopyAccount()
     P.Character().profile = IC.Copy(P.db.profiles.account)
     P.Character().scope = "character"
+    P.Character().personaSelections = P.Character().personaSelections or {}
+    P.Character().personaSelections.character = P.Character().personaSelections.account
     IC.Dialogue.Clear()
     IC.Changed()
 end
 function P.Reset()
     local character = P.Character()
+    if character.personaSelections then character.personaSelections[character.scope] = nil end
     if character.scope == "character" then character.profile = IC.Defaults.Profile()
     else P.db.profiles.account = IC.Defaults.Profile() end
     IC.Dialogue.Clear()

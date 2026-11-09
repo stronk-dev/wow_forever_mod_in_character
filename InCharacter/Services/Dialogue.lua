@@ -118,6 +118,7 @@ function D.Create(name)
     local pool = IC.Defaults.Pool(id, name)
     profile.pools[id] = pool
     table.insert(profile.poolOrder, id)
+    if IC.Personas then IC.Personas.AddPool(id) end
     IC.Changed()
     return pool
 end
@@ -174,6 +175,7 @@ function D.MoveLine(pool, lineID, delta)
 end
 function D.Delete(id)
     local profile = IC.Profile()
+    for _, actor in pairs(profile.personas or {}) do for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == id then table.remove(actor.poolIDs, i) end end end
     profile.pools[id] = nil
     D.Clear(id)
     for shortcut, poolID in pairs(profile.shortcuts) do if poolID == id then profile.shortcuts[shortcut] = nil end end
