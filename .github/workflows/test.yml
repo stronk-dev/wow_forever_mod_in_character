@@ -5,32 +5,42 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Install Lua 5.1 and LuaJIT
         run: sudo apt-get update && sudo apt-get install -y lua5.1 luajit
-      - name: Logic tests (Lua 5.1)
-        run: lua5.1 tests/run.lua
-      - name: UI tests (Lua 5.1)
-        run: lua5.1 tests/ui.lua
-      - name: Logic tests (LuaJIT)
-        run: luajit tests/run.lua
-      - name: UI tests (LuaJIT)
-        run: luajit tests/ui.lua
-      - name: Verify manifests, bindings and Lua syntax
-        run: LUA=lua5.1 python3 scripts/verify.py
-      - name: Check release tag matches addon version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - run: lua5.1 tests/run.lua
+      - run: lua5.1 tests/ui.lua
+      - run: luajit tests/run.lua
+      - run: luajit tests/ui.lua
+      - run: LUA=lua5.1 python3 scripts/verify.py
+      - name: Determine addon release version
+        id: version
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           python3 - <<'PY'
-          import os, re
+          import os, re, subprocess
           from pathlib import Path
           version = re.search(r'^## Version: (\S+)$', Path('InCharacter/InCharacter.toc').read_text(), re.M).group(1)
-          assert os.environ['GITHUB_REF_NAME'] == 'v' + version, 'Tag and addon version differ'
+          ref = os.environ['GITHUB_REF']
+          tagged = ref.startswith('refs/tags/v')
+          if tagged:
+              assert os.environ['GITHUB_REF_NAME'] == 'v' + version, 'Tag and addon version differ'
+          previous = subprocess.run(['git', 'show', 'HEAD^:InCharacter/InCharacter.toc'], capture_output=True, text=True)
+          old = re.search(r'^## Version: (\S+)$', previous.stdout, re.M)
+          bumped = old is None or old.group(1) != version
+          main = ref == 'refs/heads/' + os.environ['DEFAULT_BRANCH']
+          publish = os.environ['GITHUB_EVENT_NAME'] == 'push' and (tagged or (main and bumped))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version=v{version}\npublish={str(publish).lower()}\n')
           PY
-      - name: Package addon
-        run: python3 scripts/package.py
+      - run: python3 scripts/package.py
       - name: Render model geometry
         run: lua5.1 scripts/layout_preview.lua > dist/InCharacter-layout.svg
       - uses: actions/upload-artifact@v4
@@ -41,10 +51,12 @@ jobs:
             dist/InCharacter-layout.svg
           if-no-files-found: error
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && needs.test.outputs.publish == 'true' && (startsWith(github.ref, 'refs/tags/v') || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    concurrency:
+      group: incharacter-release-${{ needs.test.outputs.version }}
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -54,7 +66,7 @@ jobs:
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.test.outputs.version }}
           target_commitish: ${{ github.sha }}
           files: |
             dist/InCharacter-*.zip

@@ -4,7 +4,7 @@ Emotes and roleplay lines for **WoW Forever (interface 16001)**, kept small enou
 
 ## Install
 
-Download **InCharacter-0.13.1.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases) when published, or build it with `python3 scripts/package.py`. Extract it into:
+Download **InCharacter-0.13.0.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases) when published, or build it with `python3 scripts/package.py`. Extract it into:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/InCharacter/
@@ -90,5 +90,3 @@ lua scripts/layout_preview.lua > dist/InCharacter-layout.svg
 ```
 
 The shared collection model feeds every play surface. `Platform.lua` owns client integrations (chat, emotes, restrictions, tokens, bindings, cursor, Settings and Edit Mode); domain services use that boundary. Pure bar/menu models are in `Models/`, and the radial model is in `Services/WheelModel.lua`. `scripts/layout_preview.lua` renders their real dimensions to SVG without starting WoW. This is a geometry illustration, not an in-game screenshot. `scripts/gen_emote_catalog.py` regenerates `Data/EmoteCatalog.lua` from the wiki table. See [CONTRIBUTING.md](CONTRIBUTING.md). Original code is MIT. Third-party attribution is in `InCharacter/THIRD_PARTY_NOTICES.txt`. Quotes and Blizzard assets belong to their owners.
-
-CI runs logic/UI tests on Lua 5.1 and LuaJIT and validates the addon before packaging. Push a matching `v<version>` tag to publish the tested ZIP and SVG as a prerelease; branch and PR builds upload workflow artifacts without publishing a release.
