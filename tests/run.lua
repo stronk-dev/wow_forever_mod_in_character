@@ -70,7 +70,7 @@ end)
 test("v1 migration retains user and unknown data", function()
     local account = IC.Defaults.Profile(); account.pools.quotes.lines = { "old" }
     local db = open({ version = 1, account = account, customFutureKey = "keep" })
-    eq(db.version, 8); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
+    eq(db.version, 9); eq(IC.Profile().pools.quotes.lines[1], "old"); eq(db.customFutureKey, "keep")
 end)
 test("deleted defaults stay deleted across upgrades", function()
     local db = open(); IC.Dialogue.Delete("quotes"); open(db)

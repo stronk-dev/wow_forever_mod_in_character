@@ -69,9 +69,9 @@ function IC.Slash(input)
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
     elseif command == "bars" then IC.Bars.ShowCatalog()
-    elseif command == "arrange" then IC.Bars.SetEditing(not IC.Bars.editing)
-    elseif command == "wheel" or command == "quick" then
-        IC.QuickActions.Toggle()
+    elseif command == "arrange" or command == "edit" then IC.Bars.SetEditing(not IC.Bars.editing)
+    elseif command == "wheel" then IC.Wheel.Toggle()
+    elseif command == "quick" then IC.QuickActions.Toggle()
     elseif command == "review" then
         IC.EmoteReview.Open()
     elseif command == "menu" then
@@ -129,12 +129,14 @@ function IC.Initialize(database, characterDatabase)
     if IC.Wheel and not IC.Wheel.frame then IC.Wheel.Create() end
     if IC.Menu and not IC.Menu.catcher then IC.Menu.Create() end
     if IC.SettingsPanel then IC.SettingsPanel.Register() end
+    if IC.Bars.ConnectEditMode then IC.Bars.ConnectEditMode() end
     IC.Refresh()
 end
 
 if CreateFrame then
     local events = CreateFrame("Frame")
     events:SetScript("OnEvent", function(_, event, loaded)
+        if event == "ADDON_LOADED" and IC.db and IC.Bars.ConnectEditMode then IC.Bars.ConnectEditMode() end
         if event == "ADDON_LOADED" and loaded == IC.name then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()

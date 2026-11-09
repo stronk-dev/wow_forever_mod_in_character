@@ -6,13 +6,13 @@ return function(IC, test, eq, open)
         local db = { version = 6, profiles = { account = profile }, sharedLayout = IC.Copy(old) }
         local char = { version = 6, scope = "character", profile = IC.Copy(profile), layout = IC.Copy(old) }
         IC.Profiles.Open(db, char)
-        eq(db.version, 8); eq(char.version, 8)
+        eq(db.version, 9); eq(char.version, 9)
         for _, layout in ipairs({ db.sharedLayout, char.layout }) do
             eq(#layout.bars, 2); eq(layout.bars[1].name, "My old bar"); eq(layout.bars[1].x, 135)
             eq(layout.bars[1].source, "Social"); eq(layout.bars[1].columns, 3); assert(layout.bars[1].hiddenActions["emote:bow"])
             assert(layout.bars[2].catalog); eq(layout.bars[2].buttonStyle, "text")
         end
-        eq(char.profile.quick.style, "bars"); eq(db.profiles.account.quick.previousStyle, "panel")
+        eq(char.profile.quick.style, "panel"); eq(db.profiles.account.quick.previousStyle, nil)
         eq(char.profile.pools.quotes.lines[1], "keep my text"); eq(char.profile.favorites[1], "pool:quotes")
         IC.Profiles.Open(db, char); eq(#char.layout.bars, 2); eq(#db.sharedLayout.bars, 2)
         table.remove(char.layout.bars, 2); char.profile.quick.style = "panel"
@@ -29,7 +29,7 @@ return function(IC, test, eq, open)
         local db = open(); local a = IC.Layout().bars[2]
         a.catalogGroup, a.buttonWidth, a.columns, a.rows, a.hidden = "office-stanley", 224, 3, 2, true
         open(db, "Realm:Other"); local b = IC.Layout().bars[2]
-        eq(b.catalogGroup, "all"); eq(b.buttonWidth, 148); assert(not b.hidden)
+        eq(b.catalogGroup, "all"); eq(b.buttonWidth, 144); assert(not b.hidden)
         b.poolMode = "sequential"; open(db)
         eq(IC.Layout().bars[2].catalogGroup, "office-stanley"); eq(IC.Layout().bars[2].buttonWidth, 224)
         eq(IC.Layout().bars[2].rows, 2); assert(IC.Layout().bars[2].hidden)

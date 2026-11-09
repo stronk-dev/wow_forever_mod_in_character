@@ -26,7 +26,12 @@ function methods:StartSizing(edge) assert(self.resizable); self.sizing = edge en
 function methods:StartMoving() self.moving = true end
 function methods:StopMovingOrSizing() self.sizing, self.moving = nil, nil end
 function methods:EnableMouse(value) self.mouseEnabled = value end
-function methods:SetBackdropColor(...) self.backdropColor = { ... } end
+function methods:GetFrameLevel() return self.frameLevel or 1 end
+function methods:SetFrameLevel(value) self.frameLevel = value end
+function methods:SetBackdropColor(...)
+    assert(not (self.template and self.template:find("^UIPanelButton")), "Native panel buttons do not inherit BackdropTemplate")
+    self.backdropColor = { ... }
+end
 function methods:GetWidth() return self.width or 100 end
 function methods:GetHeight() return self.height or 24 end
 function methods:SetPoint(point, relative, relativePoint, x, y)
@@ -146,9 +151,18 @@ end
 function Stub.Install()
     UIParent = widget("Frame", "UIParent"); UIParent:SetSize(1920, 1080)
     UISpecialFrames, SlashCmdList = {}, {}
+    Stub.callbacks = {}
+    EventRegistry = {
+        RegisterCallback = function(_, event, callback, owner) Stub.callbacks[event] = { callback, owner } end,
+        TriggerEvent = function(_, event) local listener = Stub.callbacks[event]; if listener then listener[1](listener[2]) end end,
+    }
     GameTooltip = { SetOwner = noop, SetText = noop, AddLine = noop, Show = noop, Hide = noop }
     DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) Stub.messages[#Stub.messages + 1] = text end }
-    CreateFrame = function(kind, name, parent) return widget(kind, name, parent) end
+    CreateFrame = function(kind, name, parent, template)
+        local frame = widget(kind, name, parent); frame.template = template
+        if template and template:find("^UIPanelButton") then frame:SetNormalTexture("native-panel-up") end
+        return frame
+    end
     GetTime = function() return Stub.clock end
     InCombatLockdown = function() return Stub.combat end
     GetCursorPosition = function() return Stub.cursorX or 960, Stub.cursorY or 540 end

@@ -123,7 +123,9 @@ local function categoryBars(create)
 end
 local function hasCategoryBars() for _, bar in ipairs(IC.Layout().bars) do if bar.auto then return true end end end
 local function favoritesBar()
-    for _, bar in ipairs(IC.Layout().bars) do if bar.source == "favorites" or bar.source == "favoriteEmotes" then return bar end end
+    for _, bar in ipairs(IC.Layout().bars) do
+        if bar.source == "favorites" or bar.source == "favoriteEmotes" or bar.source == "categories" or bar.source == "all" or IC.Emotes.byCategory[bar.source] then return bar end
+    end
 end
 local function catalogBar()
     for _, bar in ipairs(IC.Layout().bars) do if bar.catalog then return bar end end
@@ -134,7 +136,7 @@ function E.RefreshHome()
     p.launcherToggle:SetText(launcher.shown and "Hide the button" or "Show the button")
     p.launcherClick:SetValue(launcher.click)
     p.launcher.state:SetText(launcher.shown and "|cff66dd66On|r - shift-drag it anywhere." or "|cff999999Off|r")
-    p.wheelKey.Refresh(); p.wheelMode:SetValue(IC.Profile().quick.style)
+    p.wheelKey.Refresh(); p.menuKey.Refresh()
     local fav = favoritesBar()
     p.favToggle:SetText(fav and not fav.hidden and "Hide favorites bar" or "Show favorites bar")
     p.fav.state:SetText(fav and not fav.hidden and ("|cff66dd66On|r - " .. #IC.Presentation.BarActions(fav) .. " visible pins.") or "|cff999999Off|r")
@@ -147,20 +149,17 @@ local function createHome(p)
     U.Muted(p, "Start small. Pin what you use, keep useful emotes, and write any named pools you want.", 0, -22, PAGE_W)
     local half = (PAGE_W - 12) / 2 + 12
     p.launcher = card(p, 0, -48, IC.AddonIcon, "Launcher button",
-        "A small show / hide button for the Roleplay bar. Your actions stay on screen; opening a menu is optional.")
+        "Choose what each mouse button opens. The radial, context menu and RP bars are independent; settings use Shift-right-click.")
     p.launcherToggle = U.Button(p.launcher, "", 66, -104, 150, function()
         local launcher = IC.Layout().launcher; launcher.shown = not launcher.shown; changed(); E.RefreshHome()
     end, "accent")
-    p.launcherClick = U.Dropdown(p.launcher, 224, -104, 150, {
-        { value = "quick", label = "Show / hide RP bar" }, { value = "menu", label = "Dropdown menu" }, { value = "wheel", label = "Quick access (old key)" },
-    }, function(value) IC.Layout().launcher.click = value; E.RefreshHome() end)
-    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Show / hide with a key",
-        "Toggle the persistent RP bar. No typing is captured and no action is sent just by opening it. Other styles are optional.")
-    p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Quick key", function() E.RefreshHome() end)
-    p.wheelMode = U.Dropdown(p.wheel, 66, -128, 200, {
-        { value = "bars", label = "Persistent RP bar" }, { value = "panel", label = "Optional popup panel" }, { value = "ring", label = "Legacy circle" },
-    }, function(value) IC.Profile().quick.style = value end)
-    U.Button(p.wheel, "Try it", 274, -128, 100, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
+    p.launcherClick = U.Dropdown(p.launcher, 224, -104, 150, IC.Launcher.choices, function(value) IC.Layout().launcher.click = value; E.RefreshHome() end)
+    p.wheel = card(p, half, -48, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Radial and context menu",
+        "Open either directly, with its own key. Their contents and visibility controls remain independent of every bar.")
+    p.wheelKey = U.KeyCapture(p.wheel, 66, -100, 200, "INCHARACTER_WHEEL", "Radial key", function() E.RefreshHome() end)
+    p.menuKey = U.KeyCapture(p.wheel, 66, -128, 200, "INCHARACTER_MENU", "Menu key", function() E.RefreshHome() end)
+    p.openWheel = U.Button(p.wheel, "Radial", 274, -100, 100, function() E.frame:Hide(); IC.Wheel.Toggle() end)
+    p.openMenu = U.Button(p.wheel, "Menu", 274, -128, 100, function() E.frame:Hide(); IC.Menu.OpenAtCursor() end)
     p.fav = card(p, 0, -238, "Interface\\Icons\\Spell_Holy_PowerInfusion", "Pinned emote bar",
         "A compact emote hotbar. Arrange lets you drag its width; icons fit that space. Choose pinned emotes or combine enabled categories in bar settings.")
     p.favToggle = U.Button(p.fav, "", 66, -104, 170, function()
@@ -169,18 +168,19 @@ local function createHome(p)
         else bar.hidden = not bar.hidden end
         changed(); E.RefreshHome()
     end, "accent")
-    p.favArrange = U.Button(p.fav, "Arrange", 244, -104, 124, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
+    p.favArrange = U.Button(p.fav, "Edit layouts", 244, -104, 124, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
     p.rp = card(p, half, -238, "Interface\\Icons\\INV_Misc_Book_09", "Roleplay action bar",
         "Labeled buttons for any named pools. Click to play; right-click for a bar of specific lines. Visible tabs switch your preset sets.")
     p.rpToggle = U.Button(p.rp, "", 66, -104, 190, function() IC.Bars.ToggleCatalog(); E.RefreshHome() end, "accent")
     U.Button(p.rp, "Edit", 264, -104, 100, function()
-        local _, index = IC.Bars.EnsureCatalog(); E.Open("Layouts", index)
+        local _, index = IC.Bars.EnsureCatalog(); E.frame:Hide(); IC.Bars.SetEditing(true); IC.Bars.SelectBar(index)
     end)
     local legend = U.Panel(p, PAGE_W, 112, C.panel); legend:SetPoint("TOPLEFT", 0, -428)
     U.Label(legend, "Keep everyday use small", 12, -10, nil, "GameFontNormal")
     U.Muted(legend, "The emote list starts trimmed. All commands remain available in the editor; nothing is deleted.", 12, -34, PAGE_W - 24)
     U.Button(legend, "Check emotes one by one", 12, -68, 240, function() IC.EmoteReview.Open() end)
-    U.Muted(legend, "Sound badges show your own character's checks. Nearby sound needs another player to confirm it.", 266, -72, PAGE_W - 282)
+    p.editAll = U.Button(legend, "Edit all layouts", 266, -68, 180, function() E.frame:Hide(); IC.Bars.SetEditing(true) end)
+    U.Button(legend, "Show RP bar", 458, -68, 160, function() IC.Bars.ShowCatalog() end)
 end
 
 -- Emote library -----------------------------------------------------------------------------------
@@ -527,18 +527,19 @@ local function barSources()
     end
     return sources
 end
+E.BarSources = barSources
 function E.RefreshLayouts()
     local p = E.pages.Layouts
     local launcher, wheel = IC.Layout().launcher, IC.Profile().wheel
-    p.lShown:SetChecked(launcher.shown); p.lClick:SetValue(launcher.click); p.lSize:Set(launcher.size)
+    p.lShown:SetChecked(launcher.shown); p.lClick:SetValue(launcher.click); p.lRight:SetValue(launcher.rightClick); p.lMiddle:SetValue(launcher.middleClick); p.lSize:Set(launcher.size)
     p.wMode:SetValue(wheel.mode); p.wRadius:Set(wheel.radius); p.wKey.Refresh(); p.mKey.Refresh()
     p.wButtonSize:Set(wheel.buttonSize); p.wPageSize:Set(wheel.pageSize); p.wDeadZone:Set(wheel.deadZone)
     p.mPageSize:Set(IC.Profile().menu.pageSize)
     p.qStyle:SetValue(IC.Profile().quick.style); p.qColumns:Set(IC.Profile().quick.columns)
     local ring = IC.Profile().quick.style == "ring"
-    for _, widget in ipairs({ p.wRadius, p.wButtonSize, p.wPageSize, p.wDeadZone }) do widget:SetShown(ring); widget.caption:SetShown(ring) end
+    for _, widget in ipairs({ p.wRadius, p.wButtonSize, p.wPageSize, p.wDeadZone }) do widget:Show(); widget.caption:Show() end
     local panel = IC.Profile().quick.style == "panel"
-    p.wMode:SetShown(ring); p.qColumns:SetShown(panel); p.qColumns.caption:SetShown(panel)
+    p.wMode:Show(); p.qColumns:SetShown(panel); p.qColumns.caption:SetShown(panel)
     local bars = IC.Layout().bars
     E.barIndex = math.max(1, math.min(#bars, E.barIndex))
     local options = {}
@@ -575,14 +576,12 @@ local function section(parent, title, x, y, width, height)
 end
 local function createLayouts(p)
     p.layoutScroll = U.Scroll(p, 0, 0, PAGE_W, PAGE_H)
-    p.layoutScroll:SetContentHeight(1140)
+    p.layoutScroll:SetContentHeight(1210)
     local canvas = p.layoutScroll.content
     local half = (PAGE_W - 34) / 2
-    local s = section(canvas, "Launcher button & dropdown menu", 0, 0, half, 270)
+    local s = section(canvas, "Launcher & context menu", 0, 0, half, 320)
     p.lShown = U.Check(s, "Show the launcher button", 12, -32, function(value) IC.Layout().launcher.shown = value; changed() end)
-    p.lClick = U.Dropdown(s, 12, -62, half - 24, {
-        { value = "quick", label = "Toggle quick access (RP bar by default)" }, { value = "menu", label = "Left-click opens the dropdown menu" }, { value = "wheel", label = "Quick access (old wheel setting)" },
-    }, function(value) IC.Layout().launcher.click = value end)
+    p.lClick = U.Dropdown(s, 12, -62, half - 24, IC.Launcher.choices, function(value) IC.Layout().launcher.click = value end)
     p.lSize = U.Slider(s, "Size", 12, -96, half - 120, 28, 64, 2, function(value) IC.Layout().launcher.size = value; changed() end)
     U.Button(s, "Reset", half - 100, -112, 88, function()
         local launcher = IC.Layout().launcher; local default = IC.Defaults.Launcher()
@@ -590,7 +589,11 @@ local function createLayouts(p)
     end)
     p.mPageSize = U.Slider(s, "Menu rows per page", 12, -150, half - 24, 6, 20, 1, function(value) IC.Profile().menu.pageSize = value; changed() end)
     p.editMenu = U.Button(s, "Edit menu categories / items", 12, -204, half - 24, function() IC.LayoutUI.Open("menu") end)
-    s = section(canvas, "Quick actions", half + 10, 0, half, 310)
+    U.Muted(s, "Right-click", 12, -234)
+    p.lRight = U.Dropdown(s, 12, -250, half - 24, IC.Launcher.choices, function(value) IC.Layout().launcher.rightClick = value end)
+    U.Muted(s, "Middle-click", 12, -280)
+    p.lMiddle = U.Dropdown(s, 12, -296, half - 24, IC.Launcher.choices, function(value) IC.Layout().launcher.middleClick = value end)
+    s = section(canvas, "Radial wheel / optional quick style", half + 10, 0, half, 380)
     p.wKey = U.KeyCapture(s, 12, -32, (half - 30) / 2, "INCHARACTER_WHEEL", "Quick")
     p.mKey = U.KeyCapture(s, 18 + (half - 30) / 2, -32, (half - 30) / 2, "INCHARACTER_MENU", "Menu")
     p.qStyle = U.Dropdown(s, 12, -62, half - 24, {
@@ -600,13 +603,13 @@ local function createLayouts(p)
         { value = "click", label = "Press key, then click an action" }, { value = "hold", label = "Hold / release (experimental)" },
     }, function(value) IC.Profile().wheel.mode = value end)
     p.wRadius = U.Slider(s, "Ring radius", 12, -96, half - 120, 130, 260, 5, function(value) IC.Profile().wheel.radius = value end)
-    p.qColumns = U.Slider(s, "Panel columns", 12, -96, half - 120, 2, 4, 1, function(value) IC.Profile().quick.columns = value end)
-    U.Button(s, "Try it", half - 100, -112, 88, function() E.frame:Hide(); IC.QuickActions.Toggle() end)
+    p.qColumns = U.Slider(s, "Optional popup columns", 12, -320, half - 24, 2, 4, 1, function(value) IC.Profile().quick.columns = value end)
+    U.Button(s, "Radial", half - 100, -112, 88, function() E.frame:Hide(); IC.Wheel.Toggle() end)
     p.wButtonSize = U.Slider(s, "Icon size", 12, -150, (half - 36) / 2, 28, 64, 2, function(value) IC.Profile().wheel.buttonSize = value end)
     p.wPageSize = U.Slider(s, "Items per ring", half / 2 + 6, -150, (half - 36) / 2, 4, 12, 1, function(value) IC.Profile().wheel.pageSize = value end)
     p.wDeadZone = U.Slider(s, "Neutral centre", 12, -206, (half - 36) / 2, 30, 100, 2, function(value) IC.Profile().wheel.deadZone = value end)
     p.editWheel = U.Button(s, "Edit quick items", half / 2 + 6, -222, (half - 36) / 2, function() IC.LayoutUI.Open("wheel") end)
-    s = section(canvas, "Action bars", 0, -322, PAGE_W - 24, 790)
+    s = section(canvas, "Action bars", 0, -392, PAGE_W - 24, 790)
     p.which = U.Dropdown(s, 12, -32, 260, {}, function(value) E.barIndex = value; E.RefreshLayouts() end)
     U.Button(s, "+ Add bar", 280, -32, 110, function()
         local bars = IC.Layout().bars; bars[#bars + 1] = IC.Defaults.Bar(#bars + 1); E.barIndex = #bars; changed(); E.RefreshLayouts()
@@ -639,13 +642,13 @@ local function createLayouts(p)
     }, function(value) local bar = currentBar(); if bar then bar.vertical = value == "vertical"; changed() end end)
     p.bChooseCategories = U.Button(b, "Choose categories", 552, -60, 174, function() p.layoutScroll:ScrollTo(830) end)
     p.bSize = U.Slider(b, "Button size", 12, -96, 250, 24, 64, 2, function(value) local bar = currentBar(); if bar then bar.size = value; changed() end end)
-    p.bColumns = U.Slider(b, "Columns", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; bar.page = 1; changed() end end)
+    p.bColumns = U.Slider(b, "Columns", 296, -96, 250, 1, 12, 1, function(value) local bar = currentBar(); if bar then bar.columns = value; bar.width, bar.height = nil, nil; bar.page = 1; changed() end end)
     p.bStripWidth = U.Slider(b, "Hotbar width (or drag in Arrange)", 296, -96, 250, 80, 1200, 4, function(value)
         local bar = currentBar(); if bar then bar.stripWidth = value; bar.page = 1; changed() end
     end)
-    p.bRows = U.Slider(b, "Rows (0 = automatic)", 12, -144, 250, 0, 12, 1, function(value) local bar = currentBar(); if bar then bar.rows = value; bar.page = 1; changed() end end)
+    p.bRows = U.Slider(b, "Rows (0 = automatic)", 12, -144, 250, 0, 12, 1, function(value) local bar = currentBar(); if bar then bar.rows = value; bar.width, bar.height = nil, nil; bar.page = 1; changed() end end)
     p.bStripRows = U.Slider(b, "Hotbar rows", 12, -144, 250, 1, 4, 1, function(value)
-        local bar = currentBar(); if bar then bar.stripRows = value; bar.page = 1; changed() end
+        local bar = currentBar(); if bar then bar.stripRows = value; bar.stripHeight = nil; bar.page = 1; changed() end
     end)
     p.bLabels = U.Check(b, "Show action names", 296, -150, function(value) local bar = currentBar(); if bar then bar.labels = value; changed() end end)
     p.bChecks = {}
@@ -745,7 +748,7 @@ function E.SelectTab(name)
 end
 function E.Create()
     local frame = CreateFrame("Frame", "InCharacterEditor", UIParent, "BackdropTemplate"); E.frame = frame
-    U.Backdrop(frame, C.bg, C.border)
+    U.GameBackdrop(frame)
     frame:SetSize(WIDTH, HEIGHT); frame:SetPoint("CENTER"); frame:SetFrameStrata("DIALOG"); frame:SetToplevel(true)
     frame:SetClampedToScreen(true); frame:EnableMouse(true); frame:SetMovable(true); frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving); frame:SetScript("OnDragStop", frame.StopMovingOrSizing)

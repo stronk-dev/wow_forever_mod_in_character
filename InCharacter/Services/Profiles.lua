@@ -1,20 +1,12 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 8 }
+IC.Profiles = { VERSION = 9 }
 local P = IC.Profiles
 
 local function CompleteLayout(layout)
     local initializeCatalog = not layout.catalogBarInitialized
     IC.Merge(layout, IC.Defaults.Layout())
     for index, bar in ipairs(layout.bars) do
-        if not bar.stripIntroduced then
-            local emotes = bar.source == "favoriteEmotes" or bar.source == "categories" or bar.source == "all"
-            for _, id in ipairs(IC.Emotes.categories) do if bar.source == id then emotes = true end end
-            if emotes and not bar.catalog and not bar.catalogCompanion and (not bar.buttonStyle or bar.buttonStyle == "icons") then
-                bar.previousGrid = { labels = bar.labels, columns = bar.columns, rows = bar.rows, size = bar.size }
-                bar.strip, bar.labels = true, false
-                bar.stripRows = math.max(1, math.min(4, bar.rows or 1))
-            end
-        end
+        -- Presentation choices are user settings. New releases add controls, not style conversions.
         IC.Merge(bar, IC.Defaults.Bar(index)); bar.stripIntroduced = true
     end
     if initializeCatalog and #layout.bars > 0 then
@@ -29,14 +21,10 @@ end
 local function CompleteProfile(profile, database)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
     local defaults = IC.Defaults.Profile()
-    local introduceBars = not (profile.quick and profile.quick.barsIntroduced)
     local pools = profile.pools
     defaults.pools = nil
     if pools ~= nil then defaults.poolOrder = nil end
     IC.Merge(profile, defaults)
-    if profile.quick.style == "panel" and introduceBars then
-        profile.quick.previousStyle, profile.quick.style = "panel", "bars"
-    end
     profile.quick.barsIntroduced = true
     local filters = { all = true, heard = true, observed = true, textChecked = true }
     if not filters[profile.emoteFilter] then profile.emoteFilter = "all" end

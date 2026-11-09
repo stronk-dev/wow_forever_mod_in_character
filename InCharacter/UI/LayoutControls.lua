@@ -42,8 +42,12 @@ function L.Refresh()
     frame.items, frame.allItems = shown, all
     for _, row in ipairs(frame.rows) do row:Hide() end
     local hiddenCount = 0
-    for _, action in ipairs(all) do if (action.isCategory and settings.hiddenCategories or settings.hiddenActions)[action.id] then hiddenCount = hiddenCount + 1 end end
-    frame.count:SetText((#all - hiddenCount) .. " shown / " .. #all .. " total · unchecked items stay available in other layouts")
+    for _, action in ipairs(all) do
+        if (action.isCategory and settings.hiddenCategories or settings.hiddenActions)[action.id]
+            or (frame.kind == "bar" and not P.BarEmoteIncluded(action, settings)) then hiddenCount = hiddenCount + 1 end
+    end
+    frame.count:SetText((#all - hiddenCount) .. " enabled / " .. #all .. " source entries · pages / preset tabs may show a subset")
+    if frame.kind == "bar" then frame.emoteChoice:SetValue(settings.emoteView) end
     for index, action in ipairs(shown) do
         local row = frame.rows[index]
         if not row then
@@ -51,6 +55,10 @@ function L.Refresh()
             row.check = U.Check(row, "", 0, -8, function(value)
                 local cfg = config(frame); if not cfg then return end
                 local map = row.action.isCategory and cfg.hiddenCategories or cfg.hiddenActions
+                if frame.kind == "bar" and row.action.type == "emote" then
+                    if not row.action.verified then return end
+                    cfg.includedActions[row.action.id] = value or nil
+                end
                 map[row.action.id] = not value or nil; cfg.page = 1; IC.Changed(); L.Refresh()
             end)
             row.check.caption:SetWidth(440)
@@ -67,9 +75,11 @@ function L.Refresh()
         end
         row.action = action; row:ClearAllPoints(); row:SetPoint("TOPLEFT", 0, -(index - 1) * 42)
         local map = action.isCategory and settings.hiddenCategories or settings.hiddenActions
-        row.check:SetChecked(not map[action.id])
+        row.check:SetChecked(not map[action.id] and (frame.kind ~= "bar" or P.BarEmoteIncluded(action, settings)))
         local unavailable = action.type == "emote" and not action.verified
-        row.check.caption:SetText(string.rep("  ", action.depth or 0) .. (action.name or action.label) .. (action.command and ("  /" .. action.command) or "") .. (unavailable and " (not on this client)" or ""))
+        local filtered = frame.kind == "bar" and not unavailable and not P.BarEmoteIncluded(action, settings)
+        row.check:SetEnabled(not (frame.kind == "bar" and unavailable))
+        row.check.caption:SetText(string.rep("  ", action.depth or 0) .. (action.name or action.label) .. (action.command and ("  /" .. action.command) or "") .. (unavailable and " (not on this client)" or (filtered and " (filtered · check to include on this bar)" or "")))
         row.icon:SetIcon(action.icon); row.icon:SetEnabled(not action.isCategory and action.type ~= "submenu")
         row.reset:SetShown(not action.isCategory and action.type ~= "submenu"); row:Show()
     end
@@ -89,13 +99,19 @@ function L.Open(kind, index)
             options[#options + 1] = { value = id, label = IC.Emotes.CategoryInfo[id].label }
         end
         frame.sourceChoice = U.Dropdown(frame, 14, -48, 320, options, function(value) frame.source = value; frame.list:ScrollTo(0); L.Refresh() end)
+        frame.emoteChoice = U.Dropdown(frame, 14, -48, 320, {
+            { value = "profile", label = "Emotes: my profile choices" }, { value = "all", label = "Emotes: all recognized commands" }, { value = "kept", label = "Emotes: explicitly kept only" },
+        }, function(value) local cfg = config(frame); if cfg then cfg.emoteView = value; cfg.page = 1; IC.Changed(); L.Refresh() end end)
         frame.search = U.Input(frame, 350, -48, 396)
         frame.search:SetScript("OnTextChanged", function() if frame.profile then L.Refresh() end end)
         frame.count = U.Muted(frame, "", 14, -84, 732)
         frame.list = U.Scroll(frame, 14, -108, 732, 330); frame.rows = {}
         local function setAll(hidden)
             local settings = config(frame); if not settings then return end
-            for _, action in ipairs(frame.items) do (action.isCategory and settings.hiddenCategories or settings.hiddenActions)[action.id] = hidden or nil end
+            for _, action in ipairs(frame.items) do
+                (action.isCategory and settings.hiddenCategories or settings.hiddenActions)[action.id] = hidden or nil
+                if frame.kind == "bar" and action.type == "emote" and action.verified then settings.includedActions[action.id] = not hidden or nil end
+            end
             settings.page = 1; IC.Changed(); L.Refresh()
         end
         U.Button(frame, "Show listed", 14, -452, 140, function() setAll(false) end)
@@ -105,7 +121,7 @@ function L.Open(kind, index)
     end
     frame.kind, frame.barIndex, frame.profile, frame.layout = kind, index or E.barIndex, IC.Profile(), IC.Layout()
     frame.source = "categories"; frame.search:SetText("")
-    frame.sourceChoice:SetShown(kind ~= "bar"); frame.sourceChoice:SetValue(frame.source)
+    frame.sourceChoice:SetShown(kind ~= "bar"); frame.sourceChoice:SetValue(frame.source); frame.emoteChoice:SetShown(kind == "bar")
     local settings = config(frame); if not settings then return end
     frame.title:SetText(kind == "bar" and ("Edit items · " .. settings.name) or ("Edit " .. (kind == "wheel" and "quick actions" or kind) .. " · categories & items"))
     frame.list:ScrollTo(0); L.Refresh(); frame:Show(); frame:Raise()

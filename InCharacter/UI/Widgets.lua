@@ -18,6 +18,11 @@ function U.Backdrop(frame, color, border)
     frame:SetBackdropColor(unpack(color or C.panel))
     frame:SetBackdropBorderColor(unpack(border or C.border))
 end
+function U.GameBackdrop(frame)
+    frame:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+    frame:SetBackdropColor(0.06, 0.06, 0.08, 0.9); frame:SetBackdropBorderColor(0.65, 0.65, 0.65, 0.9)
+end
 function U.Panel(parent, width, height, color, name)
     local frame = CreateFrame("Frame", name, parent, "BackdropTemplate")
     if width then frame:SetSize(width, height) end
@@ -63,11 +68,12 @@ end
 
 -- Flat button. style = "accent" for the main action on a page.
 function U.Button(parent, text, x, y, width, click, style)
-    local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    local native = UIPanelButtonHeightScaledMixin and "UIPanelButtonHeightScaledTemplate" or "UIPanelButtonTemplate"
+    local button = CreateFrame("Button", nil, parent, style == "native" and native or "BackdropTemplate")
     button:SetSize(width or 120, 26)
     if x then button:SetPoint("TOPLEFT", x, y) end
     button.style = style
-    U.Backdrop(button, style == "accent" and C.accentDim or C.raised, style == "accent" and C.accent or C.border)
+    if style ~= "native" then U.Backdrop(button, style == "accent" and C.accentDim or C.raised, style == "accent" and C.accent or C.border) end
     button.label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     button.label:SetPoint("LEFT", 8, 0); button.label:SetPoint("RIGHT", -8, 0)
     button.label:SetJustifyH("CENTER"); button.label:SetWordWrap(false)
@@ -75,11 +81,12 @@ function U.Button(parent, text, x, y, width, click, style)
     function button:GetText() return self.text or "" end
     function button:SetSelected(selected)
         self.selected = selected
+        if self.style == "native" then return end
         U.Backdrop(self, selected and C.accentDim or (self.style == "accent" and C.accentDim or C.raised),
             selected and C.accent or (self.style == "accent" and C.accent or C.border))
     end
     button:SetScript("OnEnter", function(self)
-        if not self.selected then self:SetBackdropColor(unpack(C.hover)) end
+        if not self.selected and self.style ~= "native" then self:SetBackdropColor(unpack(C.hover)) end
         if self.tooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(self.tooltip, 1, 1, 1, 1, true); GameTooltip:Show()
         end

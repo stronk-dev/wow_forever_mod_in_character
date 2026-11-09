@@ -8,6 +8,9 @@
     <Binding name="INCHARACTER_MENU" category="ADDONS">
         InCharacter_MenuBinding()
     </Binding>
+    <Binding name="INCHARACTER_QUICK" runOnUp="true" category="ADDONS">InCharacter_QuickBinding(keystate)</Binding>
+    <Binding name="INCHARACTER_BARS" category="ADDONS">if InCharacter.db then InCharacter.Bars.ToggleCatalog() end</Binding>
+    <Binding name="INCHARACTER_EDITMODE" category="ADDONS">if InCharacter.db then InCharacter.Bars.SetEditing(not InCharacter.Bars.editing) end</Binding>
     <Binding name="INCHARACTER_FAVORITE1" category="ADDONS">InCharacter_FavoriteBinding(1)</Binding>
     <Binding name="INCHARACTER_FAVORITE2" category="ADDONS">InCharacter_FavoriteBinding(2)</Binding>
     <Binding name="INCHARACTER_FAVORITE3" category="ADDONS">InCharacter_FavoriteBinding(3)</Binding>

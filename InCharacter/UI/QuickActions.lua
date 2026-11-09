@@ -163,5 +163,5 @@ function Q.Binding(state)
     elseif state == "down" then Q.Toggle() end
     -- Releasing a key never executes a panel action.
 end
-_G.InCharacter_WheelBinding = Q.Binding
-BINDING_NAME_INCHARACTER_WHEEL = "Toggle quick access / RP bar"
+_G.InCharacter_QuickBinding = Q.Binding
+BINDING_NAME_INCHARACTER_QUICK = "Optional quick panel / chosen style"

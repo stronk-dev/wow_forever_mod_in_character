@@ -229,6 +229,7 @@ end
 
 function W.Open(held)
     if not IC.db then return end
+    IC.Menu.Close(); if IC.QuickActions then IC.QuickActions.Close() end
     if not W.frame then W.Create() end
     W.categories = M.Categories()
     W.root = { id = "root", label = "Categories", icon = IC.AddonIcon, items = W.categories }

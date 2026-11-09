@@ -1,6 +1,13 @@
 local _, IC = ...
 IC.Presentation = {}
 local P = IC.Presentation
+function P.BarEmoteIncluded(action, config)
+    if action.type ~= "emote" then return true end
+    if action.verified and config.includedActions and config.includedActions[action.id] then return true end
+    if config.emoteView == "all" then return action.verified end
+    if config.emoteView == "kept" then return action.verified and IC.Curation.Record(action.id).choice == "keep" end
+    return IC.Emotes.Visible(action, IC.Profile())
+end
 function P.Filter(actions, config)
     local result = {}
     local hidden = config and config.hiddenActions or {}
@@ -15,20 +22,20 @@ function P.BarActions(config, raw)
         actions = {}; local seen = {}
         for _, id in ipairs(IC.Emotes.categories) do
             if config.categories and config.categories[id] then
-                for _, action in ipairs(IC.Actions.List(id, raw)) do
+                for _, action in ipairs(IC.Actions.List(id, true)) do
                     local key = action.payload or action.id
                     if not seen[key] then actions[#actions + 1] = action; seen[key] = true end
                 end
             end
         end
-    else actions = IC.Actions.List(config.source or "favorites", raw) end
+    else actions = IC.Actions.List(config.source or "favorites", true) end
     if raw then return actions end
     actions = P.Filter(actions, config)
     local result = {}
     for _, action in ipairs(actions) do
         local pool = action.type == "pool" and IC.Profile().pools[action.payload]
         local group = pool and pool.provenance and pool.provenance.pack or "custom"
-        if (not config.catalog or not config.catalogGroup or config.catalogGroup == "all" or config.catalogGroup == group)
+        if P.BarEmoteIncluded(action, config) and (not config.catalog or not config.catalogGroup or config.catalogGroup == "all" or config.catalogGroup == group)
             and (not config.hideEmpty or not pool or #pool.lines > 0) then
             if pool and config.poolMode and config.poolMode ~= "pool" then
                 local override = IC.Actions.Resolve("play:" .. config.poolMode .. ":" .. pool.id)
@@ -56,6 +63,12 @@ function P.StripGeometry(config, count, screenWidth)
     local width = math.max(80, math.min(tonumber(config.stripWidth) or 388, math.max(80, (screenWidth or 1920) - 56)))
     local rows = math.max(1, math.min(4, math.floor(tonumber(config.stripRows) or 1)))
     local maximum = math.max(minimum, math.min(64, tonumber(config.size) or 36))
+    local fixedHeight = tonumber(config.stripHeight)
+    if fixedHeight then
+        fixedHeight = math.max(config.labels and 42 or 28, math.min(500, fixedHeight))
+        maximum = math.min(maximum, fixedHeight - 2 * padding - (config.labels and 14 or 0))
+        rows = math.max(1, math.min(4, math.floor((fixedHeight - 2 * padding + gap) / (maximum + gap + (config.labels and 14 or 0)))))
+    end
     local limit = math.min(48, math.floor((width - 2 * padding + gap) / (minimum + gap)) * rows)
     local controls = count > limit and 48 or 0
     local available = width - 2 * padding - controls
@@ -65,7 +78,7 @@ function P.StripGeometry(config, count, screenWidth)
     local capacity = math.min(48, columns * rows)
     local cellHeight = size + gap + (config.labels and 14 or 0)
     return { width = width, size = size, columns = columns, rows = rows, capacity = capacity, gap = gap, padding = padding,
-        height = padding * 2 + rows * cellHeight - gap, cellHeight = cellHeight, controls = controls }
+        height = fixedHeight or (padding * 2 + rows * cellHeight - gap), cellHeight = cellHeight, controls = controls }
 end
 function P.CatalogGroups(config)
     local groups, byID = {}, {}

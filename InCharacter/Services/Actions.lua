@@ -176,6 +176,7 @@ end
 
 -- Only UI clicks, bindings and slash handlers call this. No event/timer calls it.
 function A.Dispatch(action)
+    if IC.Bars and IC.Bars.editing then return false, "Finish editing layouts before playing an action." end
     if type(action) == "string" then action = A.Resolve(action) end
     if not action then return false, "Unknown action." end
     if action.type == "emote" then

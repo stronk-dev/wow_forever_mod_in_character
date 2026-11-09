@@ -63,7 +63,7 @@ local function levelFrame(depth)
     local level = Menu.levels[depth]
     if level then return level end
     level = CreateFrame("Frame", depth == 1 and "InCharacterMenu" or nil, Menu.catcher, "BackdropTemplate")
-    U.Backdrop(level, C.bg, C.border); level:SetClampedToScreen(true); level:EnableMouse(true)
+    U.GameBackdrop(level); level:SetClampedToScreen(true); level:EnableMouse(true)
     level:EnableMouseWheel(true); level.depth, level.rows, level.offset = depth, {}, 0
     level:SetScript("OnMouseWheel", function(self, delta)
         self.offset = math.max(0, math.min(#self.entries - visible(), self.offset - delta))
@@ -215,6 +215,7 @@ end
 -- anchor: a frame to open beside, or nil to open at the cursor.
 function Menu.Open(anchor)
     if not IC.db then return end
+    if IC.Wheel then IC.Wheel.Close() end; if IC.QuickActions then IC.QuickActions.Close() end
     if not Menu.catcher then Menu.Create() end
     if Menu.IsOpen() then Menu.Close(); return end
     Menu.catcher:Show()

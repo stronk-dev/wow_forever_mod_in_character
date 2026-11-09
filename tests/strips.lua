@@ -44,13 +44,13 @@ return function(IC, test, eq, open)
         local found; for _, action in ipairs(IC.Presentation.BarActions(bar, true)) do if action.id == "emote:wave" then found = true end end
         assert(found)
     end)
-    test("v7 emote bars become compact once without changing text bars position or item choices", function()
+    test("upgrades preserve existing emote presentation and text bar position and item choices", function()
         local db = open(); db.version = 7; local char = IC.Profiles.Character(); char.version = 7
         local emotes = char.layout.bars[1]
         emotes.stripIntroduced, emotes.strip, emotes.labels = nil, nil, true
         emotes.x, emotes.y, emotes.size, emotes.hiddenActions["emote:wave"] = 71, -112, 32, true
         local rp = char.layout.bars[2]; rp.buttonWidth = 220
-        open(db); eq(db.version, 8); assert(emotes.strip); assert(not emotes.labels); eq(emotes.previousGrid.labels, true)
+        open(db); eq(db.version, 9); assert(not emotes.strip); assert(emotes.labels); eq(emotes.previousGrid, nil)
         eq(emotes.x, 71); eq(emotes.y, -112); eq(emotes.size, 32); assert(emotes.hiddenActions["emote:wave"])
         eq(rp.buttonWidth, 220); assert(not rp.strip); eq(rp.buttonStyle, "text")
         emotes.strip, emotes.labels = false, true; open(db); assert(not emotes.strip); assert(emotes.labels)
@@ -62,5 +62,27 @@ return function(IC, test, eq, open)
         open(db); eq(IC.Layout().bars[1].stripWidth, 452); eq(#IC.Presentation.BarActions(IC.Layout().bars[1], true), 0)
         open(db, "Realm:Other"); eq(IC.Layout().bars[1].stripWidth, 388); eq(IC.Layout().bars[1].stripRows, 1)
         open(db); eq(IC.Layout().bars[1].stripRows, 2)
+    end)
+    test("two-axis strip bounds retain readable icons and fit their fixed height with labels", function()
+        for _, labels in ipairs({ false, true }) do for _, height in ipairs({ 20, 42, 80, 160, 500 }) do
+            for count = 1, 90 do
+                local g = IC.Presentation.StripGeometry({ stripWidth = 280, stripHeight = height, labels = labels, size = 36 }, count, 1920)
+                assert(g.size >= 20)
+                for n = 1, math.min(count, g.capacity) do
+                    local bottom = g.padding + math.floor((n - 1) / g.columns) * g.cellHeight + g.size + (labels and 14 or 0)
+                    assert(bottom <= g.height - g.padding)
+                end
+            end
+        end end
+    end)
+    test("new controls merge without changing viewport size launcher actions and per-bar emote overrides", function()
+        local db = open(); local layout = IC.Layout()
+        layout.bars[2].width, layout.bars[2].height = 340, 190
+        layout.bars[1].emoteView = "all"; layout.bars[1].includedActions["emote:hug"] = true
+        layout.launcher.click, layout.launcher.rightClick = "menu", "bars"
+        IC.Profile().quick.style = "panel"; open(db)
+        eq(IC.Layout().bars[2].width, 340); eq(IC.Layout().bars[2].height, 190)
+        eq(IC.Layout().bars[1].emoteView, "all"); assert(IC.Layout().bars[1].includedActions["emote:hug"])
+        eq(IC.Layout().launcher.click, "menu"); eq(IC.Layout().launcher.rightClick, "bars"); eq(IC.Profile().quick.style, "panel")
     end)
 end
