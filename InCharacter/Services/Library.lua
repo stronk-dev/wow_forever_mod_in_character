@@ -1,6 +1,36 @@
 local _, IC = ...
 IC.Library = { packs = {}, order = {} }
 local L = IC.Library
+-- Families group presets in the character switcher and on the RP lines page. A pack names its
+-- family; older packs without one are placed by their id prefix. Order here is display order.
+L.FAMILIES = {
+    { id = "office", label = "The Office", icon = "Interface\\Icons\\INV_Misc_Note_03" },
+    { id = "nlpolitics", label = "Dutch politics", icon = "Interface\\Icons\\INV_Scroll_05" },
+    { id = "dutch", label = "Dutch", icon = "Interface\\Icons\\INV_Misc_Flower_04" },
+    { id = "world", label = "World", icon = "Interface\\Icons\\INV_Misc_Map_01" },
+    { id = "fundubs", label = "Fundubs", icon = "Interface\\Icons\\INV_Mask_01" },
+    { id = "other", label = "Other", icon = "Interface\\Icons\\INV_Misc_Book_09" },
+}
+L.FAMILY = {}; for _, family in ipairs(L.FAMILIES) do L.FAMILY[family.id] = family end
+local PREFIX = { ["office-"] = "office", ["nl-"] = "nlpolitics", ["world-"] = "world", ["dutch-mastermovies"] = "fundubs", ["dutch-"] = "dutch" }
+function L.FamilyOf(id)
+    local pack = L.packs[id]
+    if pack and pack.family and L.FAMILY[pack.family] then return pack.family end
+    for _, prefix in ipairs({ "dutch-mastermovies", "office-", "nl-", "world-", "dutch-" }) do
+        if id:sub(1, #prefix) == prefix then return PREFIX[prefix] end
+    end
+    return "other"
+end
+-- The preset ids in one family, in registration order.
+function L.Members(family)
+    local result = {}
+    for _, id in ipairs(L.order) do if L.FamilyOf(id) == family then result[#result + 1] = id end end
+    return result
+end
+-- The character name a preset plays as ("The Office: Stanley Hudson" -> "Stanley Hudson").
+function L.ShortTitle(id)
+    local pack = L.packs[id]; return pack and (pack.title:match(":%s*(.+)$") or pack.title) or id
+end
 
 function L.Validate(pack)
     if type(pack) ~= "table" or type(pack.id) ~= "string" or not pack.id:match("^[a-z0-9%-]+$") then return false, "Invalid pack ID" end
@@ -22,7 +52,7 @@ function L.Validate(pack)
         for _, line in ipairs(pool.lines) do
             if type(line) ~= "string" or IC.Trim(line) == "" or line:find("[%z\1-\31\127]") then return false, "Invalid line" end
         end
-        if pool.shortcut and pool.shortcut ~= "greetings" and pool.shortcut ~= "quotes" and pool.shortcut ~= "farewells" then return false, "Invalid shortcut" end
+        if pool.shortcut and not (IC.Personas and IC.Personas.ROLE[pool.shortcut]) then return false, "Invalid shortcut" end
     end
     return true
 end

@@ -55,8 +55,7 @@ end
 
 function IC.Help()
     IC.Print("/ic settings · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars · /ic bars one|separate")
-    IC.Print("/ic greet | quote | bye · /ic say <slot> (your character's slots) · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
-    IC.Print("/ic debug shows the last protected-action failure (local information only).")
+    IC.Print("/ic greet | quote | bye | joke | toast | battlecry | banter · /ic say <slot> · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
 end
 
 function IC.Slash(input)
@@ -66,12 +65,6 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
-    elseif command == "debug" then
-        IC.Print("Version " .. IC.version .. "; playing " .. IC.Personas.Name() .. ".")
-        local block = IC.Platform.lastBlockedAction
-        if not block then IC.Print("No protected-action failure captured in this session."); return end
-        IC.Print("Blocked function: " .. block.functionName .. "; chat API taint owner: " .. (block.source or "not reported") .. ".")
-        if block.stack then for line in block.stack:gmatch("[^\n]+") do IC.Print(line) end end
     elseif command == "bars" then
         if rest == "one" or rest == "separate" then IC.Bars.SetMode(rest) else IC.Bars.ToggleAll() end
     elseif command == "character" then
@@ -99,7 +92,8 @@ function IC.Slash(input)
         else IC.Print("Use /ic message <pool ID> <message ID>, or choose a message in the menu.") end
     else
         -- /ic greet | quote | bye, or /ic say <slot name>: that slot for the loaded character.
-        local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
+        local aliases = {}
+        for _, slot in ipairs(IC.Personas and IC.Personas.ROLES or {}) do aliases[slot.command] = slot.id end
         if aliases[command] then IC.Actions.Dispatch("role:" .. aliases[command]); return end
         if command == "say" and IC.Personas then
             local wanted = IC.Trim(rest or ""):lower()

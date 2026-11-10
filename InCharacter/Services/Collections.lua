@@ -58,7 +58,9 @@ end
 -- First the character switcher, then every slot, then extra pools (own, then shared).
 local function roleplay(profile)
     local items, icon = { "character" }, nil
-    for _, role in ipairs(IC.Personas.Slots()) do items[#items + 1] = "role:" .. role.id end
+    for _, role in ipairs(IC.Personas.Slots()) do
+        if not role.optional or IC.Personas.RolePool(role.id) then items[#items + 1] = "role:" .. role.id end
+    end
     for _, id in ipairs(IC.Personas.Extras()) do
         local pool = profile.pools[id]
         if pool then items[#items + 1] = "pool:" .. id; icon = icon or pool.icon end
@@ -135,14 +137,27 @@ end
 local function current(node) return IC.Actions.Current(node) end
 function C.HasChildren(node)
     node = current(node)
-    return node.type == "group" or node.type == "character" or (node.type == "pool" and not node.empty)
+    return node.type == "group" or node.type == "character" or node.type == "family" or (node.type == "pool" and not node.empty)
 end
 function C.Children(node)
     node = current(node)
     if node.type == "group" then return C.Nodes(node.collection) end
+    -- The switcher: characters you made yourself (and whoever you play now), then one row per
+    -- preset family that opens its characters.
     if node.type == "character" then
+        local result, profile, active = {}, IC.Profile(), IC.Personas.Active()
+        for _, id in ipairs(profile.personaOrder) do
+            local actor = profile.personas[id]
+            if actor and (not actor.pack or actor == active) then result[#result + 1] = IC.Actions.Resolve("persona:" .. id) end
+        end
+        for _, family in ipairs(IC.Library and IC.Library.FAMILIES or {}) do
+            local row = IC.Actions.Resolve("family:" .. family.id); if row then result[#result + 1] = row end
+        end
+        return result
+    end
+    if node.type == "family" then
         local result = {}
-        for _, option in ipairs(IC.Personas.Options(true)) do result[#result + 1] = IC.Actions.Resolve("persona:" .. option.value) end
+        for _, id in ipairs(IC.Library.Members(node.family)) do result[#result + 1] = IC.Actions.Resolve("persona:preset:" .. id) end
         return result
     end
     if node.type == "pool" then

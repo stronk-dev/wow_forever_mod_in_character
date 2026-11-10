@@ -33,10 +33,10 @@ local function rowClick(row, mouse)
     local node, depth = row.node, row.depth
     if mouse == "RightButton" then
         if IC.Collections.HasChildren(node) then F.Open(row, node, depth + 1); return end
-        if node.type ~= "group" and node.type ~= "persona" and node.type ~= "character" then IC.Actions.Favorite(node.id); F.Reanchor(); for d = 1, #F.levels do F.Render(d) end end
+        if node.type ~= "group" and node.type ~= "persona" and node.type ~= "character" and node.type ~= "family" then IC.Actions.Favorite(node.id); F.Reanchor(); for d = 1, #F.levels do F.Render(d) end end
         return
     end
-    if node.type == "group" or node.type == "character" then F.Open(row, node, depth + 1); return end
+    if node.type == "group" or node.type == "character" or node.type == "family" then F.Open(row, node, depth + 1); return end
     U.PerformAction(node, F.Close)
 end
 

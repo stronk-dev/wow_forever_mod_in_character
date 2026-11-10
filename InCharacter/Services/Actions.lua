@@ -30,15 +30,27 @@ local function roleNode(role)
     return { id = "role:" .. role, type = "pool", role = role, payload = poolID, name = info.label, label = info.label, shared = from == "shared",
         icon = pool and pool.icon or IC.Defaults.Pool(role, info.label).icon, empty = not pool or #pool.lines == 0 }
 end
+-- persona:<character id> plays a character you have; persona:preset:<pack id> loads a preset
+-- (reusing your copy when you already have one).
 local function personaNode(value)
-    for _, option in ipairs(IC.Personas.Options(true)) do
-        if option.value == value then
-            local actor = IC.Profile().personas[value]
-            local pack = IC.Library and IC.Library.packs[(value:match("^preset:(.+)$")) or (actor and actor.pack) or ""]
-            return { id = "persona:" .. value, type = "persona", payload = value, name = option.label, label = option.label,
-                icon = actor and actor.icon or (pack and pack.icon) or IC.AddonIcon, active = IC.Personas.Active() == actor and actor ~= nil }
-        end
-    end
+    local profile = IC.Profile()
+    local presetID = value:match("^preset:(.+)$")
+    local actor = profile.personas[value]
+    if presetID then
+        if not (IC.Library and IC.Library.packs[presetID]) then return nil end
+        local installed = profile.installedPacks[presetID]
+        actor = installed and installed.persona and profile.personas[installed.persona] or nil
+    elseif not actor then return nil end
+    local pack = IC.Library and IC.Library.packs[presetID or actor.pack or ""]
+    local name = actor and actor.name or IC.Library.ShortTitle(presetID)
+    return { id = "persona:" .. value, type = "persona", payload = value, name = name, label = name, preset = presetID,
+        icon = actor and actor.icon or (pack and pack.icon) or IC.AddonIcon, active = actor ~= nil and IC.Personas.Active() == actor }
+end
+local function familyNode(id)
+    local family = IC.Library and IC.Library.FAMILY[id]
+    if not family or #IC.Library.Members(id) == 0 then return nil end
+    return { id = "family:" .. id, type = "family", family = id, name = family.label, label = family.label, icon = family.icon,
+        count = #IC.Library.Members(id) }
 end
 function A.Resolve(id)
     if type(id) == "string" then
@@ -51,6 +63,8 @@ function A.Resolve(id)
         end
         local persona = id:match("^persona:(.+)$")
         if persona then return personaNode(persona) end
+        local family = id:match("^family:(.+)$")
+        if family then return familyNode(family) end
     end
     if IC.Emotes.byID[id] then
         local action = IC.Copy(IC.Emotes.byID[id])
@@ -165,7 +179,7 @@ function A.Dispatch(action)
         local ok, problem = IC.Personas.Choose(action.payload)
         if ok then IC.Print("Now playing " .. IC.Personas.Name() .. ".") elseif problem then IC.Print(problem) end
         return ok == true, problem
-    elseif action.type == "character" then
+    elseif action.type == "character" or action.type == "family" then
         return false
     elseif action.type == "pool" and action.role and not action.payload then
         IC.Print(IC.Personas.Name() .. " has no " .. action.name .. " lines yet. Add them in /ic lines.")

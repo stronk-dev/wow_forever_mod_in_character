@@ -71,9 +71,9 @@ return function(test, eq, page)
         IC.Dialogue.Save(pool, pool.name, 'SAY', 'shuffle', pool.icon, { 'First', 'Second' })
         local custom = IC.Collections.Create('My combined controls')
         local p = page(IC, 'Lists'); IC.Editor.list = custom.id; IC.Editor.RefreshLists()
-        p.category:Choose('rp'); eq(#p.shown, 3 + 2) -- the three roles, then the Quotes lines
+        p.category:Choose('rp'); eq(#p.shown, 7 + 2) -- every slot, then the Quotes lines
         eq(p.shown[1].id, 'role:greetings')
-        p.libRows[5]:Click('RightButton')
+        p.libRows[9]:Click('RightButton')
         local line = 'line:quotes:' .. pool.lineIDs[2]; assert(IC.Collections.Contains(custom.id, line))
         p.libRows[2]:Click('RightButton'); assert(IC.Collections.Contains(custom.id, 'role:quotes'))
         local layout = page(IC, 'Layout'); layout.wheelRoot:Choose(custom.id); eq(IC.Profile().wheel.root, custom.id)
@@ -126,16 +126,25 @@ return function(test, eq, page)
 
     test('RP lines: make a slot, share a pool, and the RP bar list follows the loaded character', function(IC, Stub)
         local p = page(IC, 'Lines'); local pool = IC.Dialogue.Create('Jokes'); IC.Editor.RefreshLines(); IC.Editor.SelectPool(pool.id)
-        p.role:Choose('+new'); IC.Editor.nameDialog.name:SetText('Joke'); IC.Editor.nameDialog.save:Click()
-        local slot = IC.Personas.Slots()[4]; eq(slot.label, 'Joke'); eq(IC.Personas.RoleOf(pool.id), slot.id)
+        p.role:Choose('+new'); IC.Editor.nameDialog.name:SetText('Pun'); IC.Editor.nameDialog.save:Click()
+        local slots = IC.Personas.Slots(); local slot = slots[#slots]; eq(slot.label, 'Pun'); eq(IC.Personas.RoleOf(pool.id), slot.id)
         eq(p.role.value, slot.id); local hasRename = false
         for _, option in ipairs(p.role.values) do if option.value == '+rename' then hasRename = true end end
         assert(hasRename, 'your own slot can be renamed here')
         p.owner:Choose('shared'); assert(IC.Personas.IsShared(pool.id)); eq(p.owner.value, 'shared')
         local found; for _, row in ipairs(p.rows) do if row:IsShown() and row.poolID == pool.id then found = row end end
-        assert(found.right:GetText():find('shared', 1, true)); assert(found.right:GetText():find('Joke', 1, true))
+        assert(found.right:GetText():find('shared', 1, true)); assert(found.right:GetText():find('Pun', 1, true))
         p.role:Choose('+delete'); assert(IC.Personas.Slot(slot.id), 'first choice only asks')
         p.role:Choose('+delete'); eq(IC.Personas.Slot(slot.id), nil); assert(IC.Profile().pools[pool.id])
         eq(#Stub.sends + #Stub.emotes, 0)
+    end)
+    test('the preset box picks a family, then a character in it', function(IC, Stub)
+        local p = page(IC, 'Lines')
+        p.family:Choose('nlpolitics')
+        local labels = {}; for _, option in ipairs(p.pack.values) do labels[#labels + 1] = option.label end
+        eq(table.concat(labels, ', '), 'Rita Verdonk, Mark Rutte, Jan Peter Balkenende, Pim Fortuyn')
+        p.pack:Choose('nl-rutte'); Stub.Button(p, 'Play as this character'):Click()
+        eq(IC.Personas.Name(), 'Mark Rutte'); eq(#Stub.sends, 0)
+        for _, id in ipairs(IC.Library.order) do assert(IC.Library.FamilyOf(id) ~= 'other', id .. ' has a family') end
     end)
 end

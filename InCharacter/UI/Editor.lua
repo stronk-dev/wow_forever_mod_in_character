@@ -145,8 +145,7 @@ end
 
 -- Lists -------------------------------------------------------------------------------------------
 -- Slim by default: your lists, what is in the selected one, and a searchable library to add from.
--- "Advanced" adds the testing tools (reference sound/animation filters, observations, emotes this
--- client lacks) and nesting one list inside another.
+-- "Advanced" adds nesting one list inside another. Emotes this client lacks are never listed.
 local LA, LB, LC = 0, 210, 470
 local function refName(ref)
     local kind, target = ref:match("^(%a+):(.+)$")
@@ -160,10 +159,6 @@ local function refName(ref)
         or (action.role and "slot") or (action.type == "character" and "switcher")
         or (action.type == "pool" and "lines") or (action.type == "line" and "line") or nil
     return action.name or action.label, action.icon, note
-end
-local function kindLabel(action)
-    local info = IC.Emotes.KindInfo[action.kind] or IC.Emotes.KindInfo.unknown
-    return "|c" .. info.color .. info.label .. "|r"
 end
 -- The library: emotes by category, or the loaded character's lines.
 local function libraryItems()
@@ -187,14 +182,9 @@ local function libraryItems()
         end
         return result
     end
-    local kind = E.advanced and E.kind or "all"
     local source = E.category == "all" and IC.Emotes.list or IC.Emotes.byCategory[E.category] or {}
     for _, emote in ipairs(source) do
-        local keep = kind == "all" or (kind == "sound" and (emote.kind == "sound" or emote.kind == "voice"))
-            or (kind == "animation" and emote.kind == "animation") or (kind == "text" and emote.kind == "text")
-        if kind == "nearby" then keep = IC.Curation.Observation(emote.id).sound == "nearby"
-        elseif kind == "observed" or kind == "textChecked" then keep = IC.Emotes.Matches(emote, kind) end
-        if keep and (emote.verified or (E.advanced and E.showMissing)) and IC.Emotes.Search(emote, query) then result[#result + 1] = IC.Actions.Resolve(emote.id) end
+        if emote.verified and IC.Emotes.Search(emote, query) then result[#result + 1] = IC.Actions.Resolve(emote.id) end
     end
     return result
 end
@@ -251,7 +241,7 @@ function E.RefreshLibrary()
         local inList = IC.Collections.Contains(E.list, action.id)
         row:SetText((inList and "|cff66dd66+|r " or "") .. (action.name or action.label) .. (action.command and ("  |cff888888/" .. action.command .. "|r") or ""))
         U.SetIcon(row.icon, action.icon, IC.Icons[1]); row.icon:SetDesaturated((action.type == "emote" and not action.verified) or action.empty == true)
-        row.right:SetText(action.type == "emote" and (E.advanced and kindLabel(action) or (IC.Emotes.IsAudible(action) and "|cff4fc3f7sound|r" or "")) or (action.role and "|cff888888role|r" or ""))
+        row.right:SetText(action.role and "|cff888888slot|r" or "")
         row:SetSelected(action.id == E.selected); row:Show()
     end
     p.library:SetContentHeight(#items * ROW)
@@ -270,15 +260,10 @@ function E.RefreshDetail()
     d.name:SetText(action.name or action.label)
     local isEmote = action.type == "emote"
     if isEmote then
-        d.info:SetText("/" .. action.command .. (action.verified and "" or "   |cffff7755not on this client|r")
-            .. (IC.Emotes.IsAudible(action) and "   |cff4fc3f7others hear it|r" or ""))
-        local seen = IC.Curation.Observation(action.id)
-        d.sound:SetValue(seen.sound or "unknown"); d.animation:SetValue(seen.animation or "unknown")
+        d.info:SetText("/" .. action.command)
     else
         d.info:SetText("|cffbbbbbb" .. IC.Actions.Description(action) .. "|r")
     end
-    local observe = isEmote and E.advanced == true
-    d.sound:SetShown(observe); d.animation:SetShown(observe); d.observeLabel:SetShown(observe)
     d.rename:SetShown(isEmote); d.renameButton:SetShown(isEmote); d.reset:SetShown(isEmote)
     local override = IC.Profile().emoteOverrides[action.id]
     d.rename:SetText(override and override.label or "")
@@ -338,16 +323,8 @@ local function createLists(p)
     for _, id in ipairs(IC.Emotes.categories) do categories[#categories + 1] = { value = id, label = IC.Emotes.CategoryInfo[id].label } end
     categories[#categories + 1] = { value = "rp", label = "RP character lines" }
     p.category = U.Dropdown(p, LC + 176, -20, PAGE_W - LC - 176, categories, function(value) E.category = value; E.RefreshLibrary() end)
-    p.kind = U.Dropdown(p, LC, -48, 150, {
-        { value = "all", label = "Any kind" }, { value = "nearby", label = "Heard nearby" }, { value = "observed", label = "Animation seen" },
-        { value = "textChecked", label = "Text only, checked" }, { value = "sound", label = "Sound (wiki)" },
-        { value = "animation", label = "Animation (wiki)" }, { value = "text", label = "Text only (wiki)" },
-    }, function(value) E.kind = value; E.RefreshLibrary() end)
-    p.missing = U.Check(p, "Show missing", LC + 158, -48, function(value) E.showMissing = value; E.RefreshLibrary() end)
-    p.missing.caption:SetWidth(PAGE_W - LC - 190)
-    for _, control in ipairs({ p.kind, p.missing }) do p.advancedOnly[#p.advancedOnly + 1] = control end
-    p.library = U.Scroll(p, LC, -76, PAGE_W - LC, 232)
-    p.count = U.Muted(p, "", LC, -310, PAGE_W - LC); p.count:SetWordWrap(false)
+    p.library = U.Scroll(p, LC, -52, PAGE_W - LC, 11 * ROW)
+    p.count = U.Muted(p, "", LC, -306, PAGE_W - LC); p.count:SetWordWrap(false)
     -- Detail of the selected library entry
     p.noDetail = U.Muted(p, "Select an entry to try it, favorite it, rename it or change its icon.", LC, -342, PAGE_W - LC)
     local d = CreateFrame("Frame", nil, p); p.detail = d
@@ -378,21 +355,6 @@ local function createLists(p)
             if action.type == "line" then E.SetMessageView(true); E.SelectMessage(action.lineID) end
         elseif action and action.role then E.Open("Lines") end
     end)
-    d.observeLabel = U.Muted(d, "What you saw on this character:", 0, -106, DW)
-    local function observe()
-        if p.refreshing then return end
-        local record = IC.Curation.Record(E.selected)
-        local ok, problem = IC.Curation.Save(E.selected, record.choice or "pending", d.sound.value, d.animation.value, nil, record.notes, record.iconReviewed)
-        if not ok then status(problem) end
-        E.RefreshLibrary()
-    end
-    d.sound = U.Dropdown(d, 0, -122, (DW - 4) / 2, {
-        { value = "unknown", label = "Heard: not checked" }, { value = "self", label = "Heard: by me" },
-        { value = "nearby", label = "Heard: by others" }, { value = "silent", label = "Heard: nothing" },
-    }, observe)
-    d.animation = U.Dropdown(d, (DW + 4) / 2, -122, (DW - 4) / 2, {
-        { value = "unknown", label = "Seen: not checked" }, { value = "yes", label = "Seen: animation" }, { value = "no", label = "Seen: nothing" },
-    }, observe)
 end
 
 -- RP lines ----------------------------------------------------------------------------------------
@@ -597,15 +559,23 @@ local function createLines(p)
     -- Preset characters
     local lib = U.Panel(p, PAGE_W, 120, C.panel); lib:SetPoint("TOPLEFT", 0, -400)
     U.Label(lib, "Preset characters", 12, -12, nil, "GameFontNormal")
-    local packs = {}
-    for _, id in ipairs(IC.Library.order) do packs[#packs + 1] = { value = id, label = IC.Library.packs[id].title } end
+    -- Family first (The Office, Dutch politics, ...), then a character in it.
+    local families = {}
+    for _, family in ipairs(IC.Library.FAMILIES) do
+        if #IC.Library.Members(family.id) > 0 then families[#families + 1] = { value = family.id, label = family.label } end
+    end
     p.packNote = U.Muted(lib, "", 12, -70, PAGE_W - 24)
-    p.pack = U.Dropdown(lib, 12, -34, 340, packs, function(value)
+    p.pack = U.Dropdown(lib, 178, -34, 200, {}, function(value)
         local pack = IC.Library.packs[value]
         p.packNote:SetText(IC.ShortText(pack.contentNote, 240)); p.pack.tooltip = pack.contentNote .. "\nSource: " .. pack.source
     end)
-    p.pack:Choose(IC.Library.order[1])
-    U.Button(lib, "Play as this character", 360, -34, 200, function()
+    p.family = U.Dropdown(lib, 12, -34, 160, families, function(value)
+        local members = {}
+        for _, id in ipairs(IC.Library.Members(value)) do members[#members + 1] = { value = id, label = IC.Library.ShortTitle(id) } end
+        p.pack:SetOptions(members); if members[1] then p.pack:Choose(members[1].value) end
+    end)
+    p.family:Choose(families[1].value)
+    U.Button(lib, "Play as this character", 384, -34, PAGE_W - 396, function()
         E.StoreDraft(); local ok, problem = IC.Library.Load(p.pack.value)
         if ok then E.poolID = nil; E.RefreshLines(); status("Now playing " .. IC.Personas.Name() .. ". Its lines are your own copy to edit.") else status(problem) end
     end, "accent")

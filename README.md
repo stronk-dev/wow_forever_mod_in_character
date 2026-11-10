@@ -4,7 +4,7 @@ Emotes and roleplay lines for **WoW Forever (interface 16001)**, kept small enou
 
 ## Install
 
-Download **InCharacter-0.14.3.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases) when published, or build it with `python3 scripts/package.py`. Extract it into:
+Download **InCharacter-0.15.0.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/InCharacter/
@@ -12,13 +12,11 @@ World of Warcraft/_forever_/Interface/AddOns/InCharacter/
 
 `InCharacter.toc` must be directly inside that folder. Enable the addon, then `/reload`. Before upgrading, close WoW and back up both `WTF/.../SavedVariables/InCharacter.lua` files.
 
-**Prerelease for in-game testing:** 97 logic tests and 49 isolated mocked UI tests pass on Lua and LuaJIT, and `tests/layout_probe.lua` finds no cut-off or overlapping text on the play surfaces. None of this verifies Blizzard rendering, physical input, chat permissions, emote animations or nearby sound on Forever.
-
 ## Playing in character
 
-Pick your RP character once. Every character shares the same **slots**: **Greeting**, **Quote** and **Farewell**, plus any you add yourself (Joke, Sarcastic farewell, ...). A slot plays the loaded character's own pool for it, or, if the character has none, the **shared** pool for it. A preset character can be fully customised or lean on your shared lines, and you can mix both. Bars, the menu, the wheel, `/ic greet | quote | bye` and `/ic say <slot>` always use the slot, so switching character keeps your layout and only changes what is said. Buttons show the slot name; where a preset came from appears only as a dimmed line in the tooltip.
+Pick your RP character once. Every character shares the same **slots**: **Greeting**, **Quote** and **Farewell**, **Joke**, **Toast**, **Battle cry** and **Banter** (these four show up once your character or a shared pool has lines for them), plus any you add yourself (Pun, Sarcastic farewell, ...). A slot plays the loaded character's own pool for it, or, if the character has none, the **shared** pool for it. A preset character can be fully customised or lean on your shared lines, and you can mix both. Bars, the menu, the wheel, `/ic greet | quote | bye | joke | toast | battlecry | banter` and `/ic say <slot>` always use the slot, so switching character keeps your layout and only changes what is said. Buttons show the slot name; where a preset came from appears only as a dimmed line in the tooltip.
 
-Switch character from the first row of the RP list (on the bar, in the menu or in the wheel), or with `/ic character <name>`.
+Switch character from the first row of the RP list (on the bar, in the menu or in the wheel), or with `/ic character <name>`. It lists the characters you made, then one row per preset family (The Office, Dutch politics, Dutch, World, Fundubs) that opens its characters.
 
 ## What you see while playing
 
@@ -34,16 +32,16 @@ Play controls work in combat; the client may still restrict chat or emotes. Sett
 
 ## Settings (`/ic`, Options → AddOns, or right-click the launcher)
 
-- **Emotes & lists:** your lists on the left, what is in the selected list in the middle (Up / Down / Remove), and a searchable library on the right (every emote, a category, or your character's lines). Right-click a library row to add or remove it. Select an entry to try it, favorite it, rename it or change its icon. **Advanced** adds the testing tools: wiki sound/animation filters, emotes this client lacks, recording what you and others saw and heard, and nesting one list inside another.
-- **RP lines:** choose or create the character you're playing. Edit its pools: name, **Used by** (only this character, or shared by all characters), **Slot** (Greeting / Quote / Farewell / your own / none; the same menu creates, renames and deletes your own slots), Say, Yell or Emote text, shuffle, random or in order, one line per row with a byte counter. Individual messages keep their button IDs when edited. **Play as this character** turns a preset (Stanley, Mastermovies / Michael Nicht, other Office characters, everyday Dutch; see [LIBRARY.md](LIBRARY.md)) into your own editable copy.
+- **Emotes & lists:** your lists on the left, what is in the selected list in the middle (Up / Down / Remove), and a searchable library on the right (every emote, a category, or your character's lines). Right-click a library row to add or remove it. Select an entry to try it, favorite it, rename it or change its icon. **Advanced** adds nesting one list inside another. Each emote sits in exactly one category.
+- **RP lines:** choose or create the character you're playing. Edit its pools: name, **Used by** (only this character, or shared by all characters), **Slot** (Greeting / Quote / Farewell / your own / none; the same menu creates, renames and deletes your own slots), Say, Yell or Emote text, shuffle, random or in order, one line per row with a byte counter. Individual messages keep their button IDs when edited. **Play as this character** turns a preset (The Office characters, Dutch politicians, Mastermovies' Michael Nicht, Dutch sayings and everyday Dutch, and world characters: tavern regular, adventurer, merchant; see [LIBRARY.md](LIBRARY.md)) into your own editable copy.
 - **Layout & keys:** one bar or separate bars, Move & edit bars, hide bars; the launcher (shown, size); the wheel (key, click or hold, which list, icon size); the emote menu (key, which list); favorite keys 1–4.
 - **Profiles:** shared or per-character data and layouts, and reset.
 
 **Move & edit bars** (`/ic edit`, Shift-right-click a bar, or Blizzard's Edit Mode where supported) tints every bar and shows its name *on* the bar. Drag to move. Click a bar and a small panel opens next to it with: one bar or separate bars, which list it shows, size, per row, vertical, names, hidden, locked, delete, + Bar, and Undo all. Drag the panel's header to place it anywhere; its position is saved with the active character/shared layout and stays put when selecting another bar or the launcher. **Follow bar** restores automatic docking. Leaving Edit Mode or entering combat stops settings, bar, resize and launcher drags. Clicks select here and never play anything. The addon uses Blizzard's `EditMode.Enter` / `EditMode.Exit` callbacks; addon layouts remain in its own SavedVariables.
 
-## Emote facts
+## Emotes and icons
 
-Sound and animation labels come from the [Warcraft Wiki emote table](https://warcraft.wiki.gg/wiki/List_of_emotes), which documents Retail, and are marked as reference. The small blue dot on a button means *you recorded that others heard it*. Whether an emote exists comes from the running client. Emotes the client doesn't know are hidden on bars, wheel and menu but stay in your lists.
+Which emotes exist comes from the running client; emotes it doesn't know are hidden on bars, wheel and menu but stay in your lists. Every emote has one icon chosen to match it (faces for moods, thumbs for yes/no, a chat bubble for talking, a toy train for /train). Pick your own from the detail panel at any time; your choice always wins.
 
 ## Commands
 
@@ -53,7 +51,8 @@ Sound and animation labels come from the [Warcraft Wiki emote table](https://war
 /ic bars                  hide / show bars    /ic lines      RP lines page
 /ic bars one | separate   switch bar layout
 /ic greet | quote | bye   your character's Greeting / Quote / Farewell
-/ic say <slot>            any slot by name, e.g. /ic say joke
+/ic joke | toast | battlecry | banter    the other built-in slots
+/ic say <slot>            any slot by name, e.g. /ic say pun
 /ic <pool>                a pool by name: your character's own first, then shared ones
 /ic play random|shuffle|sequential <pool>     /ic character <name>
 /ic message <pool ID> <message ID>            /ic help
@@ -66,7 +65,7 @@ If another addon owns `/ic`, use `/incharacter`. No keys are assigned automatica
 - **Sends only on your input:** a click, a key or a slash command. There is no timed or automatic chat, no macro text, and no spells, items or targeting. Hovering never sends.
 - **Message length:** lines are stored at any length. A line is sent only if it fits **255 bytes after pipe escaping**. Lines are never split or truncated.
 - **Chat restrictions:** chat is submitted directly from your click or key action, following [Charades' send path](https://github.com/damesene/wow-charades/blob/main/Actions.lua). Permission checks are sampled at initialization, world entry, combat transitions and addon-restriction changes; the input handler reads that snapshot without invoking protected-call wrappers. The native chat API still enforces current restrictions. Playback commits only after the send returns successfully. A reported lockdown, explicit refusal, thrown error or synchronous blocked-action event leaves playback unchanged. Nothing is queued or retried. A nil API return is not a delivery receipt.
-- **RP send candidate in 0.14.3:** dropdowns, bars and the wheel now dispatch before closing their input surface; failed actions leave the surface open. Together with moving permission queries out of the click stack, this addresses differences found along the reported `Flyout/Wheel → Actions.Dispatch → Platform.SendChat` paths. The reported live `UNKNOWN()` protected-action failure is **not yet confirmed resolved in Forever**. `/ic debug` retains the captured protected-function name, API taint owner when available, and call stack locally. One click/key action still submits one message, without a native-chat draft or additional confirmation step.
+- **Upgrading to 0.15, once:** the built-in categories get the new icons (only where you kept the default) and Playful loses Cheer, Laugh and Kiss, which live in Reactions and Greetings; new playful emotes your client knows are added.
 - **Saved data:** `InCharacterDB` (shared) and `InCharacterCharDB` (per character).
 - **Upgrading to 0.14 (schema 13), once:** lists earlier versions generated by themselves ("My wheel", "Wheel / …", "Menu / …", one copy per old bar) move out of sight into the save (`profile.retired.collections`), unless a list you made or your favorites point to one; those are kept as ordinary lists. The wheel and menu go back to the built-in lists. Old bars stay in the save, unused (`layout.retired`); the main bar keeps the old main bar's position, size and hidden state, and if you had no visible bars it stays hidden. Pool names that start with their exact preset title lose that "<preset> / " prefix once; names you type later are never changed. Each character's Greeting / Quote / Farewell slots are filled from its pools once; a slot you empty stays empty. Pools, lines, characters, favorites and your own lists are kept.
 

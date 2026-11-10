@@ -98,18 +98,6 @@ return function(test, eq, page)
             end
         end
     end)
-    test("heard-nearby filtering uses character observations instead of Retail reference metadata", function(IC, Stub)
-        local p = page(IC, "Lists"); p.advanced:SetChecked(true); p.advanced:Click()
-        p.kind:Choose("nearby"); eq(#p.shown, 0)
-        IC.Curation.Save("emote:wave", "keep", "nearby", "yes")
-        IC.Curation.Save("emote:cheer", "keep", "self", "yes")
-        IC.Editor.RefreshLibrary(); eq(#p.shown, 1); eq(p.shown[1].id, "emote:wave")
-        p.kind:Choose("observed"); eq(#p.shown, 2)
-        IC.Curation.Save("emote:dance", "keep", "silent", "no")
-        p.kind:Choose("textChecked"); eq(#p.shown, 1); eq(p.shown[1].id, "emote:dance")
-        eq(#Stub.sends + #Stub.emotes, 0)
-    end)
-
     test("unlimited pools use a bounded scrolling flyout and the last line remains directly usable", function(IC, Stub)
         local pool = IC.Profile().pools.quotes
         local lines = {}; for i = 1, 120 do lines[i] = "Exact message " .. i end

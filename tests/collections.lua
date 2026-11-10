@@ -37,7 +37,7 @@ return function(IC, test, eq, open)
         IC.Profile().favorites = { "emote:wave", "emote:dance", "emote:cheer", "pool:greetings" }
         IC.Profile().pools.greetings.lines = { "hello" }
         local nodes = C.Nodes("main")
-        eq(ids(nodes), "emote:wave emote:cheer pool:greetings set:Combat set:Social set:Reactions set:Voice/Fun set:rp")
+        eq(ids(nodes), "emote:wave emote:cheer pool:greetings set:Combat set:Social set:Reactions set:rp")
         eq(nodes[1].segment, 1); eq(nodes[3].segment, 1); eq(nodes[4].segment, 2); eq(nodes[4].type, "group")
         eq(IC.Profile().favorites[2], "emote:dance")
         eq(ids(C.Children(nodes[4])), "emote:charge")

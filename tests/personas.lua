@@ -4,8 +4,8 @@ return function(IC, test, eq, open)
     test("loaded RP characters own arbitrary pools while presets stay separate", function()
         open(); local custom = IC.Personas.Active(); local joke = IC.Dialogue.Create("Dry jokes")
         assert(contains(custom.poolIDs, joke.id)); local stanley = actor("office-stanley")
-        eq(stanley.name, "Stanley Hudson"); eq(#stanley.poolIDs, 3); assert(not IC.Personas.HasPool(joke.id))
-        local dutch = actor("dutch-mastermovies"); eq(dutch.name, "Michael Nicht"); eq(#dutch.poolIDs, 3)
+        eq(stanley.name, "Stanley Hudson"); eq(#stanley.poolIDs, #IC.Library.packs["office-stanley"].pools); assert(not IC.Personas.HasPool(joke.id))
+        local dutch = actor("dutch-mastermovies"); eq(dutch.name, "Michael Nicht"); eq(#dutch.poolIDs, 4)
         for _, id in ipairs(stanley.poolIDs) do assert(not IC.Personas.HasPool(id)) end
         IC.Personas.Load(custom.id); assert(IC.Personas.HasPool(joke.id))
     end)
@@ -14,7 +14,7 @@ return function(IC, test, eq, open)
         pool.lines[1] = "My edited line"; local count = #IC.Profile().poolOrder
         actor("dutch-mastermovies"); local again = actor("office-stanley")
         eq(again.id, first.id); eq(IC.Profile().pools[first.poolIDs[1]].lines[1], "My edited line")
-        eq(#IC.Profile().poolOrder, count + 3)
+        eq(#IC.Profile().poolOrder, count + #IC.Library.packs["dutch-mastermovies"].pools)
     end)
     test("RP playback rejects foreign pools exact messages and mode overrides before selection", function()
         open(); local a = actor("office-stanley"); local p = IC.Profile().pools[a.poolIDs[1]]
@@ -26,10 +26,12 @@ return function(IC, test, eq, open)
         eq(calls, 0); eq(next(IC.Dialogue.states), nil); C_ChatInfo = nil
     end)
     test("shortcuts never fall back to a different loaded character's missing line type", function()
-        open(); actor("office-stanley"); local onlyQuotes = actor("office-michael"); local sends = {}
+        open(); actor("office-stanley"); local angela = actor("office-angela"); local sends = {}
         C_ChatInfo = { SendChatMessage = function(text) sends[#sends + 1] = text end }
-        IC.Slash("greet"); IC.Slash("bye"); eq(#sends, 0)
-        IC.Slash("quote"); eq(#sends, 1); eq(sends[1], IC.Profile().pools[onlyQuotes.poolIDs[1]].lines[1]); C_ChatInfo = nil
+        IC.Slash("greet"); eq(#sends, 0, "Angela has no greetings and never borrows Stanley's")
+        IC.Slash("quote"); eq(#sends, 1)
+        local quotes = IC.Profile().pools[IC.Personas.RolePool("quotes")]
+        assert(contains(quotes.lines, sends[1])); assert(contains(angela.poolIDs, quotes.id)); C_ChatInfo = nil
     end)
     test("the loaded character persists separately for each WoW character and profile scope", function()
         local db = open(); local stanley = actor("office-stanley")
@@ -100,11 +102,11 @@ return function(IC, test, eq, open)
     end)
     test("your own slots appear for every character and play that character's pool, else the shared one", function()
         open(); local sent = {}; C_ChatInfo = { SendChatMessage = function(text) sent[#sent + 1] = text end }
-        local joke = assert(IC.Personas.CreateSlot("Joke"))
-        assert(not IC.Personas.CreateSlot("joke"), "names are unique"); assert(not IC.Personas.CreateSlot("Greeting"))
+        local joke = assert(IC.Personas.CreateSlot("Pun"))
+        assert(not IC.Personas.CreateSlot("pun"), "names are unique"); assert(not IC.Personas.CreateSlot("Greeting"))
         assert(not IC.Personas.RenameSlot("greetings", "Hi"), "built-in slots keep their names")
         assert(IC.Collections.Contains("rp", "role:" .. joke.id))
-        eq(IC.Actions.Resolve("role:" .. joke.id).name, "Joke")
+        eq(IC.Actions.Resolve("role:" .. joke.id).name, "Pun")
         assert(not IC.Actions.Dispatch("role:" .. joke.id)); eq(#sent, 0)
         -- A shared Joke pool: every character without its own uses it.
         local general = IC.Dialogue.Create("General jokes"); general.lines = { "shared joke" }; IC.Dialogue.EnsureLines(general)
@@ -116,7 +118,7 @@ return function(IC, test, eq, open)
         -- Stanley gets his own Joke pool; it wins over the shared one for him only.
         local own = IC.Dialogue.Create("Stanley jokes"); own.lines = { "own joke" }; IC.Dialogue.EnsureLines(own)
         assert(IC.Personas.SetRole(joke.id, own.id)); id, from = IC.Personas.RolePool(joke.id); eq(id, own.id); eq(from, "own")
-        IC.Slash("say joke"); eq(sent[2], "own joke")
+        IC.Slash("say pun"); eq(sent[2], "own joke")
         local stanley = IC.Personas.Active().id
         local other = IC.Personas.Create("Someone else"); IC.Personas.Load(other.id)
         eq((IC.Personas.RolePool(joke.id)), general.id, "other characters still fall back to the shared pool")
@@ -135,7 +137,7 @@ return function(IC, test, eq, open)
         assert(not IC.Collections.Contains("rp", "role:" .. slot.id)); assert(IC.Profile().pools[pool.id], "the pool is kept")
         eq(IC.Personas.RoleOf(pool.id), nil)
         -- Survives reload, and moving a pool back to one character keeps its slot.
-        local again = assert(IC.Personas.CreateSlot("Joke")); local shared = IC.Dialogue.Create("Shared")
+        local again = assert(IC.Personas.CreateSlot("Pun")); local shared = IC.Dialogue.Create("Shared")
         IC.Personas.SetShared(shared.id, true); IC.Personas.SetRole(again.id, shared.id)
         IC.db = IC.Profiles.Open({ version = 13, profiles = { account = IC.Profile() } }, IC.Profiles.Character())
         eq((IC.Personas.RolePool(again.id)), shared.id)
@@ -159,5 +161,28 @@ return function(IC, test, eq, open)
         local found, problem = IC.Personas.FindPool("General jokes"); eq(found, nil); assert(problem:find("Ambiguous", 1, true))
         eq(IC.Personas.FindPool(general.id), general, "an exact ID still works")
         C_ChatInfo = nil
+    end)
+    test("Joke, Toast, Battle cry and Banter appear on the RP list only once there are lines for them", function()
+        open(); local sent = {}; C_ChatInfo = { SendChatMessage = function(text) sent[#sent + 1] = text end }
+        assert(not IC.Collections.Contains("rp", "role:jokes"), "an empty optional slot stays off the bar")
+        assert(IC.Collections.Contains("rp", "role:greetings"), "the core three always show")
+        assert(IC.Library.Load("world-tavern"))
+        for _, slot in ipairs({ "jokes", "toasts", "battlecries", "banter" }) do
+            assert(IC.Collections.Contains("rp", "role:" .. slot), slot)
+            assert(IC.Personas.RolePool(slot), slot .. " filled from the preset")
+        end
+        IC.Slash("joke"); IC.Slash("toast"); IC.Slash("battlecry"); IC.Slash("banter"); eq(#sent, 4)
+        C_ChatInfo = nil
+    end)
+    test("every emote word has exactly one icon and no two choices share artwork", function()
+        local words, paths = {}, {}
+        for _, choice in ipairs(IC.IconChoices) do
+            assert(not paths[choice.path], "icon used twice: " .. choice.path); paths[choice.path] = true
+            for word in choice.search:gmatch("%S+") do
+                assert(not words[word], "word mapped twice: " .. word); words[word] = true
+                eq(IC.EmoteIcons[word], choice.path)
+            end
+        end
+        assert(not IC.EmoteIcons.train:find("EngGizmos", 1, true), "train is a train")
     end)
 end

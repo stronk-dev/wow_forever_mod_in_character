@@ -64,17 +64,18 @@ test("every page builds, old page names still open and switching sends nothing",
     eq(#Stub.sends, 0); eq(#Stub.emotes, 0)
 end)
 
-test("lists page filters the library by sound, searches aliases and edits list membership", function(IC, Stub)
+test("lists page searches aliases, shows no testing labels and edits list membership", function(IC, Stub)
     local p = page(IC, "Lists")
     IC.Editor.list = "Combat"; IC.Editor.RefreshLists()
-    assert(not p.kind:IsShown(), "testing filters stay behind Advanced")
-    p.advanced:SetChecked(true); p.advanced:Click(); assert(p.kind:IsShown())
-    p.missing:SetChecked(true); p.missing:Click()
-    p.kind:Choose("sound"); assert(#p.shown > 10)
-    for _, action in ipairs(p.shown) do assert(action.kind == "sound" or action.kind == "voice", action.id) end
-    p.kind:Choose("all"); p.search:SetText("sob"); eq(p.shown[1].id, "emote:cry")
-    p.libRows[1]:Click("RightButton"); assert(IC.Collections.Contains("Combat", "emote:cry"))
-    p.libRows[1]:Click("RightButton"); assert(not IC.Collections.Contains("Combat", "emote:cry"))
+    assert(type(p.kind) ~= "table" and p.missing == nil and p.detail.sound == nil, "no testing filters")
+    for _, row in ipairs(p.libRows) do
+        local right = row.right:GetText() or ""
+        assert(not right:find("ref", 1, true) and not right:find("checked", 1, true), right)
+    end
+    p.advanced:SetChecked(true); p.advanced:Click()
+    p.search:SetText("joke"); eq(p.shown[1].id, "emote:silly")
+    p.libRows[1]:Click("RightButton"); assert(IC.Collections.Contains("Combat", "emote:silly"))
+    p.libRows[1]:Click("RightButton"); assert(not IC.Collections.Contains("Combat", "emote:silly"))
     local before = IC.Collections.Refs("Combat")[1]
     p.itemRows[1]:Click(); Stub.Button(p, "Down"):Click(); eq(IC.Collections.Refs("Combat")[2], before)
     Stub.Button(p, "Remove"):Click(); assert(not IC.Collections.Contains("Combat", before))
@@ -85,16 +86,18 @@ test("lists page filters the library by sound, searches aliases and edits list m
     eq(#Stub.sends + #Stub.emotes, 0)
 end)
 
-test("library detail tries, renames and records what others heard; bars follow", function(IC, Stub)
+test("library detail tries and renames; bars follow; tooltips carry no test status", function(IC, Stub, env)
     local p = page(IC, "Lists"); local d = p.detail
     IC.Editor.selected = "emote:wave"; IC.Editor.RefreshLibrary()
     Stub.Button(d, "Try it"):Click(); eq(Stub.emotes[1], "WAVE")
     d.rename:SetText("Hiya"); Stub.Button(d, "Rename"):Click()
     IC.Editor.frame:Hide()
     local wave = IC.Bars.frames[1].actionButtons[1]; eq(wave.node.name, "Hiya"); eq(wave.node.payload, "WAVE"); assert(not wave.dot:IsShown())
-    page(IC, "Lists"); IC.Editor.advanced = true; IC.Editor.selected = "emote:wave"; IC.Editor.RefreshLibrary(); d.sound:Choose("nearby")
-    eq(IC.Curation.Observation("emote:wave").sound, "nearby"); IC.Editor.frame:Hide(); IC.Refresh()
-    assert(IC.Bars.frames[1].actionButtons[1].dot:IsShown())
+    local lines = {}; local add = env.GameTooltip.AddLine
+    env.GameTooltip.AddLine = function(_, text) lines[#lines + 1] = text end
+    wave:Fire("OnEnter"); env.GameTooltip.AddLine = add; local tip = table.concat(lines, " | "); eq(tip, "/wave")
+    assert(not tip:find("checked", 1, true), tip); wave:Fire("OnLeave")
+    page(IC, "Lists"); IC.Editor.selected = "emote:wave"; IC.Editor.RefreshLibrary()
     Stub.Button(d, "Reset"):Click(); eq(IC.Actions.Resolve("emote:wave").name, "Wave")
 end)
 
@@ -160,7 +163,7 @@ test("ring: the RP slice offers the character switcher and the role words", func
     pointAt(Stub, IC, ringSlot(IC, "set:rp")); eq(IC.Wheel.label:GetText(), "Stanley Hudson")
     IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
     local names = {}; for i, item in ipairs(IC.Wheel.items) do names[i] = item.name end
-    eq(table.concat(names, ","), "Stanley Hudson,Greeting,Quote,Farewell")
+    eq(table.concat(names, ","), "Stanley Hudson,Greeting,Quote,Farewell,Joke,Battle cry,Banter")
     pointAt(Stub, IC, ringSlot(IC, "role:quotes")); IC.Wheel.catcher:Fire("OnMouseDown", "LeftButton")
     eq(#Stub.sends, 1); assert(not IC.Wheel.open)
 end)
@@ -270,7 +273,7 @@ test("native blocked-chat events preserve selection even when the send API retur
             event(blockedEvent, "InCharacter", "C_ChatInfo.SendChatMessage()")
         end
         local ok, reason = IC.Actions.Dispatch("pool:quotes")
-        assert(not ok and reason:find("C_ChatInfo.SendChatMessage()", 1, true)); eq(IC.Dialogue.states.quotes, nil)
+        eq(ok, false); eq(reason, "The game blocked this message."); eq(IC.Dialogue.states.quotes, nil)
         eq(#Stub.sends, 0)
     end
     env.C_ChatInfo.SendChatMessage = function(text, channel)
@@ -279,22 +282,16 @@ test("native blocked-chat events preserve selection even when the send API retur
     end
     assert(IC.Actions.Dispatch("pool:quotes")); eq(Stub.sends[1][1], "first")
 end)
-test("blocked chat names the protected endpoint and API taint owner without retrying", function(IC, Stub, env, event)
+test("blocked chat is reported plainly, never retried, and there is no debug command", function(IC, Stub, env, event)
     local pool = IC.Profile().pools.quotes; pool.lines = { "One user action" }
     local calls = 0
-    env.issecurevariable = function(owner, key)
-        eq(owner, env.C_ChatInfo); eq(key, "SendChatMessage"); return false, "OtherChatAddon"
-    end
-    env.debugstack = function() return "Native chat block stack" end
     env.C_ChatInfo.SendChatMessage = function()
         calls = calls + 1; event("ADDON_ACTION_BLOCKED", "InCharacter", "C_ChatInfo.SendChatMessage()")
     end
     local ok, reason = IC.Actions.Dispatch("pool:quotes")
     assert(not ok); eq(calls, 1); eq(#Stub.sends, 0); eq(IC.Dialogue.states.quotes, nil)
-    assert(reason:find("OtherChatAddon", 1, true)); assert(reason:find("C_ChatInfo.SendChatMessage()", 1, true))
-    eq(IC.Platform.lastBlockedAction.source, "OtherChatAddon")
-    eq(IC.Platform.lastBlockedAction.stack, "Native chat block stack")
-    IC.Slash("debug"); assert(Stub.messages[#Stub.messages]:find("Native chat block stack", 1, true))
+    eq(reason, "The game blocked this message.")
+    eq(IC.Platform.lastBlockedAction, nil)
     eq(calls, 1); eq(#Stub.sends, 0)
 end)
 assert(loadfile("tests/ui_collections.lua"))()(test, eq, page)

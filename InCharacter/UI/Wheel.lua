@@ -33,6 +33,7 @@ function W.Current() return W.stack[#W.stack] end
 local function detail(node)
     if node.type == "group" then return #IC.Collections.Nodes(node.collection) .. " items" end
     if node.type == "character" then return "switch character" end
+    if node.type == "family" then return node.count .. " characters" end
     if node.type == "persona" then return node.active and "playing now" or "play as" end
     if node.type == "pool" then
         node = IC.Actions.Current(node)
@@ -144,7 +145,7 @@ function W.Use(mouse)
     local button = W.hover
     if not button then return false end
     local node = button.node
-    if node.type == "group" or node.type == "character" then W.Enter(node); return true end
+    if node.type == "group" or node.type == "character" or node.type == "family" then W.Enter(node); return true end
     if mouse == "RightButton" then
         if node.type == "pool" and IC.Collections.HasChildren(node) then W.Enter(node); return true end
         return false
@@ -226,7 +227,7 @@ function W.Binding(keystate)
             W.Track()
             local node = W.hover and W.hover.node
             -- Releasing on a group or the character opens it and leaves the ring open for a click.
-            if W.moved and node and (node.type == "group" or node.type == "character") then W.Enter(node); return end
+            if W.moved and node and (node.type == "group" or node.type == "character" or node.type == "family") then W.Enter(node); return end
             if not (W.moved and node and W.Use("LeftButton")) then W.Close() end
         end
         -- Click mode stays open after the key is released; the next key press closes it.

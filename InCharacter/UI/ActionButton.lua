@@ -40,10 +40,11 @@ function U.ActionTooltip(owner, node, anchor)
     else
         GameTooltip:SetText(node.fullName or node.name or node.label, 1, 1, 1)
         if node.type == "emote" then
-            GameTooltip:AddLine("/" .. node.command .. "  " .. IC.Emotes.Badge(node), 0.75, 0.75, 0.75)
+            GameTooltip:AddLine("/" .. node.command, 0.75, 0.75, 0.75)
         elseif node.type == "pool" then poolLines(node)
         elseif node.type == "group" then GameTooltip:AddLine(#IC.Collections.Nodes(node.collection) .. " items", 0.75, 0.75, 0.75)
         elseif node.type == "character" then GameTooltip:AddLine("Your RP character · click to switch", 0.75, 0.75, 0.75)
+        elseif node.type == "family" then GameTooltip:AddLine(node.count .. " preset characters", 0.75, 0.75, 0.75)
         elseif node.type == "persona" then GameTooltip:AddLine(node.active and "Playing now" or "Click to play as this character", 0.75, 0.75, 0.75) end
     end
     GameTooltip:Show()
@@ -106,7 +107,7 @@ end
 function U.ActionClick(button, mouse)
     local node = button.node
     if not node then return false end
-    if node.type == "group" or node.type == "character" or (node.type == "pool" and mouse == "RightButton") then
+    if node.type == "group" or node.type == "character" or node.type == "family" or (node.type == "pool" and mouse == "RightButton") then
         IC.Flyout.Toggle(button, node); return true
     end
     if mouse ~= "LeftButton" then return false end

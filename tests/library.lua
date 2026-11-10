@@ -28,9 +28,17 @@ return function(IC, test, eq, open)
     end)
     test("user supplied Stanley and Mastermovies phrases remain verbatim", function()
         local stanley, dutch = IC.Library.packs["office-stanley"], IC.Library.packs["dutch-mastermovies"]
-        eq(#stanley.pools[1].lines, 5); eq(#stanley.pools[2].lines, 5); eq(#stanley.pools[3].lines, 4)
-        eq(stanley.pools[1].lines[4], "I'll give you a billion Stanley Nickels if you never talk to me again.")
-        eq(stanley.pools[2].lines[3], "Boy, have you lost your mind? 'Cause I'll help you find it!")
+        local function slot(pack, id) for _, pool in ipairs(pack.pools) do if pool.shortcut == id then return pool.lines end end end
+        local owner = {
+            greetings = { "Leave me alone.", "What do you want?", "Oh, for the love of God.",
+                "I'll give you a billion Stanley Nickels if you never talk to me again.", "Why don't you mind your business?" },
+            quotes = { "Did I stutter?", "And shove it up your butt!", "Boy, have you lost your mind? 'Cause I'll help you find it!",
+                "You are a professional idiot.", "You've been meatballed!" },
+            farewells = { "Night, everybody.", "It is five o'clock. I will see you all tomorrow.", "Good day.", "Leave me alone, damn it!" },
+        }
+        for id, lines in pairs(owner) do
+            for i, line in ipairs(lines) do eq(slot(stanley, id)[i], line, "owner line kept in place") end
+        end
         eq(#dutch.pools[1].lines, 5); eq(#dutch.pools[2].lines, 6); eq(#dutch.pools[3].lines, 2)
         eq(dutch.pools[1].lines[4], "wat moet je kutt")
         eq(dutch.pools[2].lines[4], "Born to be Alive is niet van de Village People!")

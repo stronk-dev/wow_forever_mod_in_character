@@ -51,7 +51,8 @@ function U.SetIcon(texture, path, fallback)
     local chosen = path or fallback or question
     local ok, result = pcall(texture.SetTexture, texture, chosen)
     if not ok or result == false then
-        local replacement = fallback or question
+        -- A newer icon the client may lack names an older stand-in (Data/Icons.lua).
+        local replacement = (IC.IconFallback and IC.IconFallback[chosen]) or fallback or question
         ok, result = pcall(texture.SetTexture, texture, replacement)
         if not ok or result == false then pcall(texture.SetTexture, texture, question) end
     end

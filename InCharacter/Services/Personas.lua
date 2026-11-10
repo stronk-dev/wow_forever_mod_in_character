@@ -11,6 +11,11 @@ R.ROLES = {
     { id = "greetings", label = "Greeting", command = "greet" },
     { id = "quotes", label = "Quote", command = "quote" },
     { id = "farewells", label = "Farewell", command = "bye" },
+    -- Shown on the RP list only when the character (or a shared pool) has lines for them.
+    { id = "jokes", label = "Joke", command = "joke", optional = true },
+    { id = "toasts", label = "Toast", command = "toast", optional = true },
+    { id = "battlecries", label = "Battle cry", command = "battlecry", optional = true },
+    { id = "banter", label = "Banter", command = "banter", optional = true },
 }
 R.ROLE = {}; for _, role in ipairs(R.ROLES) do R.ROLE[role.id] = role end
 local function shared(profile)

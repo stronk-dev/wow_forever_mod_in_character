@@ -43,6 +43,20 @@ return function(IC, test, eq, open)
         eq(c.unused, nil); assert(IC.Profile().retired.collections.unused)
         eq(ids('g1'), 'set:g2'); eq(ids('g2'), 'set:g3 emote:cheer'); eq(ids('g3'), 'emote:wave')
     end)
+    test('0.15 upgrade: default category icons update, Playful loses duplicates, custom icons stay', function()
+        local p = IC.Defaults.Profile(); IC.Collections.Ensure(p)
+        p.collections.Combat.icon = 'Interface\\Icons\\Ability_Warrior_BattleShout'
+        p.collections.Social.icon = 'my-own-icon'
+        p.collections['Voice/Fun'].items = { 'emote:chicken', 'emote:cheer', 'emote:laugh', 'emote:kiss' }
+        p.contentVersion = nil
+        IC.db = IC.Profiles.Open({ version = 13, profiles = { account = p } }, { version = 13 })
+        local c = IC.Profile().collections
+        eq(c.Combat.icon, IC.Emotes.CategoryInfo.Combat.icon); eq(c.Social.icon, 'my-own-icon')
+        for _, ref in ipairs(c['Voice/Fun'].items) do assert(ref ~= 'emote:cheer' and ref ~= 'emote:laugh' and ref ~= 'emote:kiss', ref) end
+        eq(c['Voice/Fun'].items[1], 'emote:chicken')
+        c.Combat.icon = 'changed later'; IC.db = IC.Profiles.Open({ version = 13, profiles = { account = IC.Profile() } }, { version = 13 })
+        eq(IC.Profile().collections.Combat.icon, 'changed later', 'runs once')
+    end)
     test('upgrades keep a hidden or empty bar layout hidden and keep hide-all', function()
         for _, bars in ipairs({ {}, { { collection = 'main', name = 'Main bar', hidden = true } } }) do
             local char = { version = 12, layout = { bars = bars, barsHidden = (#bars == 0) or nil, launcher = {} } }

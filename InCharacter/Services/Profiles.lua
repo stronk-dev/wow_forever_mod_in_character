@@ -48,7 +48,7 @@ local function CompleteProfile(profile, database, observations)
         end
     end
     profile.favorites = favorites
-    if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile) end
+    if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile); IC.Migrations.Content(profile) end
     return profile
 end
 

@@ -77,6 +77,34 @@ function M.Profile(profile)
     profile.cleanInterface = 1
 end
 
+-- 0.15, once: the built-in categories get the new icons (only where the old default is still
+-- set) and Playful loses the emotes that also live in Reactions/Greetings. New playful emotes
+-- this client knows are added. Lists the player made are not touched.
+local OLD_CATEGORY_ICONS = {
+    favorites = "Spell_Holy_PowerInfusion", Combat = "Ability_Warrior_BattleShout", Social = "Spell_Holy_PrayerOfHealing", Reactions = "Spell_Holy_MindVision",
+    Idle = "Spell_Nature_Sleep", ["Voice/Fun"] = "Ability_Druid_DemoralizingRoar",
+}
+local MOVED_OUT_OF_PLAYFUL = { ["emote:cheer"] = true, ["emote:laugh"] = true, ["emote:kiss"] = true }
+function M.Content(profile)
+    if (profile.contentVersion or 0) >= 15 then return end
+    for category, old in pairs(OLD_CATEGORY_ICONS) do
+        local list = profile.collections[category]
+        local info = IC.Emotes.CategoryInfo[category] or IC.Emotes.CategoryInfo.Favorites
+        if list and list.builtin and list.icon == "Interface\\Icons\\" .. old then list.icon = info.icon end
+    end
+    local playful = profile.collections["Voice/Fun"]
+    if playful and playful.builtin and playful.items then
+        local items, seen = {}, {}
+        for _, ref in ipairs(playful.items) do if not MOVED_OUT_OF_PLAYFUL[ref] then items[#items + 1] = ref; seen[ref] = true end end
+        for _, action in ipairs(IC.Emotes.byCategory["Voice/Fun"] or {}) do
+            local included = not IC.Curation or IC.Curation.Included(action, profile)
+            if included and not seen[action.id] then items[#items + 1] = action.id; seen[action.id] = true end
+        end
+        playful.items = items
+    end
+    profile.contentVersion = 15
+end
+
 function M.Layout(layout)
     if layout.modeVersion then return end
     if layout.bars and #layout.bars > 0 then
