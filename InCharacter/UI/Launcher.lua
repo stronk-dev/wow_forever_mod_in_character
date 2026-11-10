@@ -7,6 +7,15 @@ local unpack = unpack or table.unpack
 
 local function config() return IC.Layout().launcher end
 
+function L.StopDrag()
+    local button = L.button
+    if not button or not button.moving then return end
+    button:StopMovingOrSizing(); button.moving = nil
+    local x, y = button:GetCenter(); local px, py = UIParent:GetCenter()
+    config().x, config().y = x - px, y - py
+    button.suppressUntil = IC.Platform.Time() + 0.15
+end
+
 function L.Create()
     local button = U.IconButton(UIParent, 36, true)
     L.button = button
@@ -21,14 +30,9 @@ function L.Create()
     button:SetScript("OnDragStart", function(self)
         if IC.InCombat() then return end
         if IC.Bars.editing then IC.Bars.SelectLauncher() end
-        if IC.Bars.editing or IC.Platform.Shift() then self:StartMoving() end
+        if IC.Bars.editing or IC.Platform.Shift() then self.moving = true; self:StartMoving() end
     end)
-    button:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local x, y = self:GetCenter(); local px, py = UIParent:GetCenter()
-        config().x, config().y = x - px, y - py
-        self.suppressUntil = IC.Platform.Time() + 0.15
-    end)
+    button:SetScript("OnDragStop", L.StopDrag)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:SetText("In Character", 1, 1, 1)
         GameTooltip:AddLine("Playing: " .. IC.Personas.Name(), 1, 0.82, 0)
@@ -39,7 +43,7 @@ function L.Create()
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
     button:RegisterEvent("PLAYER_REGEN_DISABLED"); button:SetScript("OnEvent", function(self)
-        self:StopMovingOrSizing()
+        L.StopDrag()
         if config().shown == false then self:Hide() end
     end)
 end

@@ -56,6 +56,7 @@ end
 function IC.Help()
     IC.Print("/ic settings · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars · /ic bars one|separate")
     IC.Print("/ic greet | quote | bye · /ic say <slot> (your character's slots) · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
+    IC.Print("/ic debug shows the last protected-action failure (local information only).")
 end
 
 function IC.Slash(input)
@@ -65,6 +66,12 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
+    elseif command == "debug" then
+        IC.Print("Version " .. IC.version .. "; playing " .. IC.Personas.Name() .. ".")
+        local block = IC.Platform.lastBlockedAction
+        if not block then IC.Print("No protected-action failure captured in this session."); return end
+        IC.Print("Blocked function: " .. block.functionName .. "; chat API taint owner: " .. (block.source or "not reported") .. ".")
+        if block.stack then for line in block.stack:gmatch("[^\n]+") do IC.Print(line) end end
     elseif command == "bars" then
         if rest == "one" or rest == "separate" then IC.Bars.SetMode(rest) else IC.Bars.ToggleAll() end
     elseif command == "character" then
@@ -147,14 +154,14 @@ end
 
 if CreateFrame then
     local events = CreateFrame("Frame")
-    events:SetScript("OnEvent", function(_, event, loaded)
+    events:SetScript("OnEvent", function(_, event, loaded, ...)
         if event == "ADDON_LOADED" and IC.db and IC.Bars.ConnectEditMode then IC.Bars.ConnectEditMode() end
         if event == "ADDON_LOADED" and loaded == IC.name then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()
             IC.Print("Loaded. Use the small bar or the round button; /ic opens the settings.")
         elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
-            IC.Platform.RecordChatBlock(loaded)
+            IC.Platform.RecordChatBlock(loaded, ...)
         elseif event == "PLAYER_REGEN_ENABLED" and IC.refreshPending then IC.Refresh()
         elseif event == "PLAYER_REGEN_DISABLED" then
             for _, stop in ipairs(IC.UI and IC.UI.captures or {}) do stop() end

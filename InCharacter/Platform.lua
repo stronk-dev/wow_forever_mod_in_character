@@ -23,13 +23,33 @@ function P.SendChat(text, channel)
     -- restricted C function behind pcall/securecall, a timer, or a chat-box workaround.
     -- The dispatcher commits playback only after this returns successfully.
     local result = fn(text, channel)
-    if (P.chatBlockSerial or 0) ~= before then return false, "Client blocked this chat action; playback is unchanged." end
+    if (P.chatBlockSerial or 0) ~= before then
+        local block = P.lastBlockedAction or {}
+        local reason = "Client blocked " .. (block.functionName or "the chat action")
+        if block.source then reason = reason .. " (chat API tainted by " .. block.source .. ")" end
+        return false, reason .. "; playback is unchanged."
+    end
     if result == false then return false, "Client declined chat." end
     return true
 end
 -- A protected-action failure can emit an event without throwing or returning false.
-function P.RecordChatBlock(addon)
-    if addon == IC.name then P.chatBlockSerial = (P.chatBlockSerial or 0) + 1 end
+function P.RecordChatBlock(addon, functionName)
+    if addon ~= IC.name then return end
+    P.chatBlockSerial = (P.chatBlockSerial or 0) + 1
+    local source
+    -- Inspect the actual shared API, not addon-owned variables (which are always tainted).
+    if type(issecurevariable) == "function" then
+        local owner, key = C_ChatInfo, "SendChatMessage"
+        if not owner or type(owner[key]) ~= "function" then owner = _G end
+        local ok, secure, taintedBy = pcall(issecurevariable, owner, key)
+        if ok and secure == false and type(taintedBy) == "string" then source = taintedBy end
+    end
+    local stack
+    if type(debugstack) == "function" then
+        local ok, value = pcall(debugstack, 2, 12, 0)
+        if ok and type(value) == "string" then stack = value end
+    end
+    P.lastBlockedAction = { functionName = type(functionName) == "string" and functionName or "an unknown protected function", source = source, stack = stack }
 end
 function P.CursorInside(frame)
     if not frame or not frame:IsShown() then return false end

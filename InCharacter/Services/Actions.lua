@@ -145,7 +145,10 @@ function A.Current(node)
 end
 -- Only UI clicks, bindings and slash handlers call this. No event/timer calls it.
 function A.Dispatch(action)
-    if IC.Bars and IC.Bars.editing then return false, "Finish editing layouts before playing an action." end
+    if IC.Bars and IC.Bars.editing then
+        local reason = "Finish editing layouts before playing an action."
+        IC.Print(reason); return false, reason
+    end
     if type(action) == "string" then action = A.Resolve(action) end
     -- A role button may have been drawn for the previous character (bars cannot rebuild in
     -- combat); the role always means the character loaded now.
@@ -192,7 +195,7 @@ function A.Dispatch(action)
         local ok, reason = IC.Platform.SendChat(text, pool.channel)
         if not ok then
             IC.Print(reason .. " Nothing is queued for later.")
-            return false
+            return false, reason
         end
         if nextState then IC.Dialogue.states[key] = nextState end
         return true

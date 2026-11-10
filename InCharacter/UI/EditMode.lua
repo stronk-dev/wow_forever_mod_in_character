@@ -1,7 +1,8 @@
 local _, IC = ...
 -- Move & edit bars. Like Blizzard's Edit Mode, Bartender4 and Dominos: every bar gets a tinted
 -- overlay with its name centred on it (never above it), clicks select instead of playing, and a
--- small panel docks beside the selected bar. Names exist only here; in play bars are just icons.
+-- panel follows the selected bar until dragged to a saved position. Names exist only here;
+-- in play bars are just icons.
 -- The corner grip (edit mode only) reshapes a bar by setting "Per row" while dragging; the
 -- bar's top-left corner stays put.
 local B, U = IC.Bars, IC.UI
@@ -63,11 +64,11 @@ function B.Reshape(frame, cursorX, cursorY)
     frame:ClearAllPoints(); frame:SetPoint("CENTER", UIParent, "CENTER", c.x, c.y)
     B.UpdateEditControls(frame); B.RefreshInspector()
 end
-function B.StopReshape(frame)
+function B.StopReshape(frame, quiet)
     if frame.resizeGrip then frame.resizeGrip:SetScript("OnUpdate", nil) end
     if not frame.reshape then return end
     frame.reshape = nil
-    if not IC.InCombat() then IC.Changed() end
+    if not quiet and not IC.InCombat() then IC.Changed() end
 end
 function B.UpdateEditControls(frame)
     attach(frame)
@@ -103,12 +104,33 @@ end
 
 -- Docks the panel beside what is selected, on the side with room.
 local function dock(p)
+    if p.moving then return end
+    local saved = IC.Layout().inspectorPosition
+    if type(saved) == "table" and type(saved.x) == "number" and type(saved.y) == "number" then
+        p:ClearAllPoints(); p:SetPoint("CENTER", UIParent, "CENTER", saved.x, saved.y); return
+    end
     local target = B.selectedLauncher and IC.Launcher.button or (B.selectedBar and B.frames[B.selectedBar])
     p:ClearAllPoints()
     if not target or not target:IsShown() then p:SetPoint("CENTER", UIParent, "CENTER", 0, 120); return end
     local _, y = target:GetCenter(); local _, cy = UIParent:GetCenter()
     if (y or 0) < (cy or 0) then p:SetPoint("BOTTOM", target, "TOP", 0, 24)
     else p:SetPoint("TOP", target, "BOTTOM", 0, -24) end
+end
+
+function B.StopInspectorDrag()
+    local p = B.inspector
+    if not p or not p.moving then return end
+    p:StopMovingOrSizing(); p.moving = nil
+    local x, y = p:GetCenter(); local px, py = UIParent:GetCenter()
+    local target = p.dragLayout; p.dragLayout = nil
+    if target then target.inspectorPosition = { x = math.floor(x - px + 0.5), y = math.floor(y - py + 0.5) } end
+    if B.editing then B.RefreshInspector() end
+end
+
+local function stopMotion()
+    B.StopInspectorDrag()
+    for _, frame in ipairs(B.frames) do B.StopDrag(frame); B.StopReshape(frame, true) end
+    if IC.Launcher.StopDrag then IC.Launcher.StopDrag() end
 end
 
 function B.RefreshInspector()
@@ -138,7 +160,21 @@ end
 
 local function createInspector()
     local p = U.Panel(UIParent, PANEL_W, PANEL_H, nil, "InCharacterEditLayouts"); B.inspector = p
-    p:SetFrameStrata("DIALOG"); p:EnableMouse(true); p:SetClampedToScreen(true)
+    p:SetFrameStrata("DIALOG"); p:EnableMouse(true); p:SetClampedToScreen(true); p:SetMovable(true); p:SetToplevel(true)
+    p.dragHandle = CreateFrame("Button", nil, p)
+    p.dragHandle:SetPoint("TOPLEFT", 8, -4); p.dragHandle:SetSize(PANEL_W - 92, 28)
+    p.dragHandle:EnableMouse(true)
+    p.dragHandle:RegisterForDrag("LeftButton")
+    p.dragHandle:SetScript("OnDragStart", function()
+        if IC.InCombat() or not B.editing then return end
+        p:Raise(); p.dragLayout = IC.Layout(); p.moving = true; p:StartMoving()
+    end)
+    p.dragHandle:SetScript("OnDragStop", B.StopInspectorDrag)
+    p.dragHandle:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP"); GameTooltip:SetText("Move settings", 1, 1, 1)
+        GameTooltip:AddLine("Drag this header. Follow bar restores automatic placement.", 0.8, 0.8, 0.8, true); GameTooltip:Show()
+    end)
+    p.dragHandle:SetScript("OnLeave", function() GameTooltip:Hide() end)
     p.title = U.Label(p, "", 12, -14, PANEL_W - 90, "GameFontNormal"); p.title:SetWordWrap(false)
     U.Button(p, "Done", PANEL_W - 76, -8, 64, function() B.SetEditing(false) end, "accent")
     p.mode = U.Dropdown(p, 12, -36, PANEL_W - 24, { { value = "one", label = "Layout: one bar" }, { value = "separate", label = "Layout: separate bars" } },
@@ -166,10 +202,15 @@ local function createInspector()
     p.launcherShown = U.Check(l, "Show the launcher", 12, 0, function(value) launcherChange("shown", value) end)
     p.launcherSize = U.Slider(l, "Size", 12, -34, w, 24, 64, 2, function(value) launcherChange("size", value) end)
     U.Button(p, "Undo all", 12, -(PANEL_H - 36), 90, function() B.UndoLayout() end)
+    p.follow = U.Button(p, "Follow bar", 108, -(PANEL_H - 36), PANEL_W - 120, function()
+        if IC.InCombat() then return end
+        B.StopInspectorDrag(); IC.Layout().inspectorPosition = nil; B.RefreshInspector()
+    end)
     p:SetScript("OnHide", function() if B.editing then B.SetEditing(false) end end)
     p:RegisterEvent("PLAYER_REGEN_DISABLED"); p:SetScript("OnEvent", function()
+        stopMotion()
         for _, frame in ipairs(B.frames) do
-            B.StopDrag(frame); B.StopReshape(frame); if frame.moveHandle then frame.moveHandle:Hide() end
+            if frame.moveHandle then frame.moveHandle:Hide() end
             if frame.config and (frame.config.hidden or IC.Layout().barsHidden) then frame:Hide() end
         end
         B.editing = false; p:Hide(); IC.refreshPending = true
@@ -181,11 +222,13 @@ end
 function B.UndoLayout()
     local snapshot = B.editSnapshot
     if not snapshot or snapshot.target ~= IC.Layout() or IC.InCombat() then return end
+    stopMotion()
     for key in pairs(snapshot.target) do snapshot.target[key] = nil end
     IC.Merge(snapshot.target, IC.Copy(snapshot.data)); B.selectedBar, B.selectedLauncher = nil, false; IC.Changed()
 end
 function B.SetEditing(value)
     if IC.InCombat() then IC.Print("Move bars after combat."); return end
+    if not value then stopMotion() end
     if value and not B.editing then B.editSnapshot = { target = IC.Layout(), data = IC.Copy(IC.Layout()) } end
     B.editing = value == true
     if B.editing then

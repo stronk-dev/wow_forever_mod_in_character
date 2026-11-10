@@ -269,7 +269,8 @@ test("native blocked-chat events preserve selection even when the send API retur
         env.C_ChatInfo.SendChatMessage = function()
             event(blockedEvent, "InCharacter", "C_ChatInfo.SendChatMessage()")
         end
-        assert(not IC.Actions.Dispatch("pool:quotes")); eq(IC.Dialogue.states.quotes, nil)
+        local ok, reason = IC.Actions.Dispatch("pool:quotes")
+        assert(not ok and reason:find("C_ChatInfo.SendChatMessage()", 1, true)); eq(IC.Dialogue.states.quotes, nil)
         eq(#Stub.sends, 0)
     end
     env.C_ChatInfo.SendChatMessage = function(text, channel)
@@ -277,6 +278,24 @@ test("native blocked-chat events preserve selection even when the send API retur
         Stub.sends[#Stub.sends + 1] = { text, channel }
     end
     assert(IC.Actions.Dispatch("pool:quotes")); eq(Stub.sends[1][1], "first")
+end)
+test("blocked chat names the protected endpoint and API taint owner without retrying", function(IC, Stub, env, event)
+    local pool = IC.Profile().pools.quotes; pool.lines = { "One user action" }
+    local calls = 0
+    env.issecurevariable = function(owner, key)
+        eq(owner, env.C_ChatInfo); eq(key, "SendChatMessage"); return false, "OtherChatAddon"
+    end
+    env.debugstack = function() return "Native chat block stack" end
+    env.C_ChatInfo.SendChatMessage = function()
+        calls = calls + 1; event("ADDON_ACTION_BLOCKED", "InCharacter", "C_ChatInfo.SendChatMessage()")
+    end
+    local ok, reason = IC.Actions.Dispatch("pool:quotes")
+    assert(not ok); eq(calls, 1); eq(#Stub.sends, 0); eq(IC.Dialogue.states.quotes, nil)
+    assert(reason:find("OtherChatAddon", 1, true)); assert(reason:find("C_ChatInfo.SendChatMessage()", 1, true))
+    eq(IC.Platform.lastBlockedAction.source, "OtherChatAddon")
+    eq(IC.Platform.lastBlockedAction.stack, "Native chat block stack")
+    IC.Slash("debug"); assert(Stub.messages[#Stub.messages]:find("Native chat block stack", 1, true))
+    eq(calls, 1); eq(#Stub.sends, 0)
 end)
 assert(loadfile("tests/ui_collections.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
