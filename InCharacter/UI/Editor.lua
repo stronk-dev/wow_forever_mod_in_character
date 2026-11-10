@@ -409,7 +409,7 @@ function E.SelectPool(id)
     setFormIcon(draft and draft.icon or pool.icon)
     p.delete.confirming = nil; p.delete:SetText("Delete pool")
     local source = IC.Personas.Source(pool)
-    p.info:SetText((source and ("From the " .. source .. " preset") or "") .. (draft and ((source and "   |   " or "") .. "|cffffd100unsaved changes|r") or ""))
+    p.info:SetText((source and ("From the " .. source .. " preset; addon updates add its new lines, your edits stay") or "") .. (draft and ((source and "   |   " or "") .. "|cffffd100unsaved changes|r") or ""))
     counter()
     E.RefreshPoolList()
     if p.messages then E.RefreshMessages() end
@@ -443,6 +443,7 @@ end
 function E.RefreshLines()
     local p = E.pages.Lines
     p.character:SetOptions(IC.Personas.Options(false)); p.character:SetValue(IC.Personas.Active() and IC.Personas.Active().id)
+    p.deleteCharacter.confirming = nil; p.deleteCharacter:SetText("Delete character")
     E.RefreshPoolList()
     local id; for _, candidate in ipairs(E.poolIDs) do if candidate == E.poolID then id = candidate end end
     E.formID = nil
@@ -461,6 +462,15 @@ local function createLines(p)
     U.Button(p, "Rename", 470, 0, 90, function()
         local actor = IC.Personas.Active(); if not actor then return end
         E.AskName("Rename RP character", actor.name, function(name) actor.name = name; IC.Changed(); E.RefreshLines() end)
+    end)
+    p.deleteCharacter = U.Button(p, "Delete character", 564, 0, 150, function(self)
+        local actor = IC.Personas.Active(); if not actor then return end
+        U.Confirm(self, "Delete character", function()
+            local name, preset = actor.name, actor.pack
+            E.StoreDraft(); E.formID, E.poolID = nil, nil
+            IC.Personas.Delete(actor.id); E.RefreshLines()
+            status(preset and (name .. " removed. The preset is still in its family if you want it back.") or (name .. " deleted."))
+        end)
     end)
     local top = -34
     U.Muted(p, "This character's pools", 0, top - 2)

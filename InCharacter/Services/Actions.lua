@@ -28,7 +28,7 @@ local function roleNode(role)
     local poolID, from = IC.Personas.RolePool(role)
     local pool = poolID and IC.Profile().pools[poolID]
     return { id = "role:" .. role, type = "pool", role = role, payload = poolID, name = info.label, label = info.label, shared = from == "shared",
-        icon = pool and pool.icon or IC.Defaults.Pool(role, info.label).icon, empty = not pool or #pool.lines == 0 }
+        icon = info.icon or (pool and pool.icon) or IC.Defaults.Pool(role, info.label).icon, empty = not pool or #pool.lines == 0 }
 end
 -- persona:<character id> plays a character you have; persona:preset:<pack id> loads a preset
 -- (reusing your copy when you already have one).

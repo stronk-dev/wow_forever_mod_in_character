@@ -7,15 +7,18 @@ local R = IC.Personas
 -- which lines are sent. A slot plays the loaded character's own pool for it, or else the shared
 -- pool for it: a preset character can be fully customised, or lean on the shared lines.
 -- Pools belong to one character (actor.poolIDs) or are shared by all (profile.sharedPoolIDs).
+local SI = "Interface\\Icons\\"
+-- Each built-in slot has its own icon, the same for every character, so a button reads the same
+-- whoever you play. Slots you make yourself show their pool's icon.
 R.ROLES = {
-    { id = "greetings", label = "Greeting", command = "greet" },
-    { id = "quotes", label = "Quote", command = "quote" },
-    { id = "farewells", label = "Farewell", command = "bye" },
+    { id = "greetings", label = "Greeting", command = "greet", icon = SI .. "UI_Chat" },
+    { id = "quotes", label = "Quote", command = "quote", icon = SI .. "INV_Misc_Book_09" },
+    { id = "farewells", label = "Farewell", command = "bye", icon = SI .. "Spell_Holy_Renew" },
     -- Shown on the RP list only when the character (or a shared pool) has lines for them.
-    { id = "jokes", label = "Joke", command = "joke", optional = true },
-    { id = "toasts", label = "Toast", command = "toast", optional = true },
-    { id = "battlecries", label = "Battle cry", command = "battlecry", optional = true },
-    { id = "banter", label = "Banter", command = "banter", optional = true },
+    { id = "jokes", label = "Joke", command = "joke", optional = true, icon = SI .. "UI_EmberCourt-Emoji-VeryHappy" },
+    { id = "toasts", label = "Toast", command = "toast", optional = true, icon = SI .. "INV_Misc_Beer_01" },
+    { id = "battlecries", label = "Battle cry", command = "battlecry", optional = true, icon = SI .. "Ability_Warrior_RallyingCry" },
+    { id = "banter", label = "Banter", command = "banter", optional = true, icon = SI .. "Ability_Warrior_Rampage" },
 }
 R.ROLE = {}; for _, role in ipairs(R.ROLES) do R.ROLE[role.id] = role end
 local function shared(profile)
@@ -318,6 +321,26 @@ function R.FindPool(name)
         if found then return found end
     end
     return nil, "No matching pool for " .. R.Name() .. " or the shared pools."
+end
+-- Removes a character and its pools (with every button for them). A preset character only
+-- loses your changes: the preset stays in its family and can be played again fresh. If it was
+-- the one playing, another character takes over (a new empty one if none is left).
+function R.Delete(id)
+    local p = IC.Profile(); local actor = p.personas and p.personas[id]
+    if not actor then return false, "Character not found." end
+    local wasActive = R.Active() == actor
+    for _, poolID in ipairs(IC.Copy(actor.poolIDs)) do IC.Dialogue.Delete(poolID) end
+    if actor.pack and p.installedPacks[actor.pack] and p.installedPacks[actor.pack].persona == id then p.installedPacks[actor.pack] = nil end
+    p.personas[id] = nil
+    for i = #p.personaOrder, 1, -1 do if p.personaOrder[i] == id then table.remove(p.personaOrder, i) end end
+    local c = IC.Profiles.Character(); c.personaSelections = c.personaSelections or {}
+    for scope, selected in pairs(c.personaSelections) do if selected == id then c.personaSelections[scope] = nil end end
+    if wasActive then
+        local nextID = p.personaOrder[1]
+        if not nextID then nextID = R.Create("My character").id end
+        R.Load(nextID)
+    end
+    R.cachedActor = nil; IC.Changed(); return true
 end
 function R.Options(library)
     local result = {}

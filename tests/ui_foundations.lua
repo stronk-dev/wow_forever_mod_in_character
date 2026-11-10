@@ -147,4 +147,11 @@ return function(test, eq, page)
         eq(IC.Personas.Name(), 'Mark Rutte'); eq(#Stub.sends, 0)
         for _, id in ipairs(IC.Library.order) do assert(IC.Library.FamilyOf(id) ~= 'other', id .. ' has a family') end
     end)
+    test('Delete character on the RP lines page asks twice, then removes the playing character', function(IC, Stub)
+        assert(IC.Library.Load('office-stanley')); local p = page(IC, 'Lines'); IC.Editor.RefreshLines()
+        local before = #IC.Profile().personaOrder
+        p.deleteCharacter:Click(); eq(#IC.Profile().personaOrder, before, 'first click only asks')
+        p.deleteCharacter:Click(); eq(#IC.Profile().personaOrder, before - 1)
+        assert(IC.Personas.Name() ~= 'Stanley Hudson'); eq(#Stub.sends, 0)
+    end)
 end

@@ -1,6 +1,8 @@
 # Preset library
 
-Presets are ready-made RP characters, grouped in families: **The Office**, **Dutch politics**, **Dutch**, **World** and **Fundubs**. Pick one from the character switcher (the first row of your RP list: your own characters first, then one row per family), or open **/ic → RP lines → Preset characters**, choose a family and a character and click **Play as this character**: you get your own editable copy and start playing it. Nothing is sent to chat and nothing in your own pools changes. Loading the same preset again reuses your edited copy.
+Presets are ready-made RP characters, grouped in families: **The Office**, **Dutch politics**, **Dutch**, **World** and **Fundubs**. Pick one from the character switcher (the first row of your RP list: your own characters first, then one row per family), or open **/ic → RP lines → Preset characters**, choose a family and a character and click **Play as this character**: you start playing it. Nothing is sent to chat.
+
+**Your edits sit on top of the preset.** Reword a line, delete one or add your own, and only those changes are stored. When the addon updates a preset, its new lines and slots show up in the character you already play, and your changes stay: a reworded line keeps your wording, a deleted line stays gone, your own lines stay. If an update drops a line you had reworded, your version stays as your own line. **Delete character** (RP lines page) removes a character and your changes; the preset stays in its family, ready to play fresh.
 
 Each preset fills the slots it has lines for: **Greeting**, **Quote**, **Farewell**, **Joke**, **Toast**, **Battle cry** and **Banter**. The last four only show on your RP list when the character (or a shared pool) has lines for them.
 
@@ -40,4 +42,4 @@ Stanley and Mastermovies contain profanity; each preset shows a content note in 
 
 Copy `docs/PresetTemplate.lua.example` into `InCharacter/Data/Library/`, list it in both `.toc` files, and fill in real, sourced lines (or mark them as original). Pool `shortcut` values are the slot ids: `greetings`, `quotes`, `farewells`, `jokes`, `toasts`, `battlecries`, `banter`. Lines must be 255 bytes or less.
 
-Installed copies record `provenance = { pack, version, source }`. Updating a preset changes what future copies get; it never replaces a copy you edited.
+Preset pools record `provenance` and a `layer` (`hidden`, `edits`, `own`, `ids`). Lines are matched by their text, so rewording a line in a pack file shows the new wording to everyone who had not reworded it themselves.

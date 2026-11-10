@@ -43,14 +43,14 @@ return function(IC, test, eq, open)
     end)
     test("legacy preset migration preserves current and older edited copies and infers explicit shortcuts", function()
         local db = open(); local _, _, oldPool = IC.Library.Install("office-stanley", false)
-        IC.Profile().pools[oldPool].lines[1] = "Old edit preserved"
+        IC.Profile().pools[oldPool].layer = nil; IC.Profile().pools[oldPool].lines[1] = "Old edit preserved" -- a pre-layer copy
         local _, _, latest = IC.Library.Install("office-stanley", true)
         IC.Library.Install("dutch-mastermovies", false)
         local p, c = IC.Profile(), IC.Profiles.Character(); p.personas, p.personaOrder, c.personaSelections = nil, nil, nil
         p.shortcuts = { greetings = latest } -- what pre-persona saves stored
         db.version = 9; open(db); eq(db.version, IC.Profiles.VERSION)
         eq(IC.Personas.Active().name, "Stanley Hudson"); assert(IC.Personas.HasPool(latest)); assert(not IC.Personas.HasPool(oldPool))
-        eq(IC.Profile().pools[oldPool].lines[1], "Old edit preserved")
+        assert(contains(IC.Profile().pools[oldPool].lines, "Old edit preserved"), "the old edit survives as your own line")
         local owned = {}; for _, a in pairs(IC.Profile().personas) do for _, id in ipairs(a.poolIDs) do assert(not owned[id]); owned[id] = true end end
         for _, id in ipairs(IC.Profile().poolOrder) do assert(owned[id], id) end
     end)
@@ -184,5 +184,25 @@ return function(IC, test, eq, open)
             end
         end
         assert(not IC.EmoteIcons.train:find("EngGizmos", 1, true), "train is a train")
+    end)
+    test("deleting a character removes it and its pools; a preset can be played fresh again", function()
+        open(); assert(IC.Library.Load("office-stanley")); local stanley = IC.Personas.Active()
+        local pools = IC.Copy(stanley.poolIDs); IC.Collections.Add("favorites", "pool:" .. pools[1])
+        assert(IC.Personas.Delete(stanley.id))
+        eq(IC.Profile().personas[stanley.id], nil); for _, id in ipairs(pools) do eq(IC.Profile().pools[id], nil) end
+        assert(not IC.Collections.Contains("favorites", "pool:" .. pools[1]), "its buttons go too")
+        assert(IC.Personas.Active() ~= nil, "someone else is playing now")
+        assert(IC.Library.Load("office-stanley")); eq(IC.Personas.Name(), "Stanley Hudson")
+        eq(#IC.Personas.Active().poolIDs, #IC.Library.packs["office-stanley"].pools, "fresh, all pools back")
+        for _, id in ipairs(IC.Copy(IC.Profile().personaOrder)) do IC.Personas.Delete(id) end
+        eq(#IC.Profile().personaOrder, 1); eq(IC.Personas.Name(), "My character")
+    end)
+    test("every built-in slot has its own icon", function()
+        local seen = {}
+        for _, slot in ipairs(IC.Personas.ROLES) do
+            assert(slot.icon, slot.id); assert(not seen[slot.icon], "shared icon: " .. slot.icon); seen[slot.icon] = true
+        end
+        open(); assert(IC.Library.Load("world-tavern"))
+        eq(IC.Actions.Resolve("role:toasts").icon, IC.Personas.ROLE.toasts.icon)
     end)
 end

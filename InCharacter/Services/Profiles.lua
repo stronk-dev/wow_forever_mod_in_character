@@ -49,6 +49,8 @@ local function CompleteProfile(profile, database, observations)
     end
     profile.favorites = favorites
     if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile); IC.Migrations.Content(profile) end
+    -- Preset characters follow the current presets (layers); then empty slots fill once.
+    if IC.Library and IC.Library.Sync and profile.personas then IC.Library.Sync(profile); IC.Personas.EnsureRoles(profile) end
     return profile
 end
 

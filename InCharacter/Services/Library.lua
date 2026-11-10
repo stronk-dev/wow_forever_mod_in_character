@@ -62,33 +62,145 @@ function L.Register(pack)
     assert(not L.packs[pack.id], "Duplicate preset " .. pack.id)
     L.packs[pack.id] = pack; L.order[#L.order + 1] = pack.id
 end
--- Copies a preset's pools into the profile as a new RP character. load = also make it the active character.
+-- Layers. A preset character's pool does not copy the preset's lines. It points at the preset
+-- pool (layer.pack, layer.def) and keeps only the player's changes:
+--   hidden[presetText] = true      a preset line the player removed
+--   edits[presetText]  = "text"    a preset line the player reworded (keeps its message ID)
+--   own = { {id, text} }           lines the player added
+--   ids[presetText]    = lineID    stable message IDs for preset lines (buttons, favorites)
+-- pool.lines / pool.lineIDs are rebuilt from preset + layer, so addon updates (new lines, new
+-- slots) reach characters already in use while the player's changes always win. A preset line
+-- removed by an update disappears; if the player had reworded it, the rewording stays as their own.
+local function definition(layer)
+    local pack = layer and L.packs[layer.pack]
+    for _, def in ipairs(pack and pack.pools or {}) do if def.id == layer.def then return def end end
+end
+function L.Materialize(pool)
+    local layer = pool.layer; local def = definition(layer)
+    if not def then return false end
+    layer.hidden, layer.edits, layer.own, layer.ids = layer.hidden or {}, layer.edits or {}, layer.own or {}, layer.ids or {}
+    IC.Dialogue.EnsureLines(pool)
+    local inPreset = {}; for _, text in ipairs(def.lines) do inPreset[text] = true end
+    -- Rewordings of lines the preset dropped become the player's own lines (same message ID).
+    for text, edited in pairs(layer.edits) do
+        if not inPreset[text] then
+            table.insert(layer.own, { id = layer.ids[text] or IC.Dialogue.NewLineID(pool), text = edited })
+            layer.edits[text] = nil
+        end
+    end
+    for text in pairs(layer.ids) do if not inPreset[text] then layer.ids[text] = nil end end
+    for text in pairs(layer.hidden) do if not inPreset[text] then layer.hidden[text] = nil end end
+    local lines, ids = {}, {}
+    for _, text in ipairs(def.lines) do
+        if not layer.hidden[text] then
+            layer.ids[text] = layer.ids[text] or IC.Dialogue.NewLineID(pool)
+            lines[#lines + 1] = layer.edits[text] or text; ids[#ids + 1] = layer.ids[text]
+        end
+    end
+    for _, line in ipairs(layer.own) do lines[#lines + 1] = line.text; ids[#ids + 1] = line.id end
+    local changed = #lines ~= #pool.lines
+    for i = 1, #lines do if lines[i] ~= pool.lines[i] or ids[i] ~= pool.lineIDs[i] then changed = true end end
+    pool.lines, pool.lineIDs = lines, ids
+    if changed then pool.revision = (pool.revision or 0) + 1; IC.Dialogue.Clear(pool.id) end
+    return changed
+end
+-- Reads the player's edit of pool.lines back into the layer, then rebuilds the lines.
+function L.Capture(pool)
+    local layer = pool.layer; local def = definition(layer)
+    if not def then return end
+    layer.hidden, layer.edits, layer.own, layer.ids = layer.hidden or {}, layer.edits or {}, layer.own or {}, layer.ids or {}
+    local textOf = {}; for i, id in ipairs(pool.lineIDs) do textOf[id] = pool.lines[i] end
+    local presetIDs = {}
+    for _, text in ipairs(def.lines) do
+        local id = layer.ids[text]
+        if id and textOf[id] then
+            presetIDs[id] = true; layer.hidden[text] = nil
+            layer.edits[text] = textOf[id] ~= text and textOf[id] or nil
+        elseif id then layer.hidden[text] = true; layer.edits[text] = nil end
+    end
+    local own = {}
+    for i, id in ipairs(pool.lineIDs) do if not presetIDs[id] then own[#own + 1] = { id = id, text = pool.lines[i] } end end
+    layer.own = own
+    L.Materialize(pool)
+end
+-- Which preset pool an older full copy came from (its id was "<pack>-<pool>" or "-<n>").
+local function definitionFor(pool)
+    local pack = pool.provenance and L.packs[pool.provenance.pack]
+    for _, def in ipairs(pack and pack.pools or {}) do
+        local base = pack.id .. "-" .. def.id
+        if pool.id == base or pool.id:match("^" .. base:gsub("%-", "%%-") .. "%-%d+$") then return def end
+    end
+    for _, def in ipairs(pack and pack.pools or {}) do if pool.shortcut and def.shortcut == pool.shortcut then return def end end
+end
+-- Turns a full copy (made before 0.15.1) into a layer. Lines matching the preset become preset
+-- lines (keeping their message IDs); every other line is the player's own. Nothing is hidden:
+-- an old copy cannot tell a line the player deleted from one the update added, so new lines show.
+function L.Adopt(pool)
+    if pool.layer or not pool.provenance then return end
+    local def = definitionFor(pool); if not def then return end
+    IC.Dialogue.EnsureLines(pool)
+    local layer = { pack = pool.provenance.pack, def = def.id, hidden = {}, edits = {}, own = {}, ids = {} }
+    local inPreset = {}; for _, text in ipairs(def.lines) do inPreset[text] = true end
+    for i, text in ipairs(pool.lines) do
+        if inPreset[text] and not layer.ids[text] then layer.ids[text] = pool.lineIDs[i]
+        else layer.own[#layer.own + 1] = { id = pool.lineIDs[i], text = text } end
+    end
+    pool.layer = layer
+    L.Materialize(pool)
+end
+local function newLayeredPool(profile, id, def)
+    local pack = L.packs[id]
+    local base = id .. "-" .. def.id
+    local poolID, suffix = base, 2
+    while profile.pools[poolID] do poolID = base .. "-" .. suffix; suffix = suffix + 1 end
+    local pool = IC.Defaults.Pool(poolID, def.name)
+    pool.channel, pool.mode = def.channel, def.mode
+    pool.icon = def.icon or pack.icon or IC.Icons[1]
+    pool.provenance = { pack = id, version = pack.version, source = pack.source }
+    pool.shortcut = def.shortcut
+    pool.layer = { pack = id, def = def.id, hidden = {}, edits = {}, own = {}, ids = {} }
+    profile.pools[poolID] = pool; profile.poolOrder[#profile.poolOrder + 1] = poolID
+    IC.Dialogue.EnsureLines(pool); L.Materialize(pool)
+    return poolID
+end
+-- On every load: old copies become layers, every layered pool is rebuilt from the current
+-- preset, and characters get preset pools (slots) that were added since, unless the player
+-- deleted that pool.
+function L.Sync(profile)
+    for _, pool in pairs(profile.pools) do L.Adopt(pool) end
+    for _, pool in pairs(profile.pools) do if pool.layer then L.Materialize(pool) end end
+    for id, installed in pairs(profile.installedPacks or {}) do
+        local pack, actor = L.packs[id], installed.persona and profile.personas and profile.personas[installed.persona]
+        if pack and actor then
+            local have = {}
+            for _, poolID in ipairs(actor.poolIDs) do
+                local pool = profile.pools[poolID]
+                if pool and pool.layer and pool.layer.pack == id then have[pool.layer.def] = true end
+            end
+            for _, def in ipairs(pack.pools) do
+                if not have[def.id] and not (installed.dropped and installed.dropped[def.id]) then
+                    actor.poolIDs[#actor.poolIDs + 1] = newLayeredPool(profile, id, def)
+                end
+            end
+            installed.version = pack.version
+        end
+    end
+end
+-- Starts playing a preset: a new character whose pools are layers on the preset. load = also make it the active character.
 function L.Install(id, load)
     local pack, profile = L.packs[id], IC.Profile()
     if not pack then return false, "Unknown preset." end
     local installed = { version = pack.version, pools = {} }
-    for _, definition in ipairs(pack.pools) do
-        local base = id .. "-" .. definition.id
-        local poolID, suffix = base, 2
-        while profile.pools[poolID] do poolID = base .. "-" .. suffix; suffix = suffix + 1 end
-        local pool = IC.Defaults.Pool(poolID, definition.name)
-        pool.lines, pool.channel, pool.mode = IC.Copy(definition.lines), definition.channel, definition.mode
-        pool.icon = definition.icon or pack.icon or IC.Icons[1]
-        pool.provenance = { pack = id, version = pack.version, source = pack.source }
-        pool.shortcut = definition.shortcut
-        profile.pools[poolID] = pool; profile.poolOrder[#profile.poolOrder + 1] = poolID
-        IC.Dialogue.EnsureLines(pool)
-        installed.pools[#installed.pools + 1] = poolID
-    end
+    for _, def in ipairs(pack.pools) do installed.pools[#installed.pools + 1] = newLayeredPool(profile, id, def) end
     profile.installedPacks[id] = installed
     if IC.Personas then
-        local actor = IC.Personas.Create((pack.title:match(":%s*(.+)$") or pack.title), installed.pools, id)
+        local actor = IC.Personas.Create(L.ShortTitle(id), installed.pools, id)
         installed.persona = actor.id
         actor.icon = pack.icon or (installed.pools[1] and profile.pools[installed.pools[1]].icon)
         if load then IC.Personas.Load(actor.id) end
     end
     IC.Changed()
-    return true, "Copied " .. pack.title .. ". Existing pools were preserved.", installed.pools[1], installed.persona
+    return true, "Now playing " .. L.ShortTitle(id) .. ". Your changes are kept on top of the preset.", installed.pools[1], installed.persona
 end
 function L.Load(id)
     local installed = IC.Profile().installedPacks[id]

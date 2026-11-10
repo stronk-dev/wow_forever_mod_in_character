@@ -8,6 +8,11 @@ local function allocateLineID(pool)
     pool.nextLineID = pool.nextLineID + 1
     return id
 end
+-- A fresh, never reused message ID for this pool.
+function D.NewLineID(pool) D.EnsureLines(pool); return allocateLineID(pool) end
+-- Preset pools keep the player's changes as a layer (Services/Library.lua); after any edit the
+-- layer is updated from the pool's lines and the lines are rebuilt from preset + layer.
+local function relayer(pool) if pool.layer and IC.Library and IC.Library.Capture then IC.Library.Capture(pool) end end
 function D.EnsureLines(pool, database)
     pool.lineIDs = pool.lineIDs or {}
     pool.nextLineID = math.max(1, math.floor(tonumber(pool.nextLineID) or 1))
@@ -159,6 +164,7 @@ function D.Save(pool, name, channel, mode, icon, lines)
     end
     pool.name, pool.channel, pool.mode, pool.icon, pool.lines = IC.Trim(name), channel, mode, icon, IC.Copy(lines)
     pool.lineIDs = ids
+    relayer(pool)
     local removed = cleanPins(pool)
     pool.revision = (pool.revision or 0) + 1
     IC.Changed()
@@ -174,13 +180,14 @@ function D.SaveLine(pool, lineID, text)
         index = #pool.lines + 1; pool.lineIDs[index] = allocateLineID(pool)
     end
     pool.lines[index] = text; pool.revision = (pool.revision or 0) + 1
+    local lineID = pool.lineIDs[index]; relayer(pool)
     D.Clear(pool.id); IC.Changed()
-    return true, nil, pool.lineIDs[index]
+    return true, nil, lineID
 end
 function D.DeleteLine(pool, lineID)
     local _, index = D.Line(pool, lineID)
     if not index then return false end
-    table.remove(pool.lines, index); table.remove(pool.lineIDs, index); cleanPins(pool)
+    table.remove(pool.lines, index); table.remove(pool.lineIDs, index); relayer(pool); cleanPins(pool)
     pool.revision = (pool.revision or 0) + 1; D.Clear(pool.id); IC.Changed(); return true
 end
 function D.MoveLine(pool, lineID, delta)
@@ -188,10 +195,15 @@ function D.MoveLine(pool, lineID, delta)
     if not target or target < 1 or target > #pool.lines then return false end
     pool.lines[index], pool.lines[target] = pool.lines[target], pool.lines[index]
     pool.lineIDs[index], pool.lineIDs[target] = pool.lineIDs[target], pool.lineIDs[index]
+    relayer(pool)
     pool.revision = (pool.revision or 0) + 1; D.Clear(pool.id); IC.Changed(); return true
 end
 function D.Delete(id)
     local profile = IC.Profile()
+    -- A deleted preset pool stays deleted: the next addon update does not bring it back.
+    local layer = profile.pools[id] and profile.pools[id].layer
+    local installed = layer and profile.installedPacks and profile.installedPacks[layer.pack]
+    if installed then installed.dropped = installed.dropped or {}; installed.dropped[layer.def] = true end
     for _, actor in pairs(profile.personas or {}) do
         for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == id then table.remove(actor.poolIDs, i) end end
         for role, poolID in pairs(actor.roles or {}) do if poolID == id then actor.roles[role] = nil end end

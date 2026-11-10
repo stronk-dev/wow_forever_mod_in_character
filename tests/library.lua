@@ -8,16 +8,59 @@ return function(IC, test, eq, open)
         assert(#IC.Library.order >= 6)
         for _, id in ipairs(IC.Library.order) do assert(IC.Library.Validate(IC.Library.packs[id])) end
     end)
-    test("library copies preserve edits on repeat install and addon update", function()
+    test("preset characters are layers: your rewordings, hidden lines and own lines survive preset updates", function()
         local db = open(); local _, _, first = IC.Library.Install("office-stanley", true)
-        local pool = IC.Profile().pools[first]; eq(#pool.lines, 5); pool.lines[1] = "My own greeting"
-        local _, _, second = IC.Library.Install("office-stanley", false)
-        assert(first ~= second); eq(pool.lines[1], "My own greeting")
-        local original = IC.Library.packs["office-stanley"].pools[1].lines[1]
-        eq(original, "Leave me alone."); open(db); eq(IC.Profile().pools[first].lines[1], "My own greeting")
-        -- The copy loaded as a character fills its Greeting role and keeps a clean name.
-        eq(IC.Personas.RolePool("greetings"), first); eq(IC.Profile().pools[first].name, "Greetings")
-        eq(IC.Actions.Resolve("role:greetings").name, "Greeting")
+        local pool = IC.Profile().pools[first]; local def = IC.Library.packs["office-stanley"].pools[1]
+        eq(#pool.lines, #def.lines); assert(pool.layer)
+        local reworded = pool.lineIDs[1]
+        assert(IC.Dialogue.SaveLine(pool, reworded, "My own greeting"))
+        assert(IC.Dialogue.DeleteLine(pool, pool.lineIDs[2]))
+        local ok, _, mine = IC.Dialogue.SaveLine(pool, nil, "A line I added"); assert(ok)
+        eq(pool.lines[1], "My own greeting"); eq(pool.lines[#pool.lines], "A line I added")
+        -- An addon update adds a preset line and rewords nothing of yours.
+        table.insert(def.lines, "A new preset line")
+        open(db); pool = IC.Profile().pools[first]
+        eq(pool.lines[1], "My own greeting"); eq(pool.lineIDs[1], reworded, "same message ID, so buttons keep working")
+        local seen = {}; for _, line in ipairs(pool.lines) do seen[line] = true end
+        assert(not seen[def.lines[2]], "a hidden line stays hidden"); assert(seen["A new preset line"], "new preset lines appear")
+        assert(seen["A line I added"]); eq(pool.lineIDs[#pool.lineIDs], mine)
+        -- The preset drops the line you reworded: your rewording stays as your own line.
+        local dropped = table.remove(def.lines, 1)
+        open(db); pool = IC.Profile().pools[first]; seen = {}; for _, line in ipairs(pool.lines) do seen[line] = true end
+        assert(seen["My own greeting"]); table.insert(def.lines, 1, dropped); table.remove(def.lines)
+        -- Loading the preset again plays the same character; no second copy.
+        local count = #IC.Profile().personaOrder; IC.Library.Load("office-stanley"); eq(#IC.Profile().personaOrder, count)
+        eq(IC.Personas.RolePool("greetings"), first); eq(IC.Actions.Resolve("role:greetings").name, "Greeting")
+    end)
+    test("saving the whole text box on a preset pool hides removed lines and keeps added ones across reloads", function()
+        local db = open(); local _, _, first = IC.Library.Install("office-stanley", true)
+        local pool = IC.Profile().pools[first]; local lines = IC.Copy(pool.lines)
+        local removed = table.remove(lines, 3); lines[#lines + 1] = "Typed in the box"
+        assert(IC.Dialogue.Save(pool, pool.name, pool.channel, pool.mode, pool.icon, lines))
+        open(db); pool = IC.Profile().pools[first]
+        local seen = {}; for _, line in ipairs(pool.lines) do seen[line] = true end
+        assert(not seen[removed]); assert(seen["Typed in the box"]); eq(#pool.lines, #lines)
+        assert(pool.layer.hidden[removed])
+    end)
+    test("a character from an older full copy becomes a layer and gets the new preset slots and lines", function()
+        local db = open(); assert(IC.Library.Load("office-stanley")); local actor = IC.Personas.Active()
+        local profile = IC.Profile()
+        -- Simulate a 0.14 save: plain copies of the three original pools, one edited, no layers.
+        for i = #actor.poolIDs, 1, -1 do
+            local pool = profile.pools[actor.poolIDs[i]]
+            if pool.layer.def ~= "greetings" and pool.layer.def ~= "quotes" and pool.layer.def ~= "farewells" then
+                IC.Dialogue.Delete(pool.id); table.remove(actor.poolIDs, i)
+            else pool.layer = nil end
+        end
+        profile.installedPacks["office-stanley"].dropped = nil
+        actor.rolesSet = { greetings = true, quotes = true, farewells = true } -- 0.14 had only these slots
+        local greet = profile.pools[IC.Personas.RolePool("greetings")]; greet.lines[1] = "Edited in 0.14"
+        open(db); local before = #actor.poolIDs
+        for _, id in ipairs(IC.Personas.Active().poolIDs) do assert(IC.Profile().pools[id].layer, id) end
+        assert(#IC.Personas.Active().poolIDs > 3, "new slots arrive")
+        assert(IC.Personas.RolePool("jokes"), "the Joke slot fills from the preset")
+        local lines = {}; for _, line in ipairs(IC.Profile().pools[greet.id].lines) do lines[line] = true end
+        assert(lines["Edited in 0.14"], "an old edit is kept as your own line")
     end)
     test("old preset names lose their source prefix on upgrade; the source stays in provenance", function()
         local db = open(); local _, _, first = IC.Library.Install("office-stanley", true)
