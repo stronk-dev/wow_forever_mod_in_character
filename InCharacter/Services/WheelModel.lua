@@ -45,12 +45,12 @@ end
 function M.Zone(dx, dy, g)
     return math.sqrt(dx * dx + dy * dy) < g.hub and "hub" or "ring"
 end
--- Where the one label goes for a slice: just outside the ring on its side, never in the centre.
--- Returns x, y and the text justification.
+-- Reserve square icons, including hover growth and the highlight, rather than just the ring.
+function M.LabelEdge(g) return g.radius + (g.icon * 1.1 + 6) / 2 + 12 end
+-- Anchor the whole text block outside that envelope; a radial offset is unsafe at diagonals.
 function M.LabelPoint(angle, g)
-    local distance = g.radius + g.icon / 2 + 10
-    local x, y = math.sin(angle) * distance, math.cos(angle) * distance
-    local s = math.sin(angle)
-    if s > 0.3 then return x, y, "LEFT" elseif s < -0.3 then return x, y, "RIGHT" end
-    return x, y + (math.cos(angle) > 0 and 4 or -4), "CENTER"
+    local s, c, edge = math.sin(angle), math.cos(angle), M.LabelEdge(g)
+    if s > 0.3 then return edge, c * g.radius, "LEFT"
+    elseif s < -0.3 then return -edge, c * g.radius, "RIGHT" end
+    return 0, c > 0 and edge or -edge, "CENTER"
 end

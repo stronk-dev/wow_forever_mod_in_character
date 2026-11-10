@@ -100,6 +100,27 @@ return function(IC, test, eq, open)
         local g = IC.BarModel.Geometry({ size = 28 }, { {}, {}, {}, {}, {}, {}, {}, {}, {}, {} })
         eq(g.width, 298); eq(g.height, 28)
     end)
+    test('wheel captions clear every square icon and hover highlight at every slice and size', function()
+        local M = IC.WheelModel
+        for count = 1, M.PAGE do for size = 32, 48, 2 do
+            local g = M.Geometry(count, size)
+            for selected = 1, count do
+                local _, _, angle = M.Position(selected, count, g.radius)
+                local x, y, justify = M.LabelPoint(angle, g)
+                local left, right, bottom, top
+                if justify == 'LEFT' then left, right, bottom, top = x, x + 240, y - 60, y + 30
+                elseif justify == 'RIGHT' then left, right, bottom, top = x - 240, x, y - 60, y + 30
+                elseif y > 0 then left, right, bottom, top = x - 120, x + 120, y, y + 90
+                else left, right, bottom, top = x - 120, x + 120, y - 90, y end
+                for i = 1, count do
+                    local ix, iy = M.Position(i, count, g.radius)
+                    local half = (size * 1.1 + 6) / 2
+                    assert(right < ix - half or left > ix + half or top < iy - half or bottom > iy + half,
+                        'caption overlaps a square icon or hover highlight')
+                end
+            end
+        end end
+    end)
     test('platform injection keeps action dispatch independent of client API globals', function()
         open(); local pool = IC.Profile().pools.quotes; pool.lines = { 'works' }
         local allowed, send = IC.Platform.ChatAllowed, IC.Platform.SendChat

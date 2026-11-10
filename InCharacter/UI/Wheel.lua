@@ -10,6 +10,7 @@ IC.Wheel = { slots = {}, stack = {} }
 local W, M, U = IC.Wheel, IC.WheelModel, IC.UI
 local unpack = unpack or table.unpack
 local ZOOM = 0.12
+local LABEL_WIDTH = 240
 
 local function settings() return IC.Profile().wheel end
 local function iconSize() return math.max(32, math.min(48, math.floor(tonumber(settings().iconSize) or M.ICON))) end
@@ -57,7 +58,7 @@ local function label(button)
         else W.sub:SetPoint(justify == "RIGHT" and "TOPRIGHT" or justify == "LEFT" and "TOPLEFT" or "TOP", W.label, justify == "RIGHT" and "BOTTOMRIGHT" or justify == "LEFT" and "BOTTOMLEFT" or "BOTTOM", 0, -1) end
     else
         local node = W.Current()
-        W.label:SetPoint("BOTTOM", W.frame, "CENTER", 0, g.radius + g.icon / 2 + 8); W.label:SetJustifyH("CENTER")
+        W.label:SetPoint("BOTTOM", W.frame, "CENTER", 0, M.LabelEdge(g)); W.label:SetJustifyH("CENTER")
         local trail = {}
         for index, entry in ipairs(W.stack) do if index > 1 then trail[#trail + 1] = entry.name or entry.label end end
         W.label:SetText(#trail > 0 and table.concat(trail, " › ") or "")
@@ -65,6 +66,8 @@ local function label(button)
         W.sub:SetPoint("BOTTOM", W.label, "TOP", 0, 1); W.sub:SetJustifyH("CENTER")
         if node and #trail == 0 and W.pages > 1 then W.label:SetText(" ") end
     end
+    W.label:SetHeight(math.max(1, W.label:GetStringHeight()))
+    W.sub:SetHeight(math.max(1, W.sub:GetStringHeight()))
 end
 
 function W.Render()
@@ -77,7 +80,7 @@ function W.Render()
     local g = M.Geometry(math.max(1, #items), iconSize()); W.geometry = g
     W.frame:SetSize(g.size, g.size)
     -- Keep room on screen for the label beside the ring.
-    W.frame:SetClampRectInsets(-150, 150, 40, -40)
+    W.frame:SetClampRectInsets(-LABEL_WIDTH - 12, LABEL_WIDTH + 12, 100, -100)
     W.disc:SetSize(g.radius * 2 + g.icon + 14, g.radius * 2 + g.icon + 14)
     W.hub:SetSize(g.hub * 2, g.hub * 2)
     for _, button in ipairs(W.slots) do button:Hide() end
@@ -184,8 +187,10 @@ function W.Create()
     W.backGlow = U.Circle(frame, "ARTWORK", 30, { 1, 0.82, 0, 0.25 }); W.backGlow:SetAllPoints(W.hub); W.backGlow:Hide()
     W.back = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge"); W.back:SetPoint("CENTER", 0, 1)
     W.highlight = frame:CreateTexture(nil, "BORDER"); W.highlight:SetColorTexture(unpack(U.Colors.accent)); W.highlight:Hide()
-    W.label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal"); W.label:SetWordWrap(false)
-    W.sub = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); W.sub:SetWordWrap(false)
+    W.label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    W.label:SetWidth(LABEL_WIDTH); W.label:SetWordWrap(true)
+    W.sub = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    W.sub:SetWidth(LABEL_WIDTH); W.sub:SetWordWrap(true)
     frame:SetScript("OnUpdate", W.Track)
     table.insert(UISpecialFrames, "InCharacterWheel")
 end

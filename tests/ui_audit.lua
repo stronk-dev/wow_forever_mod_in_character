@@ -1,5 +1,18 @@
 -- Review regressions for the collection refactor; each receives an isolated fixture.
 return function(test, eq, page)
+    test("wheel captions wrap within a bounded width outside the square-icon envelope", function(IC)
+        IC.Wheel.Open(false)
+        assert(IC.Wheel.label.wordWrap and IC.Wheel.sub.wordWrap)
+        eq(IC.Wheel.label:GetWidth(), 240); eq(IC.Wheel.sub:GetWidth(), 240)
+        for _, slot in ipairs(IC.Wheel.slots) do
+            if slot:IsShown() then
+                IC.Wheel.SetHover(slot)
+                local p = IC.Wheel.label.points.LEFT or IC.Wheel.label.points.RIGHT or IC.Wheel.label.points.BOTTOM or IC.Wheel.label.points.TOP
+                local edge = IC.WheelModel.LabelEdge(IC.Wheel.geometry)
+                assert(math.abs(p[3]) >= edge or math.abs(p[4]) >= edge)
+            end
+        end
+    end)
     test("heard-nearby filtering uses character observations instead of Retail reference metadata", function(IC, Stub)
         local p = page(IC, "Lists"); p.advanced:SetChecked(true); p.advanced:Click()
         p.kind:Choose("nearby"); eq(#p.shown, 0)
