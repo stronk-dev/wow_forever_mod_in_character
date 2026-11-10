@@ -16,7 +16,7 @@ local function relayer(pool) if pool.layer and IC.Library and IC.Library.Capture
 function D.EnsureLines(pool, database)
     pool.lineIDs = pool.lineIDs or {}
     pool.nextLineID = math.max(1, math.floor(tonumber(pool.nextLineID) or 1))
-    local db = database or IC.db or IC.Profiles.db
+    local db = database or IC.Profiles.opening or IC.db or IC.Profiles.db
     if not pool.messageUID then
         assert(db, "Message IDs require an initialized profile database")
         db.nextMessagePoolID = math.max(1, math.floor(tonumber(db.nextMessagePoolID) or 1))

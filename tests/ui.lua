@@ -4,8 +4,9 @@ local function chunk(path, environment)
     if setfenv then return setfenv(assert(loadfile(path)), environment) end
     return assert(loadfile(path, "t", environment))
 end
-local function fixture()
+local function fixture(savedDB, savedCharDB)
     local env = setmetatable({}, { __index = _G }); env._G = env
+    env.InCharacterDB, env.InCharacterCharDB = savedDB, savedCharDB
     local Stub = chunk("tests/wow_stub.lua", env)(); Stub.Install()
     env.SLASH_OTHER1 = "/ic"; env.SlashCmdList.OTHER = function() end
     local IC = {}
@@ -265,6 +266,25 @@ test("review fixes: vertical names, pin keeps the list on its group, sub-lists b
     IC.Bars.SetEditing(true); local frame = IC.Bars.frames[1]
     frame.moveHandle:Fire("OnDragStart"); assert(frame.moving); assert(frame:IsShown())
     Stub.combat = true; event("PLAYER_REGEN_DISABLED"); assert(not frame.moving); assert(not IC.Bars.editing)
+end)
+test("logging in with a 0.14 save loads the whole addon and brings Stanley's new slots (cold start)", function()
+    local IC, Stub = fixture()
+    assert(IC.Library.Load("office-stanley"))
+    local profile, actor = IC.Profile(), IC.Personas.Active()
+    for i = #actor.poolIDs, 1, -1 do
+        local pool = profile.pools[actor.poolIDs[i]]; pool.layer = nil
+        if not (pool.shortcut == "greetings" or pool.shortcut == "quotes" or pool.shortcut == "farewells") then
+            profile.pools[pool.id] = nil; table.remove(actor.poolIDs, i)
+        end
+    end
+    actor.rolesSet = { greetings = true, quotes = true, farewells = true }
+    for k in pairs(actor.roles) do if IC.Personas.ROLE[k] and IC.Personas.ROLE[k].optional then actor.roles[k] = nil end end
+    local savedDB, savedChar = IC.db, IC.Profiles.Character()
+    local fresh, freshStub = fixture(savedDB, savedChar)
+    assert(fresh.db, "the addon initialized"); assert(fresh.Bars.frames[1]:IsShown(), "the bar is shown")
+    assert(fresh.Launcher.button:IsShown()); eq(fresh.Personas.Name(), "Stanley Hudson")
+    assert(fresh.Collections.Contains("rp", "role:jokes"), "Joke is on the RP list now")
+    eq(#freshStub.sends, 0)
 end)
 test("native blocked-chat events preserve selection even when the send API returns nil", function(IC, Stub, env, event)
     local pool = IC.Profile().pools.quotes; pool.mode = "sequential"; pool.lines = { "first", "second" }

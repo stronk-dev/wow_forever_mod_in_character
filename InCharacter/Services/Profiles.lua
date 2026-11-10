@@ -79,6 +79,9 @@ function P.Open(database, characterDatabase, legacyKeys)
     end
     -- Keep all legacy records intact so other characters can migrate when they log in.
     IC.Merge(character, { scope = "account", layoutScope = "character", emoteObservations = {} })
+    -- While a save is opened, new message IDs come from that save (on a fresh game start nothing
+    -- else is set up yet; preset updates create pools during this step).
+    P.opening = db
     -- v1 stored the shared profile under account; retain unknown fields for future migrations.
     if not db.profiles then db.profiles = { account = db.account or IC.Defaults.Profile() } end
     db.profiles.account = CompleteProfile(db.profiles.account or IC.Defaults.Profile(), db, character.emoteObservations)
@@ -90,7 +93,7 @@ function P.Open(database, characterDatabase, legacyKeys)
     db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout())
     CompleteLayout(character.layout)
     db.version, character.version = P.VERSION, P.VERSION
-    P.db, P.character = db, character
+    P.db, P.character, P.opening = db, character, nil
     return db
 end
 function P.Character() return P.character end

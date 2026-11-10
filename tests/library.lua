@@ -106,4 +106,27 @@ return function(IC, test, eq, open)
         eq(IC.Dialogue.Select(pool), "a"); IC.Actions.Favorite("pool:quotes")
         eq(IC.Dialogue.Select(pool), "b")
     end)
+    test("a fresh game start loads a 0.14 save whose preset character gains new slots (cold start)", function()
+        -- Build the save with this instance, then open it in a brand-new addon instance where
+        -- nothing (IC.db, Profiles.db) is set up yet, like the game does on login.
+        local db, char = {}, {}
+        IC.db = IC.Profiles.Open(db, char, { "R:P" }); assert(IC.Library.Load("office-stanley"))
+        local profile, actor = IC.Profile(), IC.Personas.Active()
+        for i = #actor.poolIDs, 1, -1 do
+            local pool = profile.pools[actor.poolIDs[i]]; pool.layer = nil
+            if not (pool.shortcut == "greetings" or pool.shortcut == "quotes" or pool.shortcut == "farewells") then
+                profile.pools[pool.id] = nil; table.remove(actor.poolIDs, i)
+            end
+        end
+        actor.rolesSet = { greetings = true, quotes = true, farewells = true }
+        for k in pairs(actor.roles) do if not IC.Personas.ROLE[k] or IC.Personas.ROLE[k].optional then actor.roles[k] = nil end end
+        local fresh = {}
+        for line in io.lines("InCharacter/InCharacter.toc") do
+            if line:match("%.lua$") and not line:match("^UI/") then assert(loadfile("InCharacter/" .. line))("InCharacter", fresh) end
+        end
+        local ok, problem = pcall(function() fresh.db = fresh.Profiles.Open(db, char, { "R:P" }) end)
+        assert(ok, problem)
+        eq(fresh.Personas.Name(), "Stanley Hudson"); assert(fresh.Personas.RolePool("jokes"), "the new Joke slot arrived")
+        IC.db = IC.Profiles.Open(db, char, { "R:P" })
+    end)
 end
