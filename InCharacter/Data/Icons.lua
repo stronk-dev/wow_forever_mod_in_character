@@ -2,7 +2,7 @@ local _, IC = ...
 local I = "Interface\\Icons\\"
 IC.EmoteIcons, IC.IconChoices = {}, {}
 -- Newer artwork with an older stand-in, used if the client rejects the newer file.
-IC.IconFallback = {}
+IC.IconFallback = { [I .. "character_feetslot_c60"] = I .. "INV_Boots_Cloth_12" }
 local function art(icon, words, category, label)
     local path = I .. icon
     IC.IconChoices[#IC.IconChoices + 1] = { path = path, label = label or words, category = category, search = words }
@@ -61,7 +61,7 @@ art("INV_Misc_Coin_01", "beg grovel plead", "Reactions", "Beg")
 art("ability_hunter_eagleeye", "eye eyebrow gaze glare look peer stare roll eyes suspicious shifty search", "Reactions", "Look / suspicion")
 art("Spell_Shadow_AntiShadow", "frown snub scoff blame jealous", "Reactions", "Disapproval")
 art("Spell_Shadow_MindSteal", "headache nervous cringe wince", "Reactions", "Uneasy")
-art("INV_Boots_Cloth_12", "dance shimmy bounce", "Idle", "Dance")
+art("character_feetslot_c60", "dance shimmy bounce", "Idle", "Dance")
 art("Spell_Nature_Strength", "flex crack crossarms", "Idle", "Flex / strength")
 art("INV_FishingChair", "sit", "Idle", "Sit")
 art("Spell_Holy_PrayerOfHealing", "kneel", "Idle", "Kneel")
@@ -78,7 +78,7 @@ art("INV_Hammer_20", "work", "Idle", "Work")
 art("Spell_Frost_FrostArmor02", "cold shiver shudder", "Idle", "Cold / shiver")
 art("Spell_Nature_LightningShield", "sweat breath", "Idle", "Breath / sweat")
 art("INV_Gauntlets_06", "point poke boop pat pet ruffle massage pinch tickle twiddle tap snap", "Idle", "Hand gesture")
-art("INV_Misc_Bone_01", "bite lick drool", "Voice/Fun", "Bite / lick")
+art("ability_druid_ferociousbite", "bite lick drool", "Voice/Fun", "Bite / lick")
 art("Spell_Magic_PolymorphChicken", "chicken quack", "Voice/Fun", "Chicken / bird")
 art("INV_Misc_Toy_10", "train", "Voice/Fun", "Toy train")
 art("Spell_Nature_Polymorph", "silly jk", "Voice/Fun", "Joke / silly")
