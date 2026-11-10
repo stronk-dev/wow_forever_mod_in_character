@@ -111,4 +111,21 @@ return function(test, eq)
         IC.Bars.SetEditing(false); assert(not frame.moveHandle:IsShown())
         eq(count > 3, true); eq(#Stub.sends + #Stub.emotes, 0)
     end)
+    test("a slot button drawn for the previous character lists and sends the loaded character's lines", function(IC, Stub)
+        local joke = IC.Personas.CreateSlot("Joke")
+        local general = IC.Dialogue.Create("General jokes"); IC.Dialogue.Save(general, general.name, "SAY", "sequential", general.icon, { "shared joke" })
+        IC.Personas.SetShared(general.id, true); IC.Personas.SetRole(joke.id, general.id); IC.Refresh()
+        find(IC, "set:rp"):Click()
+        local row; for _, r in ipairs(rows(IC, 1)) do if r.node.id == "role:" .. joke.id then row = r end end
+        eq(row.node.payload, general.id); IC.Flyout.Close()
+        -- Combat: nothing rebuilds. Switch to Stanley and give him his own joke.
+        Stub.combat = true
+        assert(IC.Library.Install("office-stanley", true))
+        local own = IC.Dialogue.Create("Stanley jokes"); IC.Dialogue.Save(own, own.name, "SAY", "sequential", own.icon, { "own joke" })
+        IC.Personas.SetRole(joke.id, own.id)
+        eq(row.node.payload, general.id, "the drawn node is stale")
+        IC.Flyout.Open(row, row.node, 1)
+        local lines = rows(IC, 1); eq(#lines, 1); eq(lines[1].node.payload, own.id)
+        lines[1]:Click(); eq(Stub.sends[#Stub.sends][1], "own joke")
+    end)
 end

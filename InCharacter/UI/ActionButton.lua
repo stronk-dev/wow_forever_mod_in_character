@@ -18,6 +18,7 @@ end
 
 -- Title = what the action is. Second line = how it sends. A dimmed line names where it came from.
 local function poolLines(node)
+    node = IC.Actions.Current(node)
     local pool = node.payload and IC.Profile().pools[node.payload]
     if not pool then
         GameTooltip:AddLine(IC.Personas.Name() .. " has no lines here yet", 0.75, 0.75, 0.75)

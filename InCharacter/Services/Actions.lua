@@ -138,13 +138,18 @@ function A.List(source)
     return result
 end
 
+-- A slot node may have been drawn for the previous character (bars cannot rebuild in combat).
+-- Clicks, child lists and tooltips all use this, so a slot always means the loaded character.
+function A.Current(node)
+    return type(node) == "table" and node.role and A.Resolve("role:" .. node.role) or node
+end
 -- Only UI clicks, bindings and slash handlers call this. No event/timer calls it.
 function A.Dispatch(action)
     if IC.Bars and IC.Bars.editing then return false, "Finish editing layouts before playing an action." end
     if type(action) == "string" then action = A.Resolve(action) end
     -- A role button may have been drawn for the previous character (bars cannot rebuild in
     -- combat); the role always means the character loaded now.
-    if type(action) == "table" and action.role then action = A.Resolve("role:" .. action.role) end
+    action = A.Current(action)
     if not action then return false, "Unknown action." end
     if action.type == "emote" then
         local known = IC.Emotes.byID[action.id]

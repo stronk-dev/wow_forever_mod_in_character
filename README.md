@@ -51,9 +51,10 @@ Sound and animation labels come from the [Warcraft Wiki emote table](https://war
 /ic                       settings            /ic edit       move & edit bars
 /ic wheel                 radial wheel        /ic menu       emote menu at the cursor
 /ic bars                  hide / show bars    /ic lines      RP lines page
-/ic bars one | separate   switch bar layout   /ic <pool>     play a named pool
+/ic bars one | separate   switch bar layout
 /ic greet | quote | bye   your character's Greeting / Quote / Farewell
-/ic say <slot>          any slot by name, e.g. /ic say joke
+/ic say <slot>            any slot by name, e.g. /ic say joke
+/ic <pool>                a pool by name: your character's own first, then shared ones
 /ic play random|shuffle|sequential <pool>     /ic character <name>
 /ic message <pool ID> <message ID>            /ic help
 ```

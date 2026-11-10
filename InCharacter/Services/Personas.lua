@@ -280,27 +280,39 @@ function R.Assign(poolID, actorID)
     for _, actor in pairs(p.personas) do for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == poolID then table.remove(actor.poolIDs, i) end end end
     p.personas[actorID].poolIDs[#p.personas[actorID].poolIDs + 1] = poolID; IC.Changed(); return true
 end
+-- Pools a name can reach, in the same order a slot uses them: the loaded character's own pools
+-- first, then the shared ones. An own pool wins over a shared pool with the same name; two
+-- matches in the same group are ambiguous.
+local function searchTiers() return { R.Pools(), R.SharedPools() } end
 function R.Shortcut(alias)
     local p = IC.Profile()
     if R.Slot(alias) then return (R.RolePool(alias)) end
-    local found
-    for _, id in ipairs(R.Pools()) do
-        local pool = p.pools[id]
-        if pool and (pool.shortcut == alias or id == alias or IC.Normalize(pool.name) == alias) then if found then return nil end; found = id end
+    for _, ids in ipairs(searchTiers()) do
+        local found
+        for _, id in ipairs(ids) do
+            local pool = p.pools[id]
+            if pool and (pool.shortcut == alias or id == alias or IC.Normalize(pool.name) == alias) then if found then return nil end; found = id end
+        end
+        if found then return found end
     end
-    return found
 end
 function R.FindPool(name)
-    local normalized, found = IC.Normalize(name)
-    for _, id in ipairs(R.Pools()) do
-        local pool = IC.Profile().pools[id]
-        if name == id then return pool end
-        local short = pool.name:match(" / (.+)$") or pool.name
-        if normalized == IC.Normalize(pool.name) or normalized == IC.Normalize(short) then
-            if found then return nil, "Ambiguous pool name; use its exact ID." end; found = pool
-        end
+    local normalized, p = IC.Normalize(name), IC.Profile()
+    for _, ids in ipairs(searchTiers()) do
+        for _, id in ipairs(ids) do if name == id and p.pools[id] then return p.pools[id] end end
     end
-    return found, found and nil or ("No matching pool for " .. R.Name() .. ".")
+    for _, ids in ipairs(searchTiers()) do
+        local found
+        for _, id in ipairs(ids) do
+            local pool = p.pools[id]
+            local short = pool and (pool.name:match(" / (.+)$") or pool.name)
+            if pool and (normalized == IC.Normalize(pool.name) or normalized == IC.Normalize(short)) then
+                if found then return nil, "Ambiguous pool name; use its exact ID." end; found = pool
+            end
+        end
+        if found then return found end
+    end
+    return nil, "No matching pool for " .. R.Name() .. " or the shared pools."
 end
 function R.Options(library)
     local result = {}

@@ -130,10 +130,15 @@ function C.Nodes(id, visiting, depth)
     visiting[id] = nil
     return result
 end
+-- A slot node may have been drawn for the previous character (nothing rebuilds in combat); its
+-- children, like its click, always follow the slot for the character loaded now.
+local function current(node) return IC.Actions.Current(node) end
 function C.HasChildren(node)
+    node = current(node)
     return node.type == "group" or node.type == "character" or (node.type == "pool" and not node.empty)
 end
 function C.Children(node)
+    node = current(node)
     if node.type == "group" then return C.Nodes(node.collection) end
     if node.type == "character" then
         local result = {}

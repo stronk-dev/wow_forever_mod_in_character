@@ -34,6 +34,7 @@ local function detail(node)
     if node.type == "character" then return "switch character" end
     if node.type == "persona" then return node.active and "playing now" or "play as" end
     if node.type == "pool" then
+        node = IC.Actions.Current(node)
         if node.empty then return "no lines yet" end
         local pool = IC.Profile().pools[node.payload]
         return pool and (#pool.lines .. " lines · right-click: pick one") or nil
