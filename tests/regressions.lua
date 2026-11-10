@@ -69,6 +69,41 @@ return function(IC, test, eq, open)
         C_ChatInfo = nil; local calls = 0; SendChatMessage = function(text) eq(text, "a"); calls = calls + 1 end
         assert(IC.Actions.Dispatch("pool:quotes")); eq(calls, 1); SendChatMessage = nil
     end)
+    test("chat API is invoked directly from the platform rather than through a protected-call wrapper", function()
+        open(); local pool = IC.Profile().pools.quotes; pool.lines = { "User-chosen message" }
+        local calls = 0
+        local function send(text, channel)
+            eq(debug.getinfo(2, "f").func, IC.Platform.SendChat)
+            eq(text, pool.lines[1]); eq(channel, pool.channel); calls = calls + 1
+        end
+        C_ChatInfo = { SendChatMessage = send }
+        for _, channel in ipairs({ "SAY", "YELL", "EMOTE" }) do
+            pool.channel = channel; assert(IC.Actions.Dispatch("pool:quotes"))
+        end
+        C_ChatInfo, SendChatMessage = nil, send
+        assert(IC.Actions.Dispatch("pool:quotes")); eq(calls, 4)
+        SendChatMessage = nil
+    end)
+    test("all playback modes commit state only after a direct chat send returns successfully", function()
+        for _, mode in ipairs({ "random", "shuffle", "sequential" }) do
+            open(); local pool = IC.Profile().pools.quotes; pool.mode = mode; pool.lines = { "a", "b", "c" }
+            IC.Dialogue.Select(pool)
+            local current = IC.Dialogue.states.quotes
+            local cursor, bag = current.cursor, current.bag and table.concat(current.bag, ",")
+            local calls = 0
+            C_ChatInfo = { SendChatMessage = function()
+                calls = calls + 1; eq(IC.Dialogue.states.quotes, current)
+                error("native chat failure")
+            end }
+            assert(not pcall(IC.Actions.Dispatch, "pool:quotes")); eq(calls, 1)
+            eq(IC.Dialogue.states.quotes, current); eq(current.cursor, cursor)
+            eq(current.bag and table.concat(current.bag, ","), bag)
+            C_ChatInfo.SendChatMessage = function() eq(IC.Dialogue.states.quotes, current); calls = calls + 1 end
+            assert(IC.Actions.Dispatch("pool:quotes")); eq(calls, 2)
+            assert(IC.Dialogue.states.quotes ~= current)
+        end
+        C_ChatInfo = nil
+    end)
     test("pipes are literal and encoded byte length is checked without editing stored text", function()
         open(); local pool = IC.Profile().pools.quotes; pool.lines = { "literal |cffff0000red|r and |Hlink" }
         local calls = 0; C_ChatInfo = { SendChatMessage = function(text)

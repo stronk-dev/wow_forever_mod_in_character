@@ -18,8 +18,18 @@ end
 function P.SendChat(text, channel)
     local fn = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
     if type(fn) ~= "function" then return false, "Chat API is unavailable." end
-    local ok, result = pcall(fn, text, channel)
-    return ok and result ~= false, not ok and ("Client blocked chat: " .. tostring(result)) or "Client declined chat."
+    local before = P.chatBlockSerial or 0
+    -- Match Charades: submit directly on the user's click/key call stack. Do not put the
+    -- restricted C function behind pcall/securecall, a timer, or a chat-box workaround.
+    -- The dispatcher commits playback only after this returns successfully.
+    local result = fn(text, channel)
+    if (P.chatBlockSerial or 0) ~= before then return false, "Client blocked this chat action; playback is unchanged." end
+    if result == false then return false, "Client declined chat." end
+    return true
+end
+-- A protected-action failure can emit an event without throwing or returning false.
+function P.RecordChatBlock(addon)
+    if addon == IC.name then P.chatBlockSerial = (P.chatBlockSerial or 0) + 1 end
 end
 function P.CursorInside(frame)
     if not frame or not frame:IsShown() then return false end

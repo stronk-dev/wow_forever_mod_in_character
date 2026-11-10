@@ -65,7 +65,7 @@ return function(IC, test, eq, open)
         assert(not IC.Actions.Dispatch("line:quotes:" .. pool.lineIDs[1])); assert(not IC.Actions.Dispatch("play:shuffle:quotes"))
         eq(next(IC.Dialogue.states), nil)
         C_ChatInfo = { SendChatMessage = function() error("blocked") end }
-        assert(not IC.Actions.Dispatch("play:sequential:quotes")); eq(IC.Dialogue.states[IC.Dialogue.StateKey(pool, "sequential")], nil)
+        assert(not pcall(IC.Actions.Dispatch, "play:sequential:quotes")); eq(IC.Dialogue.states[IC.Dialogue.StateKey(pool, "sequential")], nil)
         C_ChatInfo = nil
     end)
     test("editing one pool does not reset another pool's playback", function()

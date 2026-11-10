@@ -179,24 +179,22 @@ function A.Dispatch(action)
         if not allowed then IC.Print(reason .. " Selection unchanged; nothing queued."); return false, reason end
         if action.selectionMode and action.selectionMode ~= "random" and action.selectionMode ~= "shuffle" and action.selectionMode ~= "sequential" then IC.Print("Invalid selection mode."); return false end
         local key = IC.Dialogue.StateKey(pool, action.selectionMode)
-        local state = IC.Copy(IC.Dialogue.states[key])
-        local text
+        local text, nextState
         if action.type == "line" then text = IC.Dialogue.Line(pool, action.lineID)
-        else text = IC.Dialogue.Select(pool, action.selectionMode) end
-        if not text or IC.Trim(text) == "" then IC.Dialogue.states[key] = state; IC.Print("This message is no longer available."); return false end
+        else text, nextState = IC.Dialogue.Preview(pool, action.selectionMode) end
+        if not text or IC.Trim(text) == "" then IC.Print("This message is no longer available."); return false end
         text = A.ChatText(text)
         -- Store unlimited quote lengths, but never split/truncate/spam the live channel.
         if #text > 255 or text:find("[%z\1-\31\127]") then
-            IC.Dialogue.states[key] = state
             IC.Print("Selected line cannot be sent (255 UTF-8 bytes maximum per message; no control characters). Edit or preview it in /ic.")
             return false
         end
         local ok, reason = IC.Platform.SendChat(text, pool.channel)
         if not ok then
-            IC.Dialogue.states[key] = state
             IC.Print(reason .. " Nothing is queued for later.")
             return false
         end
+        if nextState then IC.Dialogue.states[key] = nextState end
         return true
     end
     IC.Print("Unsupported action type.")

@@ -132,7 +132,7 @@ end)
 test("failed chat attempts are not queued and preserve selection", function()
     open(); local pool = IC.Profile().pools.quotes; pool.lines = { "first", "second" }; pool.mode = "sequential"
     C_ChatInfo = { SendChatMessage = function() error("blocked by client") end }
-    assert(not IC.Actions.Dispatch("pool:quotes"))
+    assert(not pcall(IC.Actions.Dispatch, "pool:quotes"))
     C_ChatInfo = { SendChatMessage = function(text) eq(text, "first") end }
     assert(IC.Actions.Dispatch("pool:quotes")); C_ChatInfo = nil
 end)

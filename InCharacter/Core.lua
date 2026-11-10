@@ -153,13 +153,15 @@ if CreateFrame then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
             RegisterSlash()
             IC.Print("Loaded. Use the small bar or the round button; /ic opens the settings.")
+        elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+            IC.Platform.RecordChatBlock(loaded)
         elseif event == "PLAYER_REGEN_ENABLED" and IC.refreshPending then IC.Refresh()
         elseif event == "PLAYER_REGEN_DISABLED" then
             for _, stop in ipairs(IC.UI and IC.UI.captures or {}) do stop() end
             if IC.Editor and IC.Editor.frame then IC.Editor.frame:Hide() end
         end
     end)
-    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED" }) do
+    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
         pcall(events.RegisterEvent, events, event)
     end
 end

@@ -263,6 +263,21 @@ test("review fixes: vertical names, pin keeps the list on its group, sub-lists b
     frame.moveHandle:Fire("OnDragStart"); assert(frame.moving); assert(frame:IsShown())
     Stub.combat = true; event("PLAYER_REGEN_DISABLED"); assert(not frame.moving); assert(not IC.Bars.editing)
 end)
+test("native blocked-chat events preserve selection even when the send API returns nil", function(IC, Stub, env, event)
+    local pool = IC.Profile().pools.quotes; pool.mode = "sequential"; pool.lines = { "first", "second" }
+    for _, blockedEvent in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
+        env.C_ChatInfo.SendChatMessage = function()
+            event(blockedEvent, "InCharacter", "C_ChatInfo.SendChatMessage()")
+        end
+        assert(not IC.Actions.Dispatch("pool:quotes")); eq(IC.Dialogue.states.quotes, nil)
+        eq(#Stub.sends, 0)
+    end
+    env.C_ChatInfo.SendChatMessage = function(text, channel)
+        event("ADDON_ACTION_BLOCKED", "OtherAddon", "UnrelatedFunction()")
+        Stub.sends[#Stub.sends + 1] = { text, channel }
+    end
+    assert(IC.Actions.Dispatch("pool:quotes")); eq(Stub.sends[1][1], "first")
+end)
 assert(loadfile("tests/ui_collections.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_input.lua"))()(test, eq, page)
 assert(loadfile("tests/ui_audit.lua"))()(test, eq, page)

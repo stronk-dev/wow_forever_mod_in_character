@@ -6,7 +6,9 @@ local function output(s) io.write(s, '\n') end
 local function rect(x, y, w, h, color) output(string.format('<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" fill="%s" stroke="#8d8060"/>', x, y, w, h, color or '#302c24')) end
 local function text(x, y, s, size) output(string.format('<text x="%.2f" y="%.2f" fill="#eadfbe" font-family="sans-serif" font-size="%d">%s</text>', x, y, size or 13, s)) end
 output('<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="760" viewBox="0 0 1060 760">')
-rect(0, 0, 1060, 760, '#151412'); text(24, 28, 'In Character 0.14.0 — layout geometry at 1 UI unit per pixel', 18)
+local version = 'development'
+for line in io.lines('InCharacter/InCharacter.toc') do version = line:match('^## Version: (%S+)$') or version end
+rect(0, 0, 1060, 760, '#151412'); text(24, 28, 'In Character ' .. version .. ' — layout geometry at 1 UI unit per pixel', 18)
 text(24, 51, 'Model output, not a screenshot. Blizzard fonts, textures and input still require an in-game test.', 12)
 local nodes = {}; for i = 1, 10 do nodes[i] = { segment = 1 } end
 for i, size in ipairs({ 28, 24, 12 }) do
