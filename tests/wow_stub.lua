@@ -3,12 +3,22 @@
 local Stub = { frames = {}, clock = 0, combat = false, sends = {}, emotes = {}, bindings = {}, missing = {}, modifiers = {}, worldKeys = {}, messages = {} }
 local methods = {}
 local function noop() end
-for _, name in ipairs({ "SetJustifyH", "SetFontObject", "SetWordWrap", "SetAutoFocus", "SetMultiLine", "SetBackdrop",
+for _, name in ipairs({ "SetAutoFocus", "SetMultiLine", "SetBackdrop",
     "SetBackdropColor", "SetBackdropBorderColor", "SetFrameStrata", "SetFrameLevel", "SetClampedToScreen", "SetMovable",
     "EnableMouse", "EnableMouseWheel", "RegisterForDrag", "RegisterForClicks", "SetTexCoord", "SetVertexColor",
     "SetColorTexture", "StartMoving", "StopMovingOrSizing", "ClearFocus", "SetFocus", "SetTextInsets", "SetTextColor",
     "SetToplevel", "Raise", "SetOrientation", "SetValueStep", "SetObeyStepOnDrag",
     "SetPushedTexture", "SetClampRectInsets", "SetBlendMode", "SetAlpha" }) do methods[name] = noop end
+-- Recorded only for the layout probe; behaviour is unchanged.
+function methods:SetJustifyH(value) self.justifyH = value end
+function methods:SetFontObject(value) self.font = value end
+function methods:SetWordWrap(value) self.wordWrap = value end
+function methods:SetFrameStrata(value) self.strata = value end
+function methods:SetColorTexture(...) self.colorTexture = { ... } end
+function methods:SetVertexColor(...) self.vertexColor = { ... } end
+function methods:SetTextColor(...) self.textColor = { ... } end
+function methods:SetBackdrop(value) self.backdrop = value end
+function methods:SetBackdropBorderColor(...) self.backdropBorder = { ... } end
 function methods:GetRight() local x = self:GetCenter(); return x + self:GetWidth() / 2 end
 function methods:GetLeft() local x = self:GetCenter(); return x - self:GetWidth() / 2 end
 function methods:GetTop() local _, y = self:GetCenter(); return y + self:GetHeight() / 2 end
@@ -35,12 +45,19 @@ end
 function methods:GetWidth() return self.width or 100 end
 function methods:GetHeight() return self.height or 24 end
 function methods:SetPoint(point, relative, relativePoint, x, y)
+    self.points = self.points or {}
+    if type(relative) == "number" or relative == nil then self.points[point] = { nil, point, relative or 0, relativePoint or 0 }
+    elseif type(relative) == "string" then self.points[point] = { _G[relative], relativePoint or point, x or 0, y or 0 }
+    else self.points[point] = { relative, relativePoint or point, x or 0, y or 0 } end
     if type(relative) == "number" or relative == nil then
         self.x, self.y = relative or 0, relativePoint or 0; self.relative = self.parent; self.point = point
     else self.x, self.y, self.relative, self.point, self.relativePoint = x or 0, y or 0, relative, point, relativePoint or point end
 end
-function methods:ClearAllPoints() self.x, self.y, self.relative = 0, 0, nil end
-function methods:SetAllPoints(relative) self.relative = type(relative) == "table" and relative or self.parent; self.x, self.y = 0, 0 end
+function methods:ClearAllPoints() self.x, self.y, self.relative = 0, 0, nil; self.points = {} end
+function methods:SetAllPoints(relative)
+    self.relative = type(relative) == "table" and relative or self.parent; self.x, self.y = 0, 0
+    self.points = { TOPLEFT = { self.relative, "TOPLEFT", 0, 0 }, BOTTOMRIGHT = { self.relative, "BOTTOMRIGHT", 0, 0 } }
+end
 -- Only CENTER and the bars' TOP-to-CENTER anchors are modelled for geometry assertions.
 function methods:GetCenter()
     if self == UIParent then return 960, 540 end
@@ -139,8 +156,8 @@ widget = function(kind, name, parent)
         if method == "GetStringHeight" and kind == "FontString" then return function(self)
             local rows = 1; for _ in self:GetText():gmatch("\n") do rows = rows + 1 end; return rows * 14
         end end
-        if method == "CreateFontString" then return function(self) return widget("FontString", nil, self) end end
-        if method == "CreateTexture" then return function(self) return widget("Texture", nil, self) end end
+        if method == "CreateFontString" then return function(self, _, layer, font) local f = widget("FontString", nil, self); f.font, f.layer = font, layer; return f end end
+        if method == "CreateTexture" then return function(self, _, layer) local t = widget("Texture", nil, self); t.layer = layer; return t end end
         -- Unknown keys are nil, as on real frames; calling an unknown method still errors.
         return nil
     end })

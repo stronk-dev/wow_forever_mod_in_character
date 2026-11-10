@@ -27,16 +27,16 @@ E.Filters = {
 -- Guided categories. Ids are stable (bars and saved favorites refer to them).
 E.categories = { "Combat", "Social", "Reactions", "Idle", "Voice/Fun" }
 E.CategoryInfo = {
-    Favorites = { label = "Favorites", icon = I .. "Spell_Holy_PowerInfusion", hint = "Your pinned emotes and dialogue." },
-    Combat = { label = "Combat callouts", icon = I .. "Ability_Warrior_BattleShout",
+    Favorites = { label = "Favorites", short = "Favorites", icon = I .. "Spell_Holy_PowerInfusion", hint = "Your pinned emotes and dialogue." },
+    Combat = { label = "Combat callouts", short = "Combat", icon = I .. "Ability_Warrior_BattleShout",
         hint = "Group callouts: charge, heal me, out of mana. Check the result on your character." },
-    Social = { label = "Greetings & manners", icon = I .. "Spell_Holy_PrayerOfHealing",
+    Social = { label = "Greetings & manners", short = "Greetings", icon = I .. "Spell_Holy_PrayerOfHealing",
         hint = "Wave, bow, thank and welcome people." },
-    Reactions = { label = "Reactions", icon = I .. "Spell_Holy_MindVision",
+    Reactions = { label = "Reactions", short = "Reactions", icon = I .. "Spell_Holy_MindVision",
         hint = "Laugh, cheer, cry, facepalm: react to what just happened." },
-    Idle = { label = "Poses & idle", icon = I .. "Spell_Nature_Sleep",
+    Idle = { label = "Poses & idle", short = "Poses", icon = I .. "Spell_Nature_Sleep",
         hint = "Poses and activities: dance, flex, sit and read. Check the result on your character." },
-    ["Voice/Fun"] = { label = "Playful emotes", icon = I .. "Ability_Druid_DemoralizingRoar",
+    ["Voice/Fun"] = { label = "Playful emotes", short = "Playful", icon = I .. "Ability_Druid_DemoralizingRoar",
         hint = "Chicken, train, roar and more. Sound stays unverified until you check it." },
     Roleplay = { label = "Roleplay lines", icon = I .. "INV_Misc_Book_09", hint = "Your dialogue pools." },
     all = { label = "All emotes", icon = I .. "INV_Misc_Note_01", hint = "Every emote this client knows." },

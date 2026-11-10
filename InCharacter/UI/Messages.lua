@@ -37,7 +37,7 @@ function E.RefreshMessages()
             row:SetHeight(21); row.label:SetJustifyH('LEFT'); p.messageRows[i] = row
         end
         row.lineID = id; row:ClearAllPoints(); row:SetPoint('TOPLEFT', 0, -(i - 1) * 22)
-        row:SetText(IC.DisplayText(IC.ShortText(pool.lines[i], 28))); row:Show()
+        row:SetText(IC.DisplayText(pool.lines[i])); row:Show()
     end
     p.messageList:SetContentHeight(#pool.lines * 22)
     local options = {}; for _, list in ipairs(IC.Collections.List()) do if not list.dynamic then options[#options + 1] = { value = list.id, label = list.name } end end

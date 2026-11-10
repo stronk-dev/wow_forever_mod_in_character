@@ -20,9 +20,9 @@ function IC.Defaults.Profile()
         },
         poolOrder = { "greetings", "quotes", "farewells" },
         favorites = { "emote:wave", "emote:cheer", "emote:laugh", "emote:dance", "emote:charge", "emote:healme",
-            "pool:greetings", "pool:quotes", "pool:farewells" },
+            "role:greetings", "role:quotes", "role:farewells" },
         -- hiddenActions / hiddenCategories are read only by the persona migration of older saves.
-        wheel = { mode = "click", root = "main", iconSize = 30, hiddenActions = {}, hiddenCategories = {} },
+        wheel = { mode = "click", root = "ring", iconSize = 40, hiddenActions = {}, hiddenCategories = {} },
         menu = { root = "main", hiddenActions = {}, hiddenCategories = {} },
         emoteScope = "essentials", emoteReview = {},
         emoteFilter = "all", hideUnverified = true,
@@ -42,8 +42,25 @@ function IC.Defaults.CollectionBar(index, collection)
     return bar
 end
 function IC.Defaults.Launcher()
-    return { shown = true, click = "menu", rightClick = "editor", middleClick = "edit", size = 36, x = -420, y = 180 }
+    return { shown = true, size = 36, x = -420, y = 180 }
+end
+-- "one": a single bar with favorites, the category groups and the RP character.
+-- "separate": a favorites bar, one bar per category and an RP bar. Each mode keeps its own bars.
+function IC.Defaults.ModeBars(mode)
+    if mode ~= "separate" then return { IC.Defaults.CollectionBar(1) } end
+    local ids = { "favorites" }
+    for _, id in ipairs(IC.Emotes.categories) do ids[#ids + 1] = id end
+    ids[#ids + 1] = "rp"
+    local bars = {}
+    for index, id in ipairs(ids) do
+        local bar = IC.Defaults.Bar(index)
+        local info = IC.Emotes.CategoryInfo[id]
+        bar.name = id == "rp" and "RP character" or id == "favorites" and "Favorites" or (info and info.label) or id
+        bar.collection, bar.y = id, -330 + (index - 1) * 34
+        bars[index] = bar
+    end
+    return bars
 end
 function IC.Defaults.Layout()
-    return { bars = { IC.Defaults.CollectionBar(1) }, launcher = IC.Defaults.Launcher(), collectionBarIntroduced = true }
+    return { mode = "one", bars = IC.Defaults.ModeBars("one"), stash = {}, launcher = IC.Defaults.Launcher(), modeVersion = 1 }
 end

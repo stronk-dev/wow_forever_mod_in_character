@@ -32,7 +32,8 @@ function L.Register(pack)
     assert(not L.packs[pack.id], "Duplicate preset " .. pack.id)
     L.packs[pack.id] = pack; L.order[#L.order + 1] = pack.id
 end
-function L.Install(id, useShortcuts)
+-- Copies a preset's pools into the profile as a new RP character. load = also make it the active character.
+function L.Install(id, load)
     local pack, profile = L.packs[id], IC.Profile()
     if not pack then return false, "Unknown preset." end
     local installed = { version = pack.version, pools = {} }
@@ -40,7 +41,7 @@ function L.Install(id, useShortcuts)
         local base = id .. "-" .. definition.id
         local poolID, suffix = base, 2
         while profile.pools[poolID] do poolID = base .. "-" .. suffix; suffix = suffix + 1 end
-        local pool = IC.Defaults.Pool(poolID, pack.title .. " / " .. definition.name)
+        local pool = IC.Defaults.Pool(poolID, definition.name)
         pool.lines, pool.channel, pool.mode = IC.Copy(definition.lines), definition.channel, definition.mode
         pool.icon = definition.icon or pack.icon or IC.Icons[1]
         pool.provenance = { pack = id, version = pack.version, source = pack.source }
@@ -48,13 +49,13 @@ function L.Install(id, useShortcuts)
         profile.pools[poolID] = pool; profile.poolOrder[#profile.poolOrder + 1] = poolID
         IC.Dialogue.EnsureLines(pool)
         installed.pools[#installed.pools + 1] = poolID
-        if useShortcuts and definition.shortcut then profile.shortcuts[definition.shortcut] = poolID end
     end
     profile.installedPacks[id] = installed
     if IC.Personas then
         local actor = IC.Personas.Create((pack.title:match(":%s*(.+)$") or pack.title), installed.pools, id)
         installed.persona = actor.id
-        if useShortcuts then IC.Personas.Load(actor.id) end
+        actor.icon = pack.icon or (installed.pools[1] and profile.pools[installed.pools[1]].icon)
+        if load then IC.Personas.Load(actor.id) end
     end
     IC.Changed()
     return true, "Copied " .. pack.title .. ". Existing pools were preserved.", installed.pools[1], installed.persona

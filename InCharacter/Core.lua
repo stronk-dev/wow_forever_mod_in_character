@@ -54,8 +54,8 @@ function IC.Changed()
 end
 
 function IC.Help()
-    IC.Print("/ic opens the window · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars")
-    IC.Print("/ic greet | quote | bye · /ic <pool name> · /ic play random|shuffle|sequential <pool> · /ic character <name>")
+    IC.Print("/ic settings · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars · /ic bars one|separate")
+    IC.Print("/ic greet | quote | bye (your character's roles) · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
 end
 
 function IC.Slash(input)
@@ -65,7 +65,8 @@ function IC.Slash(input)
     if command == "" then
         if IC.Editor then IC.Editor.Toggle() else IC.Help() end
     elseif command == "help" then IC.Help()
-    elseif command == "bars" then IC.Bars.ToggleAll()
+    elseif command == "bars" then
+        if rest == "one" or rest == "separate" then IC.Bars.SetMode(rest) else IC.Bars.ToggleAll() end
     elseif command == "character" then
         if rest == "" then IC.Print("Loaded: " .. IC.Personas.Name()); IC.Editor.Open("Lines")
         else
@@ -90,9 +91,10 @@ function IC.Slash(input)
         if poolID and lineID then IC.Actions.Dispatch("line:" .. poolID .. ":" .. lineID)
         else IC.Print("Use /ic message <pool ID> <message ID>, or choose a message in the menu.") end
     else
+        -- /ic greet | quote | bye: that role of the loaded RP character.
         local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
-        local shortcut = aliases[command]
-        local requested = shortcut and ((IC.Personas and IC.Personas.Shortcut(shortcut)) or shortcut) or input
+        if aliases[command] then IC.Actions.Dispatch("role:" .. aliases[command]); return end
+        local requested = input
         local pool, problem
         if IC.Personas then pool, problem = IC.Personas.FindPool(command == "pool" and rest or requested)
         else pool, problem = IC.Dialogue.Find(command == "pool" and rest or requested) end

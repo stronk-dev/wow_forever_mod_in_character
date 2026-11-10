@@ -33,10 +33,10 @@ local function rowClick(row, mouse)
     local node, depth = row.node, row.depth
     if mouse == "RightButton" then
         if IC.Collections.HasChildren(node) then F.Open(row, node, depth + 1); return end
-        if node.type ~= "group" then IC.Actions.Favorite(node.id); F.Reanchor(); for d = 1, #F.levels do F.Render(d) end end
+        if node.type ~= "group" and node.type ~= "persona" and node.type ~= "character" then IC.Actions.Favorite(node.id); F.Reanchor(); for d = 1, #F.levels do F.Render(d) end end
         return
     end
-    if node.type == "group" then F.Open(row, node, depth + 1); return end
+    if node.type == "group" or node.type == "character" then F.Open(row, node, depth + 1); return end
     F.Close()
     IC.Actions.Dispatch(node)
 end
@@ -56,8 +56,11 @@ local function row(level, index)
     button.more = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); button.more:SetPoint("RIGHT", -3, 0); button.more:SetText(">")
     button:SetScript("OnClick", rowClick)
     button:SetScript("OnEnter", function(self)
-        U.ActionTooltip(self, self.node, "ANCHOR_RIGHT")
         if IC.Collections.HasChildren(self.node) then F.Open(self, self.node, self.depth + 1) else F.CloseFrom(self.depth + 1) end
+        -- The tooltip goes on the side away from the nested list, so it never covers its items.
+        local child, anchor = F.levels[self.depth + 1], "ANCHOR_RIGHT"
+        if child and child:IsShown() and child.node and child.side == "RIGHT" then anchor = "ANCHOR_LEFT" end
+        U.ActionTooltip(self, self.node, anchor)
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
     level.rows[index] = button
@@ -94,7 +97,12 @@ function F.Render(depth)
     local items = IC.Collections.Children(level.node)
     level.items = items
     local lines = level.node.type == "pool"
-    local g = F.Geometry(#items, lines, UIParent:GetWidth(), UIParent:GetHeight()); level.geometry = g
+    local widest = 0
+    if not level.measure then level.measure = level:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); level.measure:Hide() end
+    if level.measure.GetStringWidth then
+        for _, node in ipairs(items) do level.measure:SetText("* " .. (node.name or node.label or "")); widest = math.max(widest, level.measure:GetStringWidth() or 0) end
+    end
+    local g = F.Geometry(#items, lines, UIParent:GetWidth(), UIParent:GetHeight(), widest); level.geometry = g
     level.offset = math.max(0, math.min(level.offset or 0, math.max(0, #items - g.rows)))
     level:SetSize(g.width, g.height)
     for _, button in ipairs(level.rows) do button:Hide() end
@@ -104,8 +112,10 @@ function F.Render(depth)
         button.node, button.depth = node, depth
         button:ClearAllPoints(); button:SetPoint("TOPLEFT", PAD, -PAD - (index - 1) * ROW); button:SetWidth(g.rowWidth)
         U.SetIcon(button.icon, node.icon, IC.Icons[1])
-        local pinned = node.type ~= "group" and IC.Actions.IsFavorite(node.id)
-        button.text:SetText((pinned and "|cffffd100*|r " or "") .. (node.name or node.label))
+        local pinned = node.type ~= "group" and node.type ~= "persona" and IC.Actions.IsFavorite(node.id)
+        local mark = (node.type == "persona" and node.active) and "|cffffd100>|r " or (pinned and "|cffffd100*|r " or "")
+        button.text:SetText(mark .. (node.name or node.label))
+        button.icon:SetDesaturated(node.empty == true)
         button.dot:SetShown(node.type == "emote" and IC.Emotes.IsAudible(node))
         button.more:SetShown(IC.Collections.HasChildren(node))
         button:Show()
@@ -190,8 +200,8 @@ function F.Open(anchor, node, depth)
         local parent = F.levels[depth - 1]
         local offset = PAD + ((anchor:GetTop() or 0) - (parent:GetTop() or 0))
         local right = parent:GetRight()
-        if right and right + level:GetWidth() + 4 > UIParent:GetWidth() then level:SetPoint("TOPRIGHT", parent, "TOPLEFT", -2, offset)
-        else level:SetPoint("TOPLEFT", parent, "TOPRIGHT", 2, offset) end
+        if right and right + level:GetWidth() + 4 > UIParent:GetWidth() then level:SetPoint("TOPRIGHT", parent, "TOPLEFT", -2, offset); level.side = "LEFT"
+        else level:SetPoint("TOPLEFT", parent, "TOPRIGHT", 2, offset); level.side = "RIGHT" end
     end
     level:Show()
     F.open = true

@@ -8,6 +8,8 @@ IC.Collections = {}
 local C = IC.Collections
 local MAX_DEPTH = 4
 C.MAIN = { "all:favorites", "set:Combat", "set:Social", "set:Reactions", "set:Idle", "set:Voice/Fun", "set:rp" }
+-- The wheel's default: 7 slices (marking menus stay at 8 or fewer); each one zooms into its list.
+C.RING = { "set:favorites", "set:Combat", "set:Social", "set:Reactions", "set:Idle", "set:Voice/Fun", "set:rp" }
 
 local function info(id) return IC.Emotes.CategoryInfo[id] or {} end
 local function seeded(category, profile)
@@ -32,6 +34,11 @@ function C.Ensure(profile)
         profile.collectionOrder = { "main", "favorites" }
         for _, category in ipairs(IC.Emotes.categories) do profile.collectionOrder[#profile.collectionOrder + 1] = category end
     end
+    if not profile.collections.ring then
+        profile.collections.ring = { id = "ring", name = "Radial wheel", icon = IC.AddonIcon, items = IC.Copy(C.RING), builtin = true }
+        profile.collectionOrder = profile.collectionOrder or {}
+        table.insert(profile.collectionOrder, 2, "ring")
+    end
     local order, seen = {}, {}
     for _, id in ipairs(type(profile.collectionOrder) == "table" and profile.collectionOrder or {}) do
         if profile.collections[id] and not seen[id] then order[#order + 1] = id; seen[id] = true end
@@ -48,10 +55,11 @@ function C.Ensure(profile)
 end
 
 -- The loaded RP character's pools. Not stored: it follows Personas.
+-- First the character switcher, then the three role slots, then the character's extra pools.
 local function roleplay(profile)
-    local ids = IC.Personas and IC.Personas.Pools() or profile.poolOrder
-    local items, icon = {}, nil
-    for _, id in ipairs(ids) do
+    local items, icon = { "character" }, nil
+    for _, role in ipairs(IC.Personas.ROLES) do items[#items + 1] = "role:" .. role.id end
+    for _, id in ipairs(IC.Personas.Extras()) do
         local pool = profile.pools[id]
         if pool then items[#items + 1] = "pool:" .. id; icon = icon or pool.icon end
     end
@@ -85,6 +93,7 @@ local function canonical(ref)
 end
 local function playable(action)
     if action.type == "emote" then return action.verified == true end
+    if action.role or action.type == "character" or action.type == "persona" then return true end
     local pool = IC.Profile().pools[action.payload]
     if action.type == "pool" and (not pool or #pool.lines == 0) then return false end
     return not IC.Personas or IC.Personas.ActionAllowed(action)
@@ -103,7 +112,8 @@ function C.Nodes(id, visiting, depth)
         if kind == "set" then
             local group = C.Get(target)
             if group and not visiting[target] and #C.Nodes(target, visiting, depth + 1) > 0 then
-                result[#result + 1] = { id = ref, type = "group", collection = target, label = group.name, name = group.name, icon = group.icon, segment = segment }
+                local short = info(target).short or (group.dynamic and group.name:match("^(%S+)")) or nil
+                result[#result + 1] = { id = ref, type = "group", collection = target, label = group.name, name = group.name, short = short, icon = group.icon, segment = segment }
             end
         elseif kind == "all" then
             local inner = C.Nodes(target, visiting, depth + 1)
@@ -120,9 +130,16 @@ function C.Nodes(id, visiting, depth)
     visiting[id] = nil
     return result
 end
-function C.HasChildren(node) return node.type == "group" or node.type == "pool" end
+function C.HasChildren(node)
+    return node.type == "group" or node.type == "character" or (node.type == "pool" and not node.empty)
+end
 function C.Children(node)
     if node.type == "group" then return C.Nodes(node.collection) end
+    if node.type == "character" then
+        local result = {}
+        for _, option in ipairs(IC.Personas.Options(true)) do result[#result + 1] = IC.Actions.Resolve("persona:" .. option.value) end
+        return result
+    end
     if node.type == "pool" then
         local pool = IC.Profile().pools[node.payload]
         if pool and (not IC.Personas or IC.Personas.ActionAllowed(node)) then return IC.Actions.Lines(pool) end

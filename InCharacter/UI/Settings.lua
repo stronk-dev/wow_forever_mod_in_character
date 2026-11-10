@@ -33,13 +33,14 @@ end
 function InCharacter_OnAddonCompartmentClick(_, mouse)
     if not IC.db then return end
     if type(mouse) == "table" then mouse = mouse.buttonName end
-    if mouse == "RightButton" then IC.Editor.Open() elseif IC.Layout().launcher.click == "wheel" then IC.Wheel.Open(false) else IC.Menu.OpenAtCursor() end
+    if mouse == "RightButton" then IC.Editor.Open() else IC.Menu.OpenAtCursor() end
 end
 function InCharacter_OnAddonCompartmentEnter(_, frame)
     if type(frame) == "table" and frame.GetObjectType then GameTooltip:SetOwner(frame, "ANCHOR_LEFT")
     else GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR") end
     GameTooltip:SetText("In Character", 1, 1, 1)
-    GameTooltip:AddLine("Left-click: emote menu (or wheel)", 0.8, 0.8, 0.8); GameTooltip:AddLine("Right-click: settings", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Playing: " .. IC.Personas.Name(), 1, 0.82, 0)
+    GameTooltip:AddLine("Left-click: emote menu", 0.8, 0.8, 0.8); GameTooltip:AddLine("Right-click: settings", 0.8, 0.8, 0.8)
     GameTooltip:Show()
 end
 function InCharacter_OnAddonCompartmentLeave() GameTooltip:Hide() end

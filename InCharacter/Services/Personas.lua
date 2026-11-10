@@ -1,6 +1,14 @@
 local _, IC = ...
 IC.Personas = {}
 local R = IC.Personas
+-- Every RP character has the same three roles. Bars, the wheel and /ic greet|quote|bye use the
+-- role, so switching character keeps the layout and only changes which lines are sent.
+R.ROLES = {
+    { id = "greetings", label = "Greeting", command = "greet" },
+    { id = "quotes", label = "Quote", command = "quote" },
+    { id = "farewells", label = "Farewell", command = "bye" },
+}
+R.ROLE = {}; for _, role in ipairs(R.ROLES) do R.ROLE[role.id] = role end
 local function shortTitle(pack, fallback)
     return pack and (pack.title:match(":%s*(.+)$") or pack.title) or fallback
 end
@@ -59,6 +67,59 @@ function R.Migrate(profile)
         end
         profile.personaVisibilityMigrated = true
     end
+    R.EnsureRoles(profile)
+end
+-- Fills each character's empty role slots from its own pools: a preset's tagged pool, the
+-- starter pool with the role's id, or the old global /ic greet|quote|bye mapping. Each slot is
+-- filled automatically at most once (actor.rolesSet); a slot the player emptied stays empty.
+function R.EnsureRoles(profile)
+    for id, actor in pairs(profile.personas) do
+        actor.roles = type(actor.roles) == "table" and actor.roles or {}
+        actor.rolesSet = type(actor.rolesSet) == "table" and actor.rolesSet or {}
+        local mine = {}; for _, poolID in ipairs(actor.poolIDs) do mine[poolID] = true end
+        for _, role in ipairs(R.ROLES) do
+            local current = actor.roles[role.id]
+            if current and not mine[current] then actor.roles[role.id] = nil end
+            if actor.roles[role.id] then actor.rolesSet[role.id] = true end
+            if not actor.roles[role.id] and not actor.rolesSet[role.id] then
+                for _, poolID in ipairs(actor.poolIDs) do
+                    local pool = profile.pools[poolID]
+                    if pool and not actor.roles[role.id] and (pool.shortcut == role.id or poolID == role.id or (profile.shortcuts or {})[role.id] == poolID) then
+                        actor.roles[role.id] = poolID; actor.rolesSet[role.id] = true
+                    end
+                end
+            end
+        end
+    end
+end
+-- The loaded character's pool for a role, or nil when the slot is empty.
+function R.RolePool(role)
+    local actor = R.Active(); local id = actor and actor.roles and actor.roles[role]
+    return id and IC.Profile().pools[id] and id or nil
+end
+-- "No role (extra)": empties the slot for good; reloads do not refill it.
+function R.ClearRole(poolID)
+    local actor, role = R.Active(), R.RoleOf(poolID)
+    if not actor or not role then return false end
+    actor.rolesSet = actor.rolesSet or {}; actor.roles[role], actor.rolesSet[role] = nil, true
+    IC.Changed(); return true
+end
+function R.RoleOf(poolID)
+    local actor = R.Active()
+    for role, id in pairs(actor and actor.roles or {}) do if id == poolID then return role end end
+end
+function R.SetRole(role, poolID)
+    local actor = R.Active(); if not actor or not R.ROLE[role] then return false end
+    actor.roles = actor.roles or {}
+    actor.rolesSet = actor.rolesSet or {}
+    for other, id in pairs(actor.roles) do if id == poolID then actor.roles[other] = nil; actor.rolesSet[other] = true end end
+    actor.roles[role] = poolID; actor.rolesSet[role] = true; IC.Changed(); return true
+end
+-- The loaded character's pools that are not in a role slot.
+function R.Extras()
+    local result, actor = {}, R.Active()
+    for _, id in ipairs(actor and actor.poolIDs or {}) do if not R.RoleOf(id) then result[#result + 1] = id end end
+    return result
 end
 function R.Active()
     local profile, character = IC.Profile(), IC.Profiles.Character()
@@ -98,13 +159,15 @@ function R.Create(name, pools, pack)
     local p = IC.Profile(); if not p.personas then R.Migrate(p) end; p.nextPersonaID = p.nextPersonaID or 1
     local id
     repeat id = "character-" .. p.nextPersonaID; p.nextPersonaID = p.nextPersonaID + 1 until not p.personas[id]
-    p.personas[id] = { id = id, name = name, poolIDs = IC.Copy(pools or {}), pack = pack }; p.personaOrder[#p.personaOrder + 1] = id
+    p.personas[id] = { id = id, name = name, poolIDs = IC.Copy(pools or {}), pack = pack, roles = {} }; p.personaOrder[#p.personaOrder + 1] = id
+    R.EnsureRoles(p)
     return p.personas[id]
 end
-function R.PoolLabel(pool)
-    local pack = pool.provenance and IC.Library and IC.Library.packs[pool.provenance.pack]
-    local prefix = pack and (pack.title .. " / ")
-    return prefix and pool.name:sub(1, #prefix) == prefix and pool.name:sub(#prefix + 1) or pool.name
+function R.PoolLabel(pool) return pool.name end
+-- Where a pool came from, for a dimmed tooltip line (never part of its name).
+function R.Source(pool)
+    local pack = pool and pool.provenance and IC.Library and IC.Library.packs[pool.provenance.pack]
+    return pack and pack.title or nil
 end
 function R.Load(id)
     if not IC.Profile().personas[id] then return false, "Character not found." end
@@ -126,7 +189,7 @@ function R.Assign(poolID, actorID)
 end
 function R.Shortcut(alias)
     local p = IC.Profile()
-    if p.shortcuts[alias] and R.HasPool(p.shortcuts[alias]) then return p.shortcuts[alias] end
+    if R.ROLE[alias] then return R.RolePool(alias) end
     local found
     for _, id in ipairs(R.Pools()) do
         local pool = p.pools[id]
@@ -148,6 +211,7 @@ function R.FindPool(name)
 end
 function R.Options(library)
     local result = {}
+    R.Active()
     for _, id in ipairs(IC.Profile().personaOrder) do local a = IC.Profile().personas[id]; result[#result + 1] = { value = id, label = a.name } end
     if library and IC.Library then
         local installed = {}; for _, a in pairs(IC.Profile().personas) do if a.pack then installed[a.pack] = true end end

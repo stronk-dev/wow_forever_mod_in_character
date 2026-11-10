@@ -65,7 +65,7 @@ test("merge retains false, empty lists, user strings and adds record defaults", 
     db.profiles.account.wheel = { mode = "hold" }
     db.profiles.account.pools.quotes.lines = { "don't change me" }
     open(db); eq(#IC.Profile().favorites, 0); eq(IC.Profile().wheel.mode, "hold")
-    eq(IC.Profile().wheel.iconSize, 30); eq(IC.Profile().pools.quotes.lines[1], "don't change me")
+    eq(IC.Profile().wheel.iconSize, 40); eq(IC.Profile().pools.quotes.lines[1], "don't change me")
 end)
 test("v1 migration retains user and unknown data", function()
     local account = IC.Defaults.Profile(); account.pools.quotes.lines = { "old" }
@@ -136,9 +136,10 @@ test("failed chat attempts are not queued and preserve selection", function()
     C_ChatInfo = { SendChatMessage = function(text) eq(text, "first") end }
     assert(IC.Actions.Dispatch("pool:quotes")); C_ChatInfo = nil
 end)
-test("deleting preset pools clears dangling shortcuts", function()
+test("deleting a character's pool empties its role slot", function()
     open(); IC.Library.Install("office-stanley", true)
-    local id = IC.Profile().shortcuts.greetings; IC.Dialogue.Delete(id); eq(IC.Profile().shortcuts.greetings, nil)
+    local id = IC.Personas.RolePool("greetings"); IC.Dialogue.Delete(id); eq(IC.Personas.RolePool("greetings"), nil)
+    assert(IC.Actions.Resolve("role:greetings").empty)
 end)
 assert(loadfile("tests/regressions.lua"))()(IC, test, eq, open)
 assert(loadfile("tests/messages.lua"))()(IC, test, eq, open)

@@ -1,18 +1,17 @@
 local _, IC = ...
-IC.Profiles = { VERSION = 12 }
+IC.Profiles = { VERSION = 13 }
 local P = IC.Profiles
 
-local function CompleteLayout(layout, profiles, db, observations)
+local function CompleteLayout(layout)
+    IC.Migrations.Layout(layout)
     IC.Merge(layout, IC.Defaults.Layout())
-    IC.Migrations.Layout(layout, profiles, db, observations)
+    if layout.mode ~= "separate" then layout.mode = "one" end
     for index, bar in ipairs(layout.bars) do IC.Merge(bar, IC.Defaults.Bar(index)) end
     return layout
 end
 
 local function CompleteProfile(profile, database, observations)
     -- Pool maps are user collections: never merge seed pools back into an existing map.
-    local hadCollections = type(profile.collections) == "table"
-    local legacyPresentation = profile.presentations ~= nil or (profile.wheel and profile.wheel.root == nil) or (profile.menu and profile.menu.root == nil)
     local defaults = IC.Defaults.Profile()
     local pools = profile.pools
     defaults.pools = nil
@@ -49,7 +48,7 @@ local function CompleteProfile(profile, database, observations)
         end
     end
     profile.favorites = favorites
-    if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile, hadCollections, observations, legacyPresentation) end
+    if IC.Collections then IC.Collections.Ensure(profile); IC.Migrations.Profile(profile) end
     return profile
 end
 
@@ -86,8 +85,8 @@ function P.Open(database, characterDatabase, legacyKeys)
     if character.scope == "character" and not character.profile then character.profile = IC.Copy(db.profiles.account) end
     local profiles = { db.profiles.account }
     if character.profile then profiles[#profiles + 1] = character.profile end
-    db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout(), profiles, db, character.emoteObservations)
-    CompleteLayout(character.layout, profiles, db, character.emoteObservations)
+    db.sharedLayout = CompleteLayout(db.sharedLayout or IC.Defaults.Layout())
+    CompleteLayout(character.layout)
     db.version, character.version = P.VERSION, P.VERSION
     P.db, P.character = db, character
     return db

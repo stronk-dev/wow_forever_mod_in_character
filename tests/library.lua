@@ -15,7 +15,16 @@ return function(IC, test, eq, open)
         assert(first ~= second); eq(pool.lines[1], "My own greeting")
         local original = IC.Library.packs["office-stanley"].pools[1].lines[1]
         eq(original, "Leave me alone."); open(db); eq(IC.Profile().pools[first].lines[1], "My own greeting")
-        eq(IC.Profile().shortcuts.greetings, first)
+        -- The copy loaded as a character fills its Greeting role and keeps a clean name.
+        eq(IC.Personas.RolePool("greetings"), first); eq(IC.Profile().pools[first].name, "Greetings")
+        eq(IC.Actions.Resolve("role:greetings").name, "Greeting")
+    end)
+    test("old preset names lose their source prefix on upgrade; the source stays in provenance", function()
+        local db = open(); local _, _, first = IC.Library.Install("office-stanley", true)
+        IC.Profile().pools[first].name = "The Office: Stanley Hudson / Greetings"
+        IC.Profile().cleanInterface = nil -- a save from before 0.14
+        open(db); eq(IC.Profile().pools[first].name, "Greetings")
+        eq(IC.Personas.Source(IC.Profile().pools[first]), "The Office: Stanley Hudson")
     end)
     test("user supplied Stanley and Mastermovies phrases remain verbatim", function()
         local stanley, dutch = IC.Library.packs["office-stanley"], IC.Library.packs["dutch-mastermovies"]

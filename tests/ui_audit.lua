@@ -1,7 +1,7 @@
 -- Review regressions for the collection refactor; each receives an isolated fixture.
 return function(test, eq, page)
     test("heard-nearby filtering uses character observations instead of Retail reference metadata", function(IC, Stub)
-        local p = page(IC, "Lists")
+        local p = page(IC, "Lists"); p.advanced:SetChecked(true); p.advanced:Click()
         p.kind:Choose("nearby"); eq(#p.shown, 0)
         IC.Curation.Save("emote:wave", "keep", "nearby", "yes")
         IC.Curation.Save("emote:cheer", "keep", "self", "yes")
@@ -19,11 +19,11 @@ return function(test, eq, page)
         local anchor = IC.Bars.frames[1].actionButtons[1]
         IC.Flyout.Open(anchor, IC.Actions.Resolve("pool:quotes"))
         local level = IC.Flyout.levels[1]
-        eq(level:GetWidth(), 304); assert(level:GetHeight() <= 300); eq(#level.rows, 14)
+        eq(level:GetWidth(), 304); assert(level:GetHeight() <= 430); eq(#level.rows, 20)
         assert(level.next:IsShown()); eq(#Stub.sends, 0)
         level:Fire("OnMouseWheel", -100)
-        eq(level.rows[14].node.label, "Exact message 120")
-        level.rows[14]:Click(); eq(Stub.sends[1][1], "Exact message 120"); eq(#Stub.sends, 1)
+        eq(level.rows[20].node.label, "Exact message 120")
+        level.rows[20]:Click(); eq(Stub.sends[1][1], "Exact message 120"); eq(#Stub.sends, 1)
         local g = IC.Flyout.Geometry(1000, false, 320, 240)
         assert(g.width < 320 and g.height < 240)
     end)
@@ -42,19 +42,16 @@ return function(test, eq, page)
         assert(not IC.Flyout.levels[2]:IsShown()); assert(IC.Flyout.IsOpen())
     end)
 
-    test("large pool fans expose overflow without silently omitting the remaining messages", function(IC)
+    test("a large pool opens as its own paged ring; no message is silently omitted", function(IC)
         local pool = IC.Profile().pools.quotes
         local lines = {}; for i = 1, 100 do lines[i] = "Line " .. i end
         IC.Dialogue.Save(pool, pool.name, "SAY", "sequential", pool.icon, lines)
         IC.Profile().wheel.root = "rp"; IC.Wheel.Open(false)
         local owner
         for _, slot in ipairs(IC.Wheel.slots) do if slot:IsShown() and slot.node.payload == pool.id then owner = slot end end
-        IC.Wheel.OpenFan(owner)
-        local overflow = IC.Wheel.fanSlots[#IC.Wheel.fanItems]
-        eq(overflow.node.type, "more"); eq(overflow.node.target.payload, pool.id)
-        IC.Wheel.SetHover(overflow); IC.Wheel.Use("LeftButton")
-        eq(IC.Wheel.Current().payload, pool.id); eq(IC.Wheel.pages, 9)
-        IC.Wheel.Page(8); eq(IC.Wheel.items[#IC.Wheel.items].label, "Line 100")
+        IC.Wheel.SetHover(owner); IC.Wheel.Use("RightButton")
+        eq(IC.Wheel.Current().payload, pool.id); eq(IC.Wheel.pages, 13)
+        IC.Wheel.Page(12); eq(IC.Wheel.items[#IC.Wheel.items].label, "Line 100")
     end)
 
     test("old cyclic group data cannot keep opening flyout or ring ancestors", function(IC)

@@ -1,55 +1,50 @@
 return function(IC, test, eq, open)
     local function ids(collection) return table.concat(IC.Collections.Refs(collection), ' ') end
-    test('legacy migration preserves exact bar contents, visibility, geometry, mode and empty layouts', function()
-        local p = IC.Defaults.Profile(); p.pools.quotes.lines = { 'one', 'two' }
-        local bar = { name = 'Only quotes', source = 'pool:quotes', poolMode = 'random', size = 12, x = 17, y = -29, collapsed = true }
-        local db = { version = 10, profiles = { account = p } }
-        local char = { version = 10, layout = { bars = { bar, { name = 'Social', source = 'Social', hiddenActions = { ['emote:wave'] = true }, includedActions = { ['emote:flirt'] = true }, hidden = true } } } }
-        IC.db = IC.Profiles.Open(db, char)
-        eq(#char.layout.bars, 2); assert(not bar.hidden); eq(bar.size, 12); eq(bar.x, 17); eq(bar.y, -29); assert(bar.collapsed)
-        eq(ids(bar.collection), 'play:random:quotes')
-        assert(not IC.Collections.Contains(char.layout.bars[2].collection, 'emote:wave'))
-        assert(IC.Collections.Contains(char.layout.bars[2].collection, 'emote:flirt')); assert(char.layout.bars[2].hidden)
-        eq(char.layout.preFoundation.bars[1].source, 'pool:quotes')
-        IC.Collections.Remove(bar.collection, 'play:random:quotes')
-        IC.db = IC.Profiles.Open(db, char); eq(ids(bar.collection), '')
-        IC.db = IC.Profiles.Open(db, { version = 10, layout = { bars = {} } }); eq(#IC.Layout().bars, 0)
+    -- 0.14 upgrade: generated lists nobody uses are retired (kept in the save, not shown); anything
+    -- the player's own lists or favorites point to stays.
+    test('upgrades retire unused generated lists, keep used ones and own lists, and reset bars to one', function()
+        local p = IC.Defaults.Profile(); IC.Collections.Ensure(p); p.pools.quotes.lines = { 'mine' }
+        p.collections['legacy-wheel-Combat'] = { id = 'legacy-wheel-Combat', name = 'Wheel / Combat callouts', items = { 'emote:wave' }, migrated = true }
+        p.collections['legacy-wheel'] = { id = 'legacy-wheel', name = 'My wheel', items = { 'set:legacy-wheel-Combat' }, migrated = true }
+        p.collections['legacy-bar-2'] = { id = 'legacy-bar-2', name = 'Bar 2', items = { 'emote:cheer', 'emote:dance' }, migrated = true }
+        p.collections.c1 = { id = 'c1', name = 'Tavern', items = { 'emote:cheer', 'set:legacy-wheel-Combat' } }
+        for _, id in ipairs({ 'legacy-wheel-Combat', 'legacy-wheel', 'legacy-bar-2', 'c1' }) do p.collectionOrder[#p.collectionOrder + 1] = id end
+        p.wheel.root, p.menu.root = 'legacy-wheel', 'c1'
+        local old = { { source = 'pool:quotes', name = 'Q', x = 5 }, { collection = 'main', name = 'Main bar', x = 40, y = -200, size = 32 } }
+        local char = { version = 12, layout = { bars = old, launcher = { click = 'menu', rightClick = 'menu', x = 1, y = 2 } } }
+        IC.db = IC.Profiles.Open({ version = 12, profiles = { account = p } }, char)
+        local profile = IC.Profile()
+        eq(profile.collections['legacy-wheel'], nil); eq(profile.collections['legacy-bar-2'], nil)
+        eq(profile.retired.collections['legacy-bar-2'].items[2], 'emote:dance', 'retired lists stay in the save')
+        local kept = profile.collections['legacy-wheel-Combat']; assert(kept, 'a list the player points to is kept')
+        eq(kept.migrated, nil); eq(ids('c1'), 'emote:cheer set:legacy-wheel-Combat')
+        eq(profile.wheel.root, 'ring'); eq(profile.menu.root, 'c1'); eq(profile.pools.quotes.lines[1], 'mine')
+        local layout = IC.Layout()
+        eq(#layout.bars, 1); eq(layout.bars[1].collection, 'main'); eq(layout.bars[1].x, 40); eq(layout.bars[1].size, 32)
+        assert(not layout.bars[1].hidden); eq(layout.mode, 'one'); eq(layout.retired.bars[1].name, 'Q')
+        eq(layout.launcher.rightClick, nil); eq(layout.launcher.x, 1)
+        -- One time only: a list the player makes later is never removed.
+        local later = IC.Collections.Create('Later'); later.migrated = true
+        IC.db = IC.Profiles.Open({ version = 13, profiles = { account = profile } }, char); assert(IC.Collections.Get(later.id))
     end)
-    test('migration isolates per-surface hidden selections and disabled primitive types', function()
-        local p = IC.Defaults.Profile(); p.presentations = { emotes = { wheel = true, menu = false }, roleplay = { wheel = false, menu = true } }
-        p.wheel.hiddenCategories.Combat = true; p.wheel.hiddenActions['emote:wave'] = true
-        open({ version = 10, profiles = { account = p } })
-        local root = IC.Collections.Refs(p.wheel.root)
-        for _, ref in ipairs(root) do
-            local id = ref:sub(5)
-            assert(not IC.Collections.Contains(id, 'emote:wave'))
-            assert(not IC.Collections.Contains(id, 'pool:quotes'))
-            assert(not id:find('Combat', 1, true))
+    test('upgrades keep a hidden or empty bar layout hidden and keep hide-all', function()
+        for _, bars in ipairs({ {}, { { collection = 'main', name = 'Main bar', hidden = true } } }) do
+            local char = { version = 12, layout = { bars = bars, barsHidden = (#bars == 0) or nil, launcher = {} } }
+            IC.db = IC.Profiles.Open({ version = 12, profiles = { account = IC.Defaults.Profile() } }, char)
+            eq(#IC.Layout().bars, 1); eq(IC.Layout().bars[1].hidden, true)
+            eq(IC.Layout().barsHidden, (#bars == 0) or nil)
         end
-        for _, ref in ipairs(IC.Collections.Refs(p.menu.root)) do
-            for _, action in ipairs(IC.Collections.Refs(ref:sub(5))) do assert(not IC.Emotes.byID[action]) end
-        end
     end)
-    test('0.12 repair restores bars hidden by upgrade, keeps deliberate hiding, and archives original data', function()
-        local p = IC.Defaults.Profile(); IC.Collections.Ensure(p)
-        local layout = { collectionBarIntroduced = true, bars = {
-            { source = 'pool:quotes', collection = 'rp', hidden = true, hiddenByUpgrade = true, name = 'Q', size = 12 },
-            { source = 'Social', collection = 'Social', hidden = true, name = 'Deliberate' },
-            IC.Defaults.CollectionBar(3),
-        } }
-        local db, char = { version = 11, profiles = { account = p } }, { version = 11, layout = layout }
-        IC.db = IC.Profiles.Open(db, char)
-        assert(not layout.bars[1].hidden); assert(layout.bars[2].hidden); assert(layout.bars[3].hidden)
-        eq(ids(layout.bars[1].collection), 'pool:quotes'); assert(layout.preFoundation.bars[1].hidden)
-        layout.bars[1].hidden = true; IC.db = IC.Profiles.Open(db, char); assert(layout.bars[1].hidden, 'repair is one-time')
-    end)
-    test('layout identities do not collide between characters and shared layouts gain private profile lists', function()
-        local db = { version = 10 }
-        local a = { version = 10, layout = { bars = { { source = 'Social' } } } }
-        local b = { version = 10, scope = 'character', profile = IC.Defaults.Profile(), layout = { bars = { { source = 'pool:quotes' } } } }
-        IC.db = IC.Profiles.Open(db, a); local first = a.layout.bars[1].collection
-        IC.db = IC.Profiles.Open(db, b); local second = b.layout.bars[1].collection
-        assert(first ~= second); eq(ids(second), 'pool:quotes')
+    test('only the exact preset title is cut from pool names, once; names the player typed are kept', function()
+        local p = IC.Defaults.Profile(); local pack, title
+        for id, def in pairs(IC.Library.packs) do pack, title = id, def.title; break end
+        p.pools.a = IC.Defaults.Pool('a', title .. ' / Quote'); p.pools.a.provenance = { pack = pack }
+        p.pools.b = IC.Defaults.Pool('b', 'Jokes / Deadpan'); p.pools.b.provenance = { pack = pack }
+        IC.db = IC.Profiles.Open({ version = 12, profiles = { account = p } }, { version = 12 })
+        eq(IC.Profile().pools.a.name, 'Quote'); eq(IC.Profile().pools.b.name, 'Jokes / Deadpan')
+        IC.Profile().pools.a.name = title .. ' / Mine'
+        IC.db = IC.Profiles.Open({ version = 13, profiles = { account = IC.Profile() } }, { version = 13 })
+        eq(IC.Profile().pools.a.name, title .. ' / Mine', 'renaming later is respected')
     end)
     test('bulk edits preserve referenced message actions; explicit edits and deletes affect every list correctly', function()
         open(); local p = IC.Profile().pools.quotes
@@ -63,8 +58,8 @@ return function(IC, test, eq, open)
     end)
     test('deleting a collection repairs surface references; copying a dynamic RP list creates editable membership', function()
         open(); local list = IC.Collections.Copy('rp', 'My selection')
-        assert(not list.dynamic); assert(IC.Collections.Remove(list.id, 'pool:quotes'))
-        assert(IC.Collections.Contains('rp', 'pool:quotes'))
+        assert(not list.dynamic); assert(IC.Collections.Remove(list.id, 'role:quotes'))
+        assert(IC.Collections.Contains('rp', 'role:quotes'))
         IC.Layout().bars[1].collection = list.id; IC.Profile().wheel.root = list.id; IC.Profile().menu.root = list.id
         assert(IC.Collections.Delete(list.id)); eq(IC.Layout().bars[1].collection, 'favorites')
         eq(IC.Profile().wheel.root, 'favorites'); eq(IC.Profile().menu.root, 'favorites')
@@ -72,11 +67,11 @@ return function(IC, test, eq, open)
     test('bounded bar pages preserve every item once at small and large sizes in both orientations', function()
         local nodes = {}; for i = 1, 200 do nodes[i] = { segment = math.floor(i / 9) } end
         for _, vertical in ipairs({ false, true }) do for _, labels in ipairs({ false, true }) do for _, size in ipairs({ 12, 24, 64 }) do
-            local c = { size = size, vertical = vertical, labels = labels, fitWidth = 130, fitHeight = 96 }
+            local c = { size = size, vertical = vertical, labels = labels }
             local first = IC.BarModel.Geometry(c, nodes, 320, 240); local seen = {}
             for page = 1, first.pages do
                 c.page = page; local g = IC.BarModel.Geometry(c, nodes, 320, 240)
-                assert(g.width <= 130 and g.height <= 96)
+                assert(g.width <= 240 and g.height <= 160)
                 for _, point in ipairs(g.positions) do
                     assert(not seen[point.index]); seen[point.index] = true
                     assert(point.x >= 0 and point.y >= 0)
@@ -89,18 +84,6 @@ return function(IC, test, eq, open)
         local g = IC.BarModel.Geometry({ size = 28 }, { {}, {}, {}, {}, {}, {}, {}, {}, {}, {} })
         eq(g.width, 298); eq(g.height, 28)
     end)
-    test('legacy observation filters migrate to explicit membership without losing include overrides', function()
-        local p = IC.Defaults.Profile(); p.emoteFilter = 'heard'; p.wheel.root = nil
-        p.wheel.hiddenCategories.Combat = true
-        local char = { version = 8, emoteObservations = { ['emote:wave'] = { sound = 'nearby' } }, layout = { bars = {
-            { source = 'favorites' }, { source = 'Reactions', includedActions = { ['emote:cheer'] = true } },
-        } } }
-        IC.db = IC.Profiles.Open({ version = 8, profiles = { account = p } }, char)
-        assert(IC.Collections.Contains(char.layout.bars[1].collection, 'emote:wave'))
-        assert(not IC.Collections.Contains(char.layout.bars[1].collection, 'emote:cheer'))
-        assert(IC.Collections.Contains(char.layout.bars[2].collection, 'emote:cheer'))
-        for _, ref in ipairs(IC.Collections.Refs(p.wheel.root)) do assert(not ref:find('Combat', 1, true)) end
-    end)
     test('platform injection keeps action dispatch independent of client API globals', function()
         open(); local pool = IC.Profile().pools.quotes; pool.lines = { 'works' }
         local allowed, send = IC.Platform.ChatAllowed, IC.Platform.SendChat
@@ -109,23 +92,6 @@ return function(IC, test, eq, open)
         IC.Platform.SendChat = function(text, channel) eq(text, 'works'); eq(channel, 'SAY'); calls = calls + 1; return true end
         assert(IC.Actions.Dispatch('pool:quotes')); eq(calls, 1)
         IC.Platform.ChatAllowed, IC.Platform.SendChat = allowed, send
-    end)
-
-    test('ring and fan square bounds never overlap, including diagonal sectors and small icons', function()
-        local M = IC.WheelModel
-        for count = 1, M.PAGE do for _, size in ipairs({ 24, 30, 40 }) do
-            local g = M.Geometry(count, size)
-            for sector = 1, count do
-                local boxes = {}
-                for i = 1, count do local x, y = M.Position(i, count, g.radius); boxes[#boxes + 1] = { x = x, y = y, size = size } end
-                local _, _, angle = M.Position(sector, count, g.radius)
-                for _, p in ipairs(M.Fan(100, angle, g)) do boxes[#boxes + 1] = { x = p.x, y = p.y, size = g.fanIcon } end
-                for i = 1, #boxes do for j = i + 1, #boxes do
-                    local a, b = boxes[i], boxes[j]; local half = (a.size + b.size) / 2
-                    assert(math.abs(a.x - b.x) >= half or math.abs(a.y - b.y) >= half, 'overlapping ring/fan icons')
-                end end
-            end
-        end end
     end)
 
 end

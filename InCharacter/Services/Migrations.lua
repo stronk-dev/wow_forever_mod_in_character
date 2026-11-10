@@ -1,112 +1,94 @@
 local _, IC = ...
--- Pure conversion of legacy presentation choices into explicit, editable collection lists.
--- No runtime validation: unavailable emotes and other actors' pools must survive migration.
+-- One-time upgrades to the clean 0.14 interface. Earlier versions generated lists the player
+-- never made ("My wheel", "Wheel / Combat callouts", one copy per old bar). Unused ones move to
+-- profile.retired.collections and every surface goes back to the built-in lists. A generated
+-- list that the player's own lists or favorites point to is kept as an ordinary list. Pools,
+-- lines, characters, favorites and the player's own lists are kept. Old bar layouts stay in the
+-- save under layout.retired, unused. Nothing here runs twice.
 IC.Migrations = {}
 local M = IC.Migrations
-local function put(profile, id, name, refs, icon)
-    if not profile.collections[id] then
-        profile.collections[id] = { id = id, name = name, items = refs, icon = icon or IC.Icons[1], migrated = true }
-        profile.collectionOrder[#profile.collectionOrder + 1] = id
+
+-- Preset pools used to be named "<preset title> / <pool name>". The source belongs in
+-- pool.provenance and tooltips, not in the name every surface shows.
+-- Only the exact title of the pack the pool came from is removed, so a name the player typed
+-- ("Jokes / Deadpan") is never touched.
+function M.PoolName(pool)
+    local pack = pool.provenance and IC.Library and IC.Library.packs[pool.provenance.pack]
+    local prefix = pack and (pack.title .. " / ")
+    if prefix and pool.name:sub(1, #prefix) == prefix and #pool.name > #prefix then pool.name = pool.name:sub(#prefix + 1) end
+end
+
+local function roleRef(profile, ref)
+    local id = type(ref) == "string" and ref:match("^pool:(.+)$")
+    if not id then return ref end
+    for _, actor in pairs(profile.personas or {}) do
+        for role, poolID in pairs(actor.roles or {}) do if poolID == id then return "role:" .. role end end
     end
-    return id
+    return ref
 end
-local function poolFor(profile, ref)
-    local id = ref:match('^pool:(.+)$') or ref:match('^play:%a+:(.+)$') or ref:match('^line:(.*):[^:]+$')
-    return id and profile.pools[id]
-end
-function M.Items(profile, config, presentation, observations)
-    local source, refs = config.source or 'favorites', {}
-    local function emotes(list) for _, action in ipairs(list or {}) do refs[#refs + 1] = action.id end end
-    if source == 'favorites' or source == 'favoriteEmotes' then
-        for _, ref in ipairs(profile.favorites) do if source ~= 'favoriteEmotes' or IC.Emotes.byID[ref] then refs[#refs + 1] = ref end end
-    elseif source == 'categories' then
-        for _, id in ipairs(IC.Emotes.categories) do if config.categories and config.categories[id] then emotes(IC.Emotes.byCategory[id]) end end
-    elseif source == 'all' then emotes(IC.Emotes.list)
-    elseif IC.Emotes.byCategory[source] then emotes(IC.Emotes.byCategory[source])
-    elseif source == 'pools' then for _, id in ipairs(profile.poolOrder) do refs[#refs + 1] = 'pool:' .. id end
-    elseif source:match('^lines:') then
-        local pool = profile.pools[source:sub(7)]
-        if pool then for _, id in ipairs(pool.lineIDs) do refs[#refs + 1] = 'line:' .. pool.id .. ':' .. id end end
-    elseif poolFor(profile, source) or IC.Emotes.byID[source] then refs[1] = source end
-    local result, used = {}, {}
-    for _, original in ipairs(refs) do
-        local ref = IC.Actions.CanonicalID(original)
-        local emote, pool = IC.Emotes.byID[ref], poolFor(profile, ref)
-        local primitive = emote and 'emotes' or 'roleplay'
-        local enabled = not profile.presentations or not profile.presentations[primitive] or profile.presentations[primitive][presentation] ~= false
-        local hidden = config.hiddenActions or {}
-        local included = not emote or (config.includedActions and config.includedActions[ref]) or config.emoteView == 'all'
-            or (config.emoteView == 'kept' and IC.Curation.Record(ref, profile).choice == 'keep')
-            or ((not config.emoteView or config.emoteView == 'profile') and
-                ((profile.presentations and profile.presentations.emotes and profile.presentations.emotes.view == 'all') or IC.Curation.Included(emote, profile)))
-        if emote and not (config.includedActions and config.includedActions[ref]) and config.emoteView ~= 'all' and config.emoteView ~= 'kept'
-            and not (profile.presentations and profile.presentations.emotes and profile.presentations.emotes.view == 'all') then
-            local seen, filter = (observations or {})[ref] or {}, profile.emoteFilter
-            if filter == 'heard' then included = included and (seen.sound == 'self' or seen.sound == 'nearby')
-            elseif filter == 'observed' then included = included and seen.animation == 'yes'
-            elseif filter == 'textChecked' then included = included and seen.sound == 'silent' and seen.animation == 'no' end
-        end
-        local pack = pool and pool.provenance and pool.provenance.pack or 'custom'
-        if enabled and included and not hidden[ref] and not hidden[original]
-            and not (pool and (hidden['browse:' .. pool.id] or hidden['group:' .. pack]))
-            and not (config.hideEmpty and pool and #pool.lines == 0)
-            and (not config.catalog or not config.catalogGroup or config.catalogGroup == 'all' or config.catalogGroup == pack) then
-            if pool and ref:match('^pool:') and config.poolMode and config.poolMode ~= 'pool' then ref = 'play:' .. config.poolMode .. ':' .. pool.id end
-            if not used[ref] then result[#result + 1] = ref; used[ref] = true end
-        end
+local function rewrite(profile, refs, removed)
+    local result, seen = {}, {}
+    for _, ref in ipairs(refs) do
+        local target = type(ref) == "string" and ref:match("^%a+:(.+)$")
+        local dropped = type(ref) == "string" and (ref:match("^set:") or ref:match("^all:")) and removed[target]
+        ref = roleRef(profile, ref)
+        if not dropped and not seen[ref] then result[#result + 1] = ref; seen[ref] = true end
     end
     return result
 end
-function M.Profile(profile, hadCollections, observations, legacyPresentation)
-    if profile.foundationLists then return end
-    if not hadCollections and legacyPresentation then
-        for _, surface in ipairs({ 'wheel', 'menu' }) do
-            local settings = profile[surface]
-            local root, hidden = {}, settings.hiddenCategories or {}
-            for _, source in ipairs({ 'favorites', 'Combat', 'Social', 'Reactions', 'Idle', 'Voice/Fun', 'pools' }) do
-                local category = source == 'favorites' and 'Favorites' or source == 'pools' and 'Roleplay' or source
-                if not hidden[category] then
-                    local cfg = IC.Copy(settings); cfg.source = source
-                    local id = put(profile, 'legacy-' .. surface .. '-' .. source, (surface == 'wheel' and 'Wheel / ' or 'Menu / ') .. (IC.Emotes.CategoryInfo[category] or {}).label, M.Items(profile, cfg, surface, observations), (IC.Emotes.CategoryInfo[category] or {}).icon)
-                    root[#root + 1] = 'set:' .. id
-                end
-            end
-            settings.root = put(profile, 'legacy-' .. surface, 'My ' .. surface, root, IC.AddonIcon)
-        end
-    end
-    profile.foundationLists = true
+
+local function pointsAt(refs, id)
+    for _, ref in ipairs(refs or {}) do if ref == "set:" .. id or ref == "all:" .. id then return true end end
 end
-function M.Layout(layout, profiles, db, observations)
-    if layout.foundationVersion then
-        for _, bar in ipairs(layout.bars or {}) do
-            if bar.source and bar.collection and bar.collection:match('^layout%-') then
-                for _, profile in ipairs(profiles) do
-                    if not profile.collections[bar.collection] then put(profile, bar.collection, bar.name, M.Items(profile, bar, 'bar', observations)) end
-                end
+function M.Profile(profile)
+    if profile.cleanInterface then return end
+    for _, pool in pairs(profile.pools) do M.PoolName(pool) end
+    local removed, used = {}, {}
+    for id, collection in pairs(profile.collections) do
+        if collection.migrated then
+            if pointsAt(profile.favorites, id) then used[id] = true end
+            for _, other in pairs(profile.collections) do
+                if not other.migrated and not other.builtin and pointsAt(other.items, id) then used[id] = true end
             end
         end
-        return
     end
-    layout.preFoundation = IC.Copy(layout)
-    db.nextLayoutID = math.max(db.nextLayoutID or 0, tonumber(layout.collectionUID) or 0) + 1
-    layout.collectionUID = layout.collectionUID or tostring(db.nextLayoutID)
-    local upgraded = false
-    for _, bar in ipairs(layout.bars or {}) do if bar.hiddenByUpgrade then upgraded = true end end
-    for index, bar in ipairs(layout.bars or {}) do
-        if bar.source then
-            local id = 'layout-' .. layout.collectionUID .. '-bar-' .. index
-            for _, profile in ipairs(profiles) do
-                put(profile, id, bar.name or ('Bar ' .. index), M.Items(profile, bar, 'bar', observations))
-            end
-            bar.collection = id
-            if bar.hiddenByUpgrade then bar.hidden = false end
-            bar.perRow = bar.perRow or (bar.vertical and bar.rows or bar.columns) or 0
-            bar.fitWidth = bar.fitWidth or (bar.strip and bar.stripWidth) or nil
-            bar.fitHeight = bar.fitHeight or (bar.strip and bar.stripHeight) or nil
-        elseif upgraded and bar.collection == 'main' and bar.name == 'Main bar' and bar.size == 28 and bar.x == 0 and bar.y == -330 then
-            -- Undo only the untouched automatic extra bar introduced by 0.12. Keep it recoverable.
-            bar.hidden = true; bar.automaticUpgradeBar = true
-        end
+    profile.retired = profile.retired or {}; profile.retired.collections = profile.retired.collections or {}
+    for id, collection in pairs(profile.collections) do
+        if collection.migrated and used[id] then collection.migrated = nil
+        elseif collection.migrated then removed[id] = true; profile.retired.collections[id] = collection; profile.collections[id] = nil end
     end
-    layout.foundationVersion = 1
+    local order = {}
+    for _, id in ipairs(profile.collectionOrder) do if not removed[id] then order[#order + 1] = id end end
+    profile.collectionOrder = order
+    -- Starter and preset pools pinned anywhere become the matching role of the loaded character.
+    profile.favorites = rewrite(profile, profile.favorites, removed)
+    for _, collection in pairs(profile.collections) do
+        if collection.items then collection.items = rewrite(profile, collection.items, removed) end
+    end
+    for _, settings in ipairs({ profile.wheel, profile.menu }) do
+        if not settings.root or not profile.collections[settings.root] and settings.root ~= "rp" then settings.root = "main" end
+    end
+    if profile.wheel.root == "main" then profile.wheel.root = "ring" end
+    if (tonumber(profile.wheel.iconSize) or 0) < 32 then profile.wheel.iconSize = 40 end
+    profile.shortcuts = {}
+    profile.cleanInterface = 1
+end
+
+function M.Layout(layout)
+    if layout.modeVersion then return end
+    if layout.bars and #layout.bars > 0 then
+        layout.retired = { bars = layout.bars, launcher = IC.Copy(layout.launcher or {}) }
+    end
+    local keep, visible
+    for _, bar in ipairs(layout.bars or {}) do
+        if not keep and bar.collection == "main" and not bar.automaticUpgradeBar then keep = bar end
+        if not bar.hidden then visible = true end
+    end
+    local main = IC.Defaults.CollectionBar(1)
+    if keep then for _, field in ipairs({ "x", "y", "size", "vertical", "labels", "perRow", "hidden", "locked" }) do if keep[field] ~= nil then main[field] = keep[field] end end end
+    -- A player who had no bars, or hid them all, keeps a hidden bar instead of a new one popping up.
+    if layout.bars and not visible then main.hidden = true end
+    layout.bars, layout.mode, layout.stash, layout.modeVersion = { main }, "one", {}, 1
+    if layout.launcher then layout.launcher.click, layout.launcher.rightClick, layout.launcher.middleClick = nil, nil, nil end
+    for _, field in ipairs({ "preFoundation", "foundationVersion", "collectionBarIntroduced", "collectionUID" }) do layout[field] = nil end
 end

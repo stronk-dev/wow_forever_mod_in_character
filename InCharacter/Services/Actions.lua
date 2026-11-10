@@ -21,7 +21,37 @@ function A.Description(action)
     end
     return pool.channel .. " · " .. (action.selectionMode or pool.mode) .. " · " .. pool.name
 end
+-- Character-facing nodes: a role slot of the loaded character, the character switcher, a character.
+local function roleNode(role)
+    local info = IC.Personas.ROLE[role]
+    if not info then return nil end
+    local poolID = IC.Personas.RolePool(role)
+    local pool = poolID and IC.Profile().pools[poolID]
+    return { id = "role:" .. role, type = "pool", role = role, payload = poolID, name = info.label, label = info.label,
+        icon = pool and pool.icon or IC.Defaults.Pool(role, info.label).icon, empty = not pool or #pool.lines == 0 }
+end
+local function personaNode(value)
+    for _, option in ipairs(IC.Personas.Options(true)) do
+        if option.value == value then
+            local actor = IC.Profile().personas[value]
+            local pack = IC.Library and IC.Library.packs[(value:match("^preset:(.+)$")) or (actor and actor.pack) or ""]
+            return { id = "persona:" .. value, type = "persona", payload = value, name = option.label, label = option.label,
+                icon = actor and actor.icon or (pack and pack.icon) or IC.AddonIcon, active = IC.Personas.Active() == actor and actor ~= nil }
+        end
+    end
+end
 function A.Resolve(id)
+    if type(id) == "string" then
+        local role = id:match("^role:(.+)$")
+        if role then return roleNode(role) end
+        if id == "character" then
+            local actor = IC.Personas.Active()
+            return { id = "character", type = "character", name = IC.Personas.Name(), label = IC.Personas.Name(),
+                icon = actor and actor.icon or IC.AddonIcon }
+        end
+        local persona = id:match("^persona:(.+)$")
+        if persona then return personaNode(persona) end
+    end
     if IC.Emotes.byID[id] then
         local action = IC.Copy(IC.Emotes.byID[id])
         local override = IC.Profile().emoteOverrides[id]
@@ -112,6 +142,9 @@ end
 function A.Dispatch(action)
     if IC.Bars and IC.Bars.editing then return false, "Finish editing layouts before playing an action." end
     if type(action) == "string" then action = A.Resolve(action) end
+    -- A role button may have been drawn for the previous character (bars cannot rebuild in
+    -- combat); the role always means the character loaded now.
+    if type(action) == "table" and action.role then action = A.Resolve("role:" .. action.role) end
     if not action then return false, "Unknown action." end
     if action.type == "emote" then
         local known = IC.Emotes.byID[action.id]
@@ -120,6 +153,15 @@ function A.Dispatch(action)
         local ok, reason = IC.Platform.Emote(known.payload)
         if not ok then IC.Print(reason) end
         return ok, reason
+    elseif action.type == "persona" then
+        local ok, problem = IC.Personas.Choose(action.payload)
+        if ok then IC.Print("Now playing " .. IC.Personas.Name() .. ".") elseif problem then IC.Print(problem) end
+        return ok == true, problem
+    elseif action.type == "character" then
+        return false
+    elseif action.type == "pool" and action.role and not action.payload then
+        IC.Print(IC.Personas.Name() .. " has no " .. action.name .. " lines yet. Add them in /ic lines.")
+        return false
     elseif action.type == "pool" or action.type == "line" then
         if IC.Personas and not IC.Personas.ActionAllowed(action) then
             local reason = "This pool belongs to another character. Loaded: " .. IC.Personas.Name() .. "."

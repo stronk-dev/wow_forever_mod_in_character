@@ -1,5 +1,5 @@
 local _, IC = ...
--- A compact bar that shows one collection: icon buttons only, no backdrop, title only in Edit Mode.
+-- A compact bar that shows one collection: icon buttons only, no backdrop and no title in play.
 -- Groups and pools carry an arrow that opens their exact items in a flyout.
 IC.CollectionBar = {}
 local CB, U = IC.CollectionBar, IC.UI
@@ -15,7 +15,6 @@ end
 
 local function click(frame, button, mouse)
     if IC.Bars.editing then IC.Bars.SelectBar(frame.index); return end
-    if mouse == "MiddleButton" and IC.Platform.Shift() then frame.config.collapsed = true; IC.Changed(); return end
     if mouse == "RightButton" and IC.Platform.Shift() then
         if IC.InCombat() then return end
         IC.Bars.SetEditing(true); IC.Bars.SelectBar(frame.index); return
@@ -30,7 +29,7 @@ function CB.Render(frame, config)
     frame.nodes = nodes
     local g = CB.Geometry(config, nodes, UIParent:GetWidth(), UIParent:GetHeight())
     frame.geometry = g
-    frame:SetSize(IC.Bars.editing and config.fitWidth and math.max(g.width, math.min(config.fitWidth, UIParent:GetWidth() - 32)) or g.width, IC.Bars.editing and config.fitHeight and math.max(g.height, math.min(config.fitHeight, UIParent:GetHeight() - 48)) or g.height)
+    frame:SetSize(g.width, g.height)
     frame.actionButtons = frame.actionButtons or {}
     for _, button in ipairs(frame.actionButtons) do button:Hide() end
     local side = direction(frame, config)
@@ -45,31 +44,24 @@ function CB.Render(frame, config)
         end
         button.side = side
         button:SetNode(node, g.size, side, config.labels == true)
-        local p = entry
-        button:ClearAllPoints(); button:SetPoint("TOPLEFT", frame, "TOPLEFT", p.x, -p.y)
+        button:ClearAllPoints(); button:SetPoint("TOPLEFT", frame, "TOPLEFT", entry.x, -entry.y)
     end
     if not frame.emptyHint then
         frame.emptyHint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         frame.emptyHint:SetPoint("LEFT", 2, 0)
     end
-    frame.emptyHint:SetText("Empty bar")
+    frame.emptyHint:SetText("Empty")
     frame.emptyHint:SetShown(#nodes == 0 and IC.Bars.editing == true)
+    -- A bar too long for the screen pages; the page button sits at its end, never above it.
     if not frame.pager then
-        frame.pager = U.Button(frame, "", nil, nil, 46, function() frame.config.page = (frame.geometry.page % frame.geometry.pages) + 1; CB.Render(frame, frame.config) end)
-        frame.pager:SetHeight(16); frame.pager:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 0, 2)
+        frame.pager = U.ActionButton(frame)
+        frame.pager:SetScript("OnClick", function() frame.config.page = (frame.geometry.page % frame.geometry.pages) + 1; CB.Render(frame, frame.config) end)
     end
-    frame.pager:SetShown(g.pages > 1); frame.pager:SetText(g.page .. "/" .. g.pages)
-    if not frame.folded then
-        frame.folded = U.ActionButton(frame)
-        frame.folded.onArrow = function(self) IC.Flyout.Toggle(self, self.node) end
-        frame.folded:SetScript("OnClick", function() frame.config.collapsed = false; IC.Changed() end)
-    end
-    frame.folded:Hide()
-    if config.collapsed and not IC.Bars.editing then
-        for _, button in ipairs(frame.actionButtons) do button:Hide() end
-        local list = IC.Collections.Get(config.collection)
-        frame.folded:SetNode({ id = "set:" .. config.collection, type = "group", collection = config.collection, name = "Expand " .. (list and list.name or config.name), icon = list and list.icon }, g.size, side, false)
-        frame.folded:ClearAllPoints(); frame.folded:SetPoint("CENTER"); frame:SetSize(g.size, g.size); frame.pager:Hide()
+    frame.pager:Hide()
+    if g.pages > 1 then
+        frame.pager:SetNode({ id = "page", type = "page", name = "Page " .. g.page .. " of " .. g.pages, icon = "Interface\\Icons\\INV_Misc_Book_09" }, math.floor(g.size * 0.6), side, false)
+        frame.pager:ClearAllPoints()
+        if config.vertical then frame.pager:SetPoint("TOP", frame, "BOTTOM", 0, -2) else frame.pager:SetPoint("LEFT", frame, "RIGHT", 2, 0) end
     end
     frame:SetShown(not config.hidden or IC.Bars.editing == true)
 end

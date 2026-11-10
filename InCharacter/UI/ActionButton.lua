@@ -16,6 +16,18 @@ local function setArrow(arrow, direction)
     arrow.text:SetText(GLYPHS[direction] or ">")
 end
 
+-- Title = what the action is. Second line = how it sends. A dimmed line names where it came from.
+local function poolLines(node)
+    local pool = node.payload and IC.Profile().pools[node.payload]
+    if not pool then
+        GameTooltip:AddLine(IC.Personas.Name() .. " has no lines here yet", 0.75, 0.75, 0.75)
+        GameTooltip:AddLine("Add them in Settings > RP lines", 0.55, 0.55, 0.55); return
+    end
+    local channel = ({ SAY = "Say", YELL = "Yell", EMOTE = "Emote" })[pool.channel] or pool.channel
+    GameTooltip:AddLine(IC.Personas.Name() .. " · " .. channel .. " · " .. #pool.lines .. " lines", 0.75, 0.75, 0.75)
+    local source = IC.Personas.Source(pool)
+    if source then GameTooltip:AddLine("from " .. source, 0.5, 0.5, 0.5) end
+end
 function U.ActionTooltip(owner, node, anchor)
     GameTooltip:SetOwner(owner, anchor or "ANCHOR_TOP")
     if node.type == "line" then
@@ -26,16 +38,12 @@ function U.ActionTooltip(owner, node, anchor)
     else
         GameTooltip:SetText(node.fullName or node.name or node.label, 1, 1, 1)
         if node.type == "emote" then
-            local badge = IC.Emotes.Badge(node)
-            GameTooltip:AddLine("/" .. node.command .. "  " .. badge, 0.75, 0.75, 0.75)
-        elseif node.type == "pool" then
-            local pool = IC.Profile().pools[node.payload]
-            if pool then GameTooltip:AddLine(pool.channel .. " · " .. (node.selectionMode or pool.mode) .. " · " .. #pool.lines .. " lines", 0.75, 0.75, 0.75) end
-        elseif node.type == "group" then
-            GameTooltip:AddLine(#IC.Collections.Nodes(node.collection) .. " items", 0.75, 0.75, 0.75)
-        end
+            GameTooltip:AddLine("/" .. node.command .. "  " .. IC.Emotes.Badge(node), 0.75, 0.75, 0.75)
+        elseif node.type == "pool" then poolLines(node)
+        elseif node.type == "group" then GameTooltip:AddLine(#IC.Collections.Nodes(node.collection) .. " items", 0.75, 0.75, 0.75)
+        elseif node.type == "character" then GameTooltip:AddLine("Your RP character · click to switch", 0.75, 0.75, 0.75)
+        elseif node.type == "persona" then GameTooltip:AddLine(node.active and "Playing now" or "Click to play as this character", 0.75, 0.75, 0.75) end
     end
-    if owner.GetParent and owner:GetParent() and owner:GetParent().actionButtons then GameTooltip:AddLine("Shift-middle-click: collapse · Shift-right-click: Edit Mode", 0.65, 0.65, 0.65) end
     GameTooltip:Show()
 end
 
@@ -69,14 +77,14 @@ function U.ActionButton(parent)
         self.node = node
         self:SetSize(size, size)
         U.SetIcon(self.icon, node.icon, IC.Icons[1])
-        self.icon:SetDesaturated(node.type == "emote" and not node.verified)
+        self.icon:SetDesaturated((node.type == "emote" and not node.verified) or node.empty == true)
         self.dot:SetShown(node.type == "emote" and IC.Emotes.IsAudible(node))
         local children = IC.Collections.HasChildren(node)
         local arrowSize = math.max(6, math.floor(size * 0.35))
         self.arrow:SetSize(arrowSize, arrowSize); self.arrow:SetShown(children)
         if children then setArrow(self.arrow, direction or "UP") end
         self.label:SetShown(showLabel == true)
-        self.label:SetWidth(size); self.label:SetText(IC.ShortText(node.name or node.label, 14))
+        self.label:SetWidth(math.max(size, IC.BarModel.LABEL_W)); self.label:SetText(node.short or node.name or node.label)
         self:Show()
     end
     return button
@@ -87,7 +95,7 @@ end
 function U.ActionClick(button, mouse)
     local node = button.node
     if not node then return false end
-    if node.type == "group" or (node.type == "pool" and mouse == "RightButton") then
+    if node.type == "group" or node.type == "character" or (node.type == "pool" and mouse == "RightButton") then
         IC.Flyout.Toggle(button, node); return true
     end
     if mouse ~= "LeftButton" then return false end

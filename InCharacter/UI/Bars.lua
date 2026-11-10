@@ -5,7 +5,7 @@ local B = IC.Bars
 
 local function createFrame(index)
     local frame = CreateFrame("Frame", nil, UIParent)
-    frame:SetClampedToScreen(true); frame:SetMovable(true); frame:SetResizable(true); frame:SetResizeBounds(12, 12, UIParent:GetWidth() - 32, UIParent:GetHeight() - 48); frame:SetFrameStrata("MEDIUM")
+    frame:SetClampedToScreen(true); frame:SetMovable(true); frame:SetFrameStrata("MEDIUM")
     frame.index = index
     return frame
 end
@@ -25,6 +25,23 @@ function B.Delete(index)
     if not bars[index] then return false end
     table.remove(bars, index)
     if B.selectedBar and B.selectedBar >= index then B.selectedBar = bars[1] and 1 or nil end
+    IC.Changed(); return true
+end
+-- "one" bar or "separate" bars. Each mode keeps its own bars (positions, sizes); switching
+-- stores the current set and restores the other one.
+function B.Mode() return IC.Layout().mode == "separate" and "separate" or "one" end
+function B.SetMode(mode)
+    if IC.InCombat() then IC.Print("Change bars after combat."); return false end
+    mode = mode == "separate" and "separate" or "one"
+    local layout = IC.Layout()
+    if B.Mode() == mode then return true end
+    layout.stash = layout.stash or {}
+    layout.stash[B.Mode()] = layout.bars
+    layout.bars = layout.stash[mode] or IC.Defaults.ModeBars(mode)
+    layout.stash[mode] = nil
+    layout.mode, layout.barsHidden = mode, nil
+    B.selectedBar = nil
+    if IC.Flyout then IC.Flyout.Close() end
     IC.Changed(); return true
 end
 -- Hides every bar at once (and shows them again) without touching each bar's own setting.

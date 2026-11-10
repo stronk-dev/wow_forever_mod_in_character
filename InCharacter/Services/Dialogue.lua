@@ -192,10 +192,12 @@ function D.MoveLine(pool, lineID, delta)
 end
 function D.Delete(id)
     local profile = IC.Profile()
-    for _, actor in pairs(profile.personas or {}) do for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == id then table.remove(actor.poolIDs, i) end end end
+    for _, actor in pairs(profile.personas or {}) do
+        for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == id then table.remove(actor.poolIDs, i) end end
+        for role, poolID in pairs(actor.roles or {}) do if poolID == id then actor.roles[role] = nil end end
+    end
     profile.pools[id] = nil
     D.Clear(id)
-    for shortcut, poolID in pairs(profile.shortcuts) do if poolID == id then profile.shortcuts[shortcut] = nil end end
     for i = #profile.poolOrder, 1, -1 do if profile.poolOrder[i] == id then table.remove(profile.poolOrder, i) end end
     for i = #profile.favorites, 1, -1 do
         local value = profile.favorites[i]

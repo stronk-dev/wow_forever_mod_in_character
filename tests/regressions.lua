@@ -32,7 +32,7 @@ return function(IC, test, eq, open)
             local legacy = { scope = "character", layoutScope = "character", profile = profile, layout = { bars = { { x = 97 } } } }
             local db = { version = 2, characters = { [realm .. ":Player"] = legacy, ["Other:Alt"] = { custom = "keep" } } }
             local char = {}; IC.db = IC.Profiles.Open(db, char, { "Argent Dawn:Player", "ArgentDawn:Player" })
-            eq(IC.Profile().pools.quotes.lines[1], realm); eq(IC.Layout().bars[1].x, 97)
+            eq(IC.Profile().pools.quotes.lines[1], realm); eq(IC.Layout().retired.bars[1].x, 97); eq(IC.Layout().bars[1].collection, "main")
             eq(db.characters[realm .. ":Player"], legacy); eq(db.characters["Other:Alt"].custom, "keep")
             IC.Profile().pools.quotes.lines[1] = "migrated edit"; eq(profile.pools.quotes.lines[1], realm)
             IC.db = IC.Profiles.Open(db, char, { "wrong realm" }); eq(IC.Profile().pools.quotes.lines[1], "migrated edit")
