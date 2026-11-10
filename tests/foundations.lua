@@ -27,6 +27,22 @@ return function(IC, test, eq, open)
         local later = IC.Collections.Create('Later'); later.migrated = true
         IC.db = IC.Profiles.Open({ version = 13, profiles = { account = profile } }, char); assert(IC.Collections.Get(later.id))
     end)
+    test('upgrades keep generated lists reached through other generated lists, at any depth', function()
+        local p = IC.Defaults.Profile(); IC.Collections.Ensure(p)
+        p.collections.g3 = { id = 'g3', name = 'Deep', items = { 'emote:wave' }, migrated = true }
+        p.collections.g2 = { id = 'g2', name = 'Sub', items = { 'set:g3', 'emote:cheer' }, migrated = true }
+        p.collections.g1 = { id = 'g1', name = 'Group', items = { 'set:g2' }, migrated = true }
+        p.collections.loop = { id = 'loop', name = 'Loop', items = { 'set:loop', 'set:g1' }, migrated = true }
+        p.collections.unused = { id = 'unused', name = 'Unused', items = { 'set:g3' }, migrated = true }
+        p.collections.mine = { id = 'mine', name = 'Mine', items = { 'set:g1' } }
+        p.favorites = { 'set:loop' }
+        for _, id in ipairs({ 'g3', 'g2', 'g1', 'loop', 'unused', 'mine' }) do p.collectionOrder[#p.collectionOrder + 1] = id end
+        IC.db = IC.Profiles.Open({ version = 12, profiles = { account = p } }, { version = 12 })
+        local c = IC.Profile().collections
+        assert(c.g1 and c.g2 and c.g3 and c.loop, 'everything reachable is kept')
+        eq(c.unused, nil); assert(IC.Profile().retired.collections.unused)
+        eq(ids('g1'), 'set:g2'); eq(ids('g2'), 'set:g3 emote:cheer'); eq(ids('g3'), 'emote:wave')
+    end)
     test('upgrades keep a hidden or empty bar layout hidden and keep hide-all', function()
         for _, bars in ipairs({ {}, { { collection = 'main', name = 'Main bar', hidden = true } } }) do
             local char = { version = 12, layout = { bars = bars, barsHidden = (#bars == 0) or nil, launcher = {} } }

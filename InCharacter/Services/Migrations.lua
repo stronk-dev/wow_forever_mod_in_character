@@ -43,14 +43,17 @@ end
 function M.Profile(profile)
     if profile.cleanInterface then return end
     for _, pool in pairs(profile.pools) do M.PoolName(pool) end
+    -- A generated list is kept when favorites or the player's own lists reach it, directly or
+    -- through other generated lists (own list -> generated group -> generated subgroup).
     local removed, used = {}, {}
-    for id, collection in pairs(profile.collections) do
-        if collection.migrated then
-            if pointsAt(profile.favorites, id) then used[id] = true end
-            for _, other in pairs(profile.collections) do
-                if not other.migrated and not other.builtin and pointsAt(other.items, id) then used[id] = true end
-            end
+    local function reach(refs)
+        for id, collection in pairs(profile.collections) do
+            if collection.migrated and not used[id] and pointsAt(refs, id) then used[id] = true; reach(collection.items) end
         end
+    end
+    reach(profile.favorites)
+    for _, other in pairs(profile.collections) do
+        if not other.migrated and not other.builtin then reach(other.items) end
     end
     profile.retired = profile.retired or {}; profile.retired.collections = profile.retired.collections or {}
     for id, collection in pairs(profile.collections) do
