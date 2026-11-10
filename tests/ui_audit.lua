@@ -1,5 +1,90 @@
 -- Review regressions for the collection refactor; each receives an isolated fixture.
 return function(test, eq, page)
+    test("native permission queries run on lifecycle events, never during a flyout chat click", function(IC, Stub, env, event)
+        local inClick, queries, sends, restricted = false, 0, 0, false
+        local function query(value)
+            assert(not inClick, 'permission API queried inside the input send path')
+            queries = queries + 1; return value
+        end
+        env.C_ChatInfo.InChatMessagingLockdown = function() return query(restricted) end
+        env.C_SocialRestrictions = { CanSendChat = function() return query(true) end }
+        env.Enum = { AddOnRestrictionType = { Chat = 0 } }
+        env.C_RestrictedActions = { IsAddOnRestrictionActive = function() return query(false) end }
+        event('PLAYER_ENTERING_WORLD'); eq(queries, 3)
+        local pool = IC.Profile().pools.quotes
+        IC.Dialogue.Save(pool, pool.name, 'SAY', 'sequential', pool.icon, { 'one', 'two' })
+        env.C_ChatInfo.SendChatMessage = function(text)
+            assert(inClick); sends = sends + 1
+        end
+        local function clickLine()
+            IC.Flyout.Open(IC.Launcher.button, IC.Actions.Resolve('pool:quotes'), 1)
+            inClick = true; IC.Flyout.levels[1].rows[1]:Click(); inClick = false
+        end
+        clickLine(); eq(sends, 1); eq(queries, 3)
+        restricted = true; event('ADDON_RESTRICTION_STATE_CHANGED')
+        clickLine(); eq(sends, 1); assert(IC.Flyout.IsOpen()); eq(queries, 4)
+        restricted = false; event('ADDON_RESTRICTION_STATE_CHANGED')
+        clickLine(); eq(sends, 2); eq(queries, 7)
+    end)
+    test("an exact flyout line submits while its clicked row is visible, then closes once", function(IC, Stub, env)
+        local pool = IC.Profile().pools.quotes
+        IC.Dialogue.Save(pool, pool.name, 'SAY', 'sequential', pool.icon, { "Chosen line", "Another line" })
+        IC.Flyout.Open(IC.Launcher.button, IC.Actions.Resolve('pool:quotes'), 1)
+        local row, calls = IC.Flyout.levels[1].rows[2], 0
+        env.C_ChatInfo.SendChatMessage = function(text)
+            assert(row:IsShown() and IC.Flyout.IsOpen(), 'input row was hidden before dispatch')
+            eq(text, 'Another line'); calls = calls + 1
+        end
+        row:Click(); eq(calls, 1); assert(not IC.Flyout.IsOpen()); eq(IC.Dialogue.states.quotes, nil)
+    end)
+    test("a blocked pool flyout click retains its visible row and playback until a new successful user click", function(IC, Stub, env, event)
+        local pool = IC.Profile().pools.quotes
+        IC.Dialogue.Save(pool, pool.name, 'SAY', 'sequential', pool.icon, { 'first', 'second' })
+        IC.Flyout.Open(IC.Launcher.button, { id = 'set:rp', type = 'group', collection = 'rp' }, 1)
+        local row
+        for _, candidate in ipairs(IC.Flyout.levels[1].rows) do if candidate.node and candidate.node.id == 'role:quotes' then row = candidate end end
+        assert(row); local calls = 0
+        env.C_ChatInfo.SendChatMessage = function()
+            assert(row:IsShown() and IC.Flyout.IsOpen()); calls = calls + 1
+            event('ADDON_ACTION_BLOCKED', 'InCharacter', 'UNKNOWN()')
+        end
+        row:Click(); eq(calls, 1); assert(IC.Flyout.IsOpen() and row:IsShown()); eq(IC.Dialogue.states.quotes, nil)
+        env.C_ChatInfo.SendChatMessage = function(text)
+            assert(row:IsShown()); eq(text, 'first'); calls = calls + 1
+        end
+        row:Click(); eq(calls, 2); assert(not IC.Flyout.IsOpen()); eq(IC.Dialogue.states.quotes.cursor, 1)
+    end)
+    test("bar clicks finish chat submission before closing an existing flyout", function(IC, Stub, env)
+        local pool = IC.Profile().pools.quotes
+        IC.Dialogue.Save(pool, pool.name, 'SAY', 'sequential', pool.icon, { 'bar quote' })
+        local button
+        for _, b in ipairs(IC.Bars.frames[1].actionButtons) do if b.node and b.node.id == 'role:quotes' then button = b end end
+        assert(button); IC.Flyout.Open(IC.Launcher.button, IC.Actions.Resolve('pool:quotes'), 1)
+        local calls = 0
+        env.C_ChatInfo.SendChatMessage = function(text)
+            assert(button:IsShown() and IC.Flyout.IsOpen()); eq(text, 'bar quote'); calls = calls + 1
+        end
+        button:Click(); eq(calls, 1); assert(not IC.Flyout.IsOpen())
+    end)
+    test("wheel mouse-down dispatches once while visible and keeps a rejected action available", function(IC, Stub, env, event)
+        local pool = IC.Profile().pools.quotes
+        IC.Dialogue.Save(pool, pool.name, 'SAY', 'sequential', pool.icon, { 'wheel quote' })
+        local list = IC.Collections.Create('Quote'); IC.Collections.Add(list.id, 'role:quotes')
+        IC.Profile().wheel.root = list.id; IC.Wheel.Open(false); local slot = IC.Wheel.slots[1]; IC.Wheel.SetHover(slot)
+        local calls, blocked = 0, true
+        env.C_ChatInfo.SendChatMessage = function(text)
+            assert(IC.Wheel.open and slot:IsShown() and IC.Wheel.catcher:IsShown())
+            eq(text, 'wheel quote'); calls = calls + 1
+            if blocked then event('ADDON_ACTION_BLOCKED', 'InCharacter', 'UNKNOWN()') end
+        end
+        local x, y = slot:GetCenter(); local scale = slot:GetEffectiveScale()
+        Stub.cursorX, Stub.cursorY = x * scale, y * scale
+        IC.Wheel.catcher:Fire('OnMouseDown', 'LeftButton')
+        eq(calls, 1); assert(IC.Wheel.open); eq(IC.Dialogue.states.quotes, nil)
+        blocked = false
+        IC.Wheel.catcher:Fire('OnMouseDown', 'LeftButton')
+        eq(calls, 2); assert(not IC.Wheel.open); eq(IC.Dialogue.states.quotes.cursor, 1)
+    end)
     test("wheel captions wrap within a bounded width outside the square-icon envelope", function(IC)
         IC.Wheel.Open(false)
         assert(IC.Wheel.label.wordWrap and IC.Wheel.sub.wordWrap)

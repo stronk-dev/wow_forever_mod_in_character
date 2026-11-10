@@ -144,6 +144,7 @@ function IC.Initialize(database, characterDatabase)
     IC.db = IC.Profiles.Open(database, characterDatabase, IC.LegacyCharacterKeys())
     InCharacterDB = IC.db
     InCharacterCharDB = IC.Profiles.Character()
+    IC.Platform.RefreshChatPermissions()
     IC.Emotes.Validate()
     -- Create the overlay frames out of combat; they are plain frames and work in combat afterwards.
     if IC.Wheel and not IC.Wheel.frame then IC.Wheel.Create() end
@@ -155,6 +156,10 @@ end
 if CreateFrame then
     local events = CreateFrame("Frame")
     events:SetScript("OnEvent", function(_, event, loaded, ...)
+        if event == "PLAYER_ENTERING_WORLD" or event == "ADDON_RESTRICTION_STATE_CHANGED"
+            or event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+            IC.Platform.RefreshChatPermissions()
+        end
         if event == "ADDON_LOADED" and IC.db and IC.Bars.ConnectEditMode then IC.Bars.ConnectEditMode() end
         if event == "ADDON_LOADED" and loaded == IC.name then
             IC.Initialize(InCharacterDB, InCharacterCharDB)
@@ -168,7 +173,7 @@ if CreateFrame then
             if IC.Editor and IC.Editor.frame then IC.Editor.frame:Hide() end
         end
     end)
-    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
+    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "ADDON_RESTRICTION_STATE_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
         pcall(events.RegisterEvent, events, event)
     end
 end

@@ -149,8 +149,7 @@ function W.Use(mouse)
         if node.type == "pool" and IC.Collections.HasChildren(node) then W.Enter(node); return true end
         return false
     end
-    W.Close()
-    IC.Actions.Dispatch(node)
+    U.PerformAction(node, W.Close)
     return true
 end
 

@@ -37,8 +37,7 @@ local function rowClick(row, mouse)
         return
     end
     if node.type == "group" or node.type == "character" then F.Open(row, node, depth + 1); return end
-    F.Close()
-    IC.Actions.Dispatch(node)
+    U.PerformAction(node, F.Close)
 end
 
 local function row(level, index)

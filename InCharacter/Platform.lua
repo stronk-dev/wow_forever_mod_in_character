@@ -75,7 +75,9 @@ local function readBoolean(fn, ...)
     return value
 end
 
-function P.ChatAllowed()
+-- Permission queries belong to client lifecycle events, outside the hardware-input send stack.
+-- The native chat API remains authoritative if restrictions change before an event is handled.
+function P.ReadChatPermissions()
     local checks = {}
     if C_ChatInfo and type(C_ChatInfo.InChatMessagingLockdown) == "function" then
         checks[#checks + 1] = { fn = C_ChatInfo.InChatMessagingLockdown, blocked = true, reason = "Client chat messaging lockdown is active." }
@@ -94,6 +96,19 @@ function P.ChatAllowed()
         if value == check.blocked then return false, check.reason end
     end
     return true
+end
+
+function P.RefreshChatPermissions()
+    local allowed, reason = P.ReadChatPermissions()
+    P.chatPermissions = { allowed = allowed, reason = reason }
+    return allowed, reason
+end
+
+function P.ChatAllowed()
+    local cached = P.chatPermissions
+    if cached then return cached.allowed, cached.reason end
+    -- Standalone domain users can query without installing the Core event integration.
+    return P.ReadChatPermissions()
 end
 
 

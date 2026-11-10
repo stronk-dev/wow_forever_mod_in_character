@@ -92,6 +92,15 @@ function U.ActionButton(parent)
     return button
 end
 
+-- Keep the input surface alive through dispatch. Closing it first runs nested OnHide callbacks
+-- before the restricted chat call; Charades' menu performs the action before hiding as well.
+-- Failed sends retain both the user's selection and its surface. There are no deferred sends.
+function U.PerformAction(node, close)
+    local ok, reason = IC.Actions.Dispatch(node)
+    if ok then close() end
+    return ok, reason
+end
+
 -- Shared click rules. Groups open their flyout; pools play on left and open lines on right;
 -- everything else is used on left-click. Returns true when something was opened or used.
 function U.ActionClick(button, mouse)
@@ -101,7 +110,6 @@ function U.ActionClick(button, mouse)
         IC.Flyout.Toggle(button, node); return true
     end
     if mouse ~= "LeftButton" then return false end
-    IC.Flyout.Close()
-    IC.Actions.Dispatch(node)
+    U.PerformAction(node, IC.Flyout.Close)
     return true
 end
