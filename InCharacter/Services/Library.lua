@@ -4,11 +4,11 @@ local L = IC.Library
 -- Families group presets in the character switcher and on the RP lines page. A pack names its
 -- family; older packs without one are placed by their id prefix. Order here is display order.
 L.FAMILIES = {
-    { id = "office", label = "The Office", icon = "Interface\\Icons\\INV_Misc_Note_03" },
-    { id = "nlpolitics", label = "Dutch politics", icon = "Interface\\Icons\\INV_Scroll_05" },
-    { id = "dutch", label = "Dutch", icon = "Interface\\Icons\\INV_Misc_Flower_04" },
-    { id = "world", label = "World", icon = "Interface\\Icons\\INV_Misc_Map_01" },
-    { id = "fundubs", label = "Fundubs", icon = "Interface\\Icons\\INV_Mask_01" },
+    { id = "office", label = "The Office", icon = "Interface\\Icons\\inv_misc_paperbundle02a" },
+    { id = "nlpolitics", label = "Dutch politics", icon = "Interface\\Icons\\ui_greenflag" },
+    { id = "dutch", label = "Dutch", icon = "Interface\\Icons\\inv_shirt_orange_01" },
+    { id = "world", label = "World", icon = "Interface\\Icons\\achievement_guildperk_hastyhearth" },
+    { id = "fundubs", label = "Fundubs", icon = "Interface\\Icons\\achievement_halloween_smiley_01" },
     { id = "other", label = "Other", icon = "Interface\\Icons\\INV_Misc_Book_09" },
 }
 L.FAMILY = {}; for _, family in ipairs(L.FAMILIES) do L.FAMILY[family.id] = family end

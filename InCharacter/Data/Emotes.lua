@@ -18,7 +18,7 @@ E.KindInfo = {
 E.categories = { "Combat", "Social", "Reactions", "Idle", "Voice/Fun" }
 E.CategoryInfo = {
     Favorites = { label = "Favorites", short = "Favorites", icon = I .. "THUMBSUP", hint = "Your pinned emotes and dialogue." },
-    Combat = { label = "Combat callouts", short = "Combat", icon = I .. "Ability_DualWield",
+    Combat = { label = "Combat callouts", short = "Combat", icon = I .. "Ability_Warrior_Challange",
         hint = "Group callouts: charge, heal me, out of mana." },
     Social = { label = "Greetings & manners", short = "Greetings", icon = I .. "UI_Chat",
         hint = "Wave, bow, thank and welcome people." },
