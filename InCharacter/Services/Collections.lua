@@ -55,10 +55,10 @@ function C.Ensure(profile)
 end
 
 -- The loaded RP character's pools. Not stored: it follows Personas.
--- First the character switcher, then the three role slots, then the character's extra pools.
+-- First the character switcher, then every slot, then extra pools (own, then shared).
 local function roleplay(profile)
     local items, icon = { "character" }, nil
-    for _, role in ipairs(IC.Personas.ROLES) do items[#items + 1] = "role:" .. role.id end
+    for _, role in ipairs(IC.Personas.Slots()) do items[#items + 1] = "role:" .. role.id end
     for _, id in ipairs(IC.Personas.Extras()) do
         local pool = profile.pools[id]
         if pool then items[#items + 1] = "pool:" .. id; icon = icon or pool.icon end

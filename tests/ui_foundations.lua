@@ -79,4 +79,18 @@ return function(test, eq, page)
         p.messageDelete:Click(); eq(#pool.lines, 1); eq(pool.lines[1], 'Keep me')
     end)
 
+    test('RP lines: make a slot, share a pool, and the RP bar list follows the loaded character', function(IC, Stub)
+        local p = page(IC, 'Lines'); local pool = IC.Dialogue.Create('Jokes'); IC.Editor.RefreshLines(); IC.Editor.SelectPool(pool.id)
+        p.role:Choose('+new'); IC.Editor.nameDialog.name:SetText('Joke'); IC.Editor.nameDialog.save:Click()
+        local slot = IC.Personas.Slots()[4]; eq(slot.label, 'Joke'); eq(IC.Personas.RoleOf(pool.id), slot.id)
+        eq(p.role.value, slot.id); local hasRename = false
+        for _, option in ipairs(p.role.values) do if option.value == '+rename' then hasRename = true end end
+        assert(hasRename, 'your own slot can be renamed here')
+        p.owner:Choose('shared'); assert(IC.Personas.IsShared(pool.id)); eq(p.owner.value, 'shared')
+        local found; for _, row in ipairs(p.rows) do if row:IsShown() and row.poolID == pool.id then found = row end end
+        assert(found.right:GetText():find('shared', 1, true)); assert(found.right:GetText():find('Joke', 1, true))
+        p.role:Choose('+delete'); assert(IC.Personas.Slot(slot.id), 'first choice only asks')
+        p.role:Choose('+delete'); eq(IC.Personas.Slot(slot.id), nil); assert(IC.Profile().pools[pool.id])
+        eq(#Stub.sends + #Stub.emotes, 0)
+    end)
 end

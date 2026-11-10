@@ -24,7 +24,8 @@ local function poolLines(node)
         GameTooltip:AddLine("Add them in Settings > RP lines", 0.55, 0.55, 0.55); return
     end
     local channel = ({ SAY = "Say", YELL = "Yell", EMOTE = "Emote" })[pool.channel] or pool.channel
-    GameTooltip:AddLine(IC.Personas.Name() .. " · " .. channel .. " · " .. #pool.lines .. " lines", 0.75, 0.75, 0.75)
+    local who = IC.Personas.IsShared(pool.id) and "Shared" or IC.Personas.Name()
+    GameTooltip:AddLine(who .. " · " .. channel .. " · " .. #pool.lines .. " lines", 0.75, 0.75, 0.75)
     local source = IC.Personas.Source(pool)
     if source then GameTooltip:AddLine("from " .. source, 0.5, 0.5, 0.5) end
 end

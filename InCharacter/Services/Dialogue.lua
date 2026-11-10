@@ -196,6 +196,8 @@ function D.Delete(id)
         for i = #actor.poolIDs, 1, -1 do if actor.poolIDs[i] == id then table.remove(actor.poolIDs, i) end end
         for role, poolID in pairs(actor.roles or {}) do if poolID == id then actor.roles[role] = nil end end
     end
+    for i = #(profile.sharedPoolIDs or {}), 1, -1 do if profile.sharedPoolIDs[i] == id then table.remove(profile.sharedPoolIDs, i) end end
+    for role, poolID in pairs(profile.sharedRoles or {}) do if poolID == id then profile.sharedRoles[role] = nil end end
     profile.pools[id] = nil
     D.Clear(id)
     for i = #profile.poolOrder, 1, -1 do if profile.poolOrder[i] == id then table.remove(profile.poolOrder, i) end end

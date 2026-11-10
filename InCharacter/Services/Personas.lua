@@ -1,14 +1,91 @@
 local _, IC = ...
 IC.Personas = {}
 local R = IC.Personas
--- Every RP character has the same three roles. Bars, the wheel and /ic greet|quote|bye use the
--- role, so switching character keeps the layout and only changes which lines are sent.
+-- Slots ("roles" in the save): Greeting, Quote and Farewell, plus any the player adds (Joke,
+-- Sarcastic farewell...). Slots are shared by every character. Bars, the wheel, the menu and
+-- /ic greet|quote|bye|say use a slot, so switching character keeps the layout and only changes
+-- which lines are sent. A slot plays the loaded character's own pool for it, or else the shared
+-- pool for it: a preset character can be fully customised, or lean on the shared lines.
+-- Pools belong to one character (actor.poolIDs) or are shared by all (profile.sharedPoolIDs).
 R.ROLES = {
     { id = "greetings", label = "Greeting", command = "greet" },
     { id = "quotes", label = "Quote", command = "quote" },
     { id = "farewells", label = "Farewell", command = "bye" },
 }
 R.ROLE = {}; for _, role in ipairs(R.ROLES) do R.ROLE[role.id] = role end
+local function shared(profile)
+    profile = profile or IC.Profile()
+    profile.slots = type(profile.slots) == "table" and profile.slots or {}
+    profile.sharedPoolIDs = type(profile.sharedPoolIDs) == "table" and profile.sharedPoolIDs or {}
+    profile.sharedRoles = type(profile.sharedRoles) == "table" and profile.sharedRoles or {}
+    return profile
+end
+-- Every slot in order: the three built-ins, then the player's own.
+function R.Slots()
+    local result = {}
+    for _, role in ipairs(R.ROLES) do result[#result + 1] = role end
+    for _, slot in ipairs(shared().slots) do result[#result + 1] = slot end
+    return result
+end
+function R.Slot(id)
+    if R.ROLE[id] then return R.ROLE[id] end
+    for _, slot in ipairs(shared().slots) do if slot.id == id then return slot end end
+end
+local function labelTaken(label, except)
+    for _, slot in ipairs(R.Slots()) do if slot.id ~= except and slot.label:lower() == label:lower() then return true end end
+end
+function R.CreateSlot(label)
+    label = IC.Trim(label or ""); if label == "" then return nil, "Enter a slot name." end
+    if labelTaken(label) then return nil, "There is already a slot called " .. label .. "." end
+    local p = shared(); p.nextSlotID = p.nextSlotID or 1
+    local id
+    repeat id = "slot-" .. p.nextSlotID; p.nextSlotID = p.nextSlotID + 1 until not R.Slot(id)
+    local slot = { id = id, label = label, custom = true }
+    p.slots[#p.slots + 1] = slot; IC.Changed(); return slot
+end
+function R.RenameSlot(id, label)
+    local slot = R.Slot(id); label = IC.Trim(label or "")
+    if not slot or not slot.custom then return false, "Built-in slots keep their names." end
+    if label == "" then return false, "Enter a slot name." end
+    if labelTaken(label, id) then return false, "There is already a slot called " .. label .. "." end
+    slot.label = label; IC.Changed(); return true
+end
+-- Removes a slot the player made, its pool assignments and every button for it.
+function R.DeleteSlot(id)
+    local slot = R.Slot(id); if not slot or not slot.custom then return false, "Built-in slots cannot be deleted." end
+    local p = shared()
+    for i = #p.slots, 1, -1 do if p.slots[i].id == id then table.remove(p.slots, i) end end
+    p.sharedRoles[id] = nil
+    for _, actor in pairs(p.personas or {}) do
+        if actor.roles then actor.roles[id] = nil end; if actor.rolesSet then actor.rolesSet[id] = nil end
+    end
+    local ref = "role:" .. id
+    for i = #p.favorites, 1, -1 do if p.favorites[i] == ref then table.remove(p.favorites, i) end end
+    for _, collection in pairs(p.collections or {}) do
+        for i = #(collection.items or {}), 1, -1 do if collection.items[i] == ref then table.remove(collection.items, i) end end
+    end
+    IC.Changed(); return true
+end
+function R.IsShared(poolID)
+    for _, id in ipairs(shared().sharedPoolIDs) do if id == poolID then return true end end
+    return false
+end
+function R.SharedPools() return shared().sharedPoolIDs end
+-- Moves a pool between the loaded character and "shared by all characters". Its slot moves too.
+function R.SetShared(poolID, value)
+    local p, actor = shared(), R.Active()
+    if not p.pools[poolID] or not actor then return false end
+    local role = R.RoleOf(poolID)
+    for _, a in pairs(p.personas) do
+        for i = #a.poolIDs, 1, -1 do if a.poolIDs[i] == poolID then table.remove(a.poolIDs, i) end end
+        for r, id in pairs(a.roles or {}) do if id == poolID then a.roles[r] = nil end end
+    end
+    for i = #p.sharedPoolIDs, 1, -1 do if p.sharedPoolIDs[i] == poolID then table.remove(p.sharedPoolIDs, i) end end
+    for r, id in pairs(p.sharedRoles) do if id == poolID then p.sharedRoles[r] = nil end end
+    if value then p.sharedPoolIDs[#p.sharedPoolIDs + 1] = poolID; if role then p.sharedRoles[role] = poolID end
+    else actor.poolIDs[#actor.poolIDs + 1] = poolID; if role then actor.roles[role] = poolID end end
+    R.cachedActor = nil; IC.Changed(); return true
+end
 local function shortTitle(pack, fallback)
     return pack and (pack.title:match(":%s*(.+)$") or pack.title) or fallback
 end
@@ -77,9 +154,8 @@ function R.EnsureRoles(profile)
         actor.roles = type(actor.roles) == "table" and actor.roles or {}
         actor.rolesSet = type(actor.rolesSet) == "table" and actor.rolesSet or {}
         local mine = {}; for _, poolID in ipairs(actor.poolIDs) do mine[poolID] = true end
+        for roleID, current in pairs(actor.roles) do if not mine[current] then actor.roles[roleID] = nil end end
         for _, role in ipairs(R.ROLES) do
-            local current = actor.roles[role.id]
-            if current and not mine[current] then actor.roles[role.id] = nil end
             if actor.roles[role.id] then actor.rolesSet[role.id] = true end
             if not actor.roles[role.id] and not actor.rolesSet[role.id] then
                 for _, poolID in ipairs(actor.poolIDs) do
@@ -91,34 +167,51 @@ function R.EnsureRoles(profile)
             end
         end
     end
+    local p = shared(profile)
+    local isShared = {}; for _, id in ipairs(p.sharedPoolIDs) do if p.pools[id] then isShared[id] = true end end
+    for roleID, current in pairs(p.sharedRoles) do if not isShared[current] then p.sharedRoles[roleID] = nil end end
 end
--- The loaded character's pool for a role, or nil when the slot is empty.
+-- The pool a slot plays now: the loaded character's own, else the shared one, else nil.
+-- Second value: "own" or "shared".
 function R.RolePool(role)
-    local actor = R.Active(); local id = actor and actor.roles and actor.roles[role]
-    return id and IC.Profile().pools[id] and id or nil
+    local actor, p = R.Active(), shared()
+    local id = actor and actor.roles and actor.roles[role]
+    if id and p.pools[id] then return id, "own" end
+    id = p.sharedRoles[role]
+    if id and p.pools[id] then return id, "shared" end
 end
--- "No role (extra)": empties the slot for good; reloads do not refill it.
-function R.ClearRole(poolID)
-    local actor, role = R.Active(), R.RoleOf(poolID)
-    if not actor or not role then return false end
-    actor.rolesSet = actor.rolesSet or {}; actor.roles[role], actor.rolesSet[role] = nil, true
-    IC.Changed(); return true
-end
+-- The slot a pool fills: for the loaded character's pools its own slot, for shared pools the
+-- shared slot.
 function R.RoleOf(poolID)
     local actor = R.Active()
     for role, id in pairs(actor and actor.roles or {}) do if id == poolID then return role end end
+    for role, id in pairs(shared().sharedRoles) do if id == poolID then return role end end
+end
+-- "No slot (extra)": empties the slot for good; reloads do not refill it.
+function R.ClearRole(poolID)
+    local actor, p, role = R.Active(), shared(), R.RoleOf(poolID)
+    if not role then return false end
+    if p.sharedRoles[role] == poolID then p.sharedRoles[role] = nil
+    elseif actor then actor.rolesSet = actor.rolesSet or {}; actor.roles[role], actor.rolesSet[role] = nil, true end
+    IC.Changed(); return true
 end
 function R.SetRole(role, poolID)
-    local actor = R.Active(); if not actor or not R.ROLE[role] then return false end
-    actor.roles = actor.roles or {}
-    actor.rolesSet = actor.rolesSet or {}
-    for other, id in pairs(actor.roles) do if id == poolID then actor.roles[other] = nil; actor.rolesSet[other] = true end end
-    actor.roles[role] = poolID; actor.rolesSet[role] = true; IC.Changed(); return true
+    local actor, p = R.Active(), shared()
+    if not R.Slot(role) or not p.pools[poolID] then return false end
+    local target
+    if R.IsShared(poolID) then target = p.sharedRoles
+    elseif actor then actor.roles = actor.roles or {}; actor.rolesSet = actor.rolesSet or {}; target = actor.roles end
+    if not target then return false end
+    for other, id in pairs(target) do if id == poolID then target[other] = nil end end
+    target[role] = poolID
+    if target ~= p.sharedRoles then actor.rolesSet[role] = true end
+    IC.Changed(); return true
 end
--- The loaded character's pools that are not in a role slot.
+-- Pools that fill no slot: the loaded character's, then the shared ones.
 function R.Extras()
     local result, actor = {}, R.Active()
     for _, id in ipairs(actor and actor.poolIDs or {}) do if not R.RoleOf(id) then result[#result + 1] = id end end
+    for _, id in ipairs(shared().sharedPoolIDs) do if not R.RoleOf(id) then result[#result + 1] = id end end
     return result
 end
 function R.Active()
@@ -148,7 +241,7 @@ function R.HasPool(id)
         R.cachedActor, R.cachedList, R.cachedCount, R.members = actor, actor.poolIDs, #actor.poolIDs, {}
         for _, poolID in ipairs(actor.poolIDs) do R.members[poolID] = true end
     end
-    return R.members[id] == true
+    return R.members[id] == true or R.IsShared(id)
 end
 function R.ActionAllowed(action)
     return action.type ~= "pool" and action.type ~= "line" or R.HasPool(action.payload)
@@ -189,7 +282,7 @@ function R.Assign(poolID, actorID)
 end
 function R.Shortcut(alias)
     local p = IC.Profile()
-    if R.ROLE[alias] then return R.RolePool(alias) end
+    if R.Slot(alias) then return (R.RolePool(alias)) end
     local found
     for _, id in ipairs(R.Pools()) do
         local pool = p.pools[id]

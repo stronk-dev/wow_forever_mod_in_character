@@ -23,11 +23,11 @@ function A.Description(action)
 end
 -- Character-facing nodes: a role slot of the loaded character, the character switcher, a character.
 local function roleNode(role)
-    local info = IC.Personas.ROLE[role]
+    local info = IC.Personas.Slot(role)
     if not info then return nil end
-    local poolID = IC.Personas.RolePool(role)
+    local poolID, from = IC.Personas.RolePool(role)
     local pool = poolID and IC.Profile().pools[poolID]
-    return { id = "role:" .. role, type = "pool", role = role, payload = poolID, name = info.label, label = info.label,
+    return { id = "role:" .. role, type = "pool", role = role, payload = poolID, name = info.label, label = info.label, shared = from == "shared",
         icon = pool and pool.icon or IC.Defaults.Pool(role, info.label).icon, empty = not pool or #pool.lines == 0 }
 end
 local function personaNode(value)

@@ -157,7 +157,7 @@ local function refName(ref)
     local action = IC.Actions.Resolve(ref)
     if not action then return ref, nil, "removed" end
     local note = action.type == "emote" and (not action.verified and "not on client" or nil)
-        or (action.role and "role") or (action.type == "character" and "switcher")
+        or (action.role and "slot") or (action.type == "character" and "switcher")
         or (action.type == "pool" and "lines") or (action.type == "line" and "line") or nil
     return action.name or action.label, action.icon, note
 end
@@ -173,11 +173,14 @@ local function libraryItems()
         return query == "" or ((action.name or action.label or "") .. " " .. (extra or "")):lower():find(query, 1, true)
     end
     if E.category == "rp" then
-        for _, role in ipairs(IC.Personas.ROLES) do
+        for _, role in ipairs(IC.Personas.Slots()) do
             local action = IC.Actions.Resolve("role:" .. role.id)
             if match(action) then result[#result + 1] = action end
         end
-        for _, id in ipairs(IC.Personas.Pools()) do
+        local pools = {}
+        for _, id in ipairs(IC.Personas.Pools()) do pools[#pools + 1] = id end
+        for _, id in ipairs(IC.Personas.SharedPools()) do pools[#pools + 1] = id end
+        for _, id in ipairs(pools) do
             local pool = IC.Profile().pools[id]
             if not IC.Personas.RoleOf(id) and match(IC.Actions.Resolve("pool:" .. id)) then result[#result + 1] = IC.Actions.Resolve("pool:" .. id) end
             for _, line in ipairs(IC.Actions.Lines(pool)) do if match(line, pool.name) then result[#result + 1] = line end end
@@ -344,11 +347,11 @@ local function createLists(p)
     p.missing.caption:SetWidth(PAGE_W - LC - 190)
     for _, control in ipairs({ p.kind, p.missing }) do p.advancedOnly[#p.advancedOnly + 1] = control end
     p.library = U.Scroll(p, LC, -76, PAGE_W - LC, 232)
-    p.count = U.Muted(p, "", LC, -314, PAGE_W - LC); p.count:SetWordWrap(false)
+    p.count = U.Muted(p, "", LC, -310, PAGE_W - LC); p.count:SetWordWrap(false)
     -- Detail of the selected library entry
     p.noDetail = U.Muted(p, "Select an entry to try it, favorite it, rename it or change its icon.", LC, -342, PAGE_W - LC)
     local d = CreateFrame("Frame", nil, p); p.detail = d
-    d:SetPoint("TOPLEFT", LC, -334); d:SetSize(PAGE_W - LC, 190)
+    d:SetPoint("TOPLEFT", LC, -338); d:SetSize(PAGE_W - LC, 190)
     local DW = PAGE_W - LC
     d.icon = U.IconButton(d, 32, false); d.icon:SetPoint("TOPLEFT", 0, -2)
     d.icon:SetScript("OnClick", function() local id = E.selected; E.PickIcon(IC.Actions.Resolve(id).icon, function(icon) IC.Actions.SetIcon(id, icon); E.RefreshLists() end) end)
@@ -393,11 +396,21 @@ local function createLists(p)
 end
 
 -- RP lines ----------------------------------------------------------------------------------------
--- Pick the character, then its pools. Each character has a Greeting, Quote and Farewell role; bars,
--- the wheel and /ic greet|quote|bye always use those roles of the loaded character.
+-- Pick the character, then its pools. Slots (Greeting, Quote, Farewell and your own) are shared by
+-- every character; bars, the wheel and /ic greet|quote|bye|say play the loaded character's pool
+-- for a slot, or the shared pool when the character has none. A pool is this character's or shared.
 local LIST_W, FORM_X = 230, 244
-local ROLE_OPTIONS = { { value = "", label = "No role (extra)" } }
-for _, role in ipairs(IC.Personas and IC.Personas.ROLES or {}) do ROLE_OPTIONS[#ROLE_OPTIONS + 1] = { value = role.id, label = "Role: " .. role.label } end
+local function slotOptions(poolID)
+    local options = { { value = "", label = "No slot (extra)" } }
+    for _, slot in ipairs(IC.Personas.Slots()) do options[#options + 1] = { value = slot.id, label = "Slot: " .. slot.label } end
+    options[#options + 1] = { value = "+new", label = "+ New slot..." }
+    local current = poolID and IC.Personas.Slot(IC.Personas.RoleOf(poolID) or "")
+    if current and current.custom then
+        options[#options + 1] = { value = "+rename", label = "Rename " .. current.label .. "..." }
+        options[#options + 1] = { value = "+delete", label = "Delete " .. current.label .. " slot" }
+    end
+    return options
+end
 function E.StoreDraft()
     if E.StoreMessageDraft then E.StoreMessageDraft() end
     if not E.formID or not E.formProfile or not E.pages.Lines then return end
@@ -428,7 +441,9 @@ function E.SelectPool(id)
     p.name:SetText(draft and draft.name or pool.name)
     p.lines:SetText(draft and draft.lines or table.concat(pool.lines, "\n"))
     p.mode:SetValue(draft and draft.mode or pool.mode); p.channel:SetValue(draft and draft.channel or pool.channel)
-    p.role:SetValue(IC.Personas.RoleOf(id) or "")
+    p.role:SetOptions(slotOptions(id)); p.role:SetValue(IC.Personas.RoleOf(id) or "")
+    p.owner:SetOptions({ { value = "own", label = "Only " .. IC.Personas.Name() }, { value = "shared", label = "Shared by all characters" } })
+    p.owner:SetValue(IC.Personas.IsShared(id) and "shared" or "own")
     setFormIcon(draft and draft.icon or pool.icon)
     p.delete.confirming = nil; p.delete:SetText("Delete pool")
     local source = IC.Personas.Source(pool)
@@ -440,21 +455,27 @@ end
 function E.RefreshPoolList()
     local p, profile = E.pages.Lines, IC.Profile()
     local ids = {}
-    -- Role pools first, in role order, then the extras.
-    for _, role in ipairs(IC.Personas.ROLES) do local id = IC.Personas.RolePool(role.id); if id then ids[#ids + 1] = id end end
-    for _, id in ipairs(IC.Personas.Extras()) do if profile.pools[id] then ids[#ids + 1] = id end end
+    -- This character's pools (slot pools first, in slot order), then the shared ones.
+    local seen = {}
+    local function add(id) if id and profile.pools[id] and not seen[id] then seen[id] = true; ids[#ids + 1] = id end end
+    local actor = IC.Personas.Active()
+    for _, slot in ipairs(IC.Personas.Slots()) do add(actor and actor.roles and actor.roles[slot.id]) end
+    for _, id in ipairs(IC.Personas.Pools()) do add(id) end
+    for _, slot in ipairs(IC.Personas.Slots()) do add(profile.sharedRoles and profile.sharedRoles[slot.id]) end
+    for _, id in ipairs(IC.Personas.SharedPools()) do add(id) end
     rows(p.rows, p.list.content, #ids, LIST_W - 22, function(self) E.SelectPool(self.poolID) end)
     for i, id in ipairs(ids) do
         local row, pool = p.rows[i], profile.pools[id]
         local role = IC.Personas.RoleOf(id)
         row.poolID = id; row:ClearAllPoints(); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW)
-        row:SetText(pool.name); row.right:SetText("|cff888888" .. (role and (IC.Personas.ROLE[role].label .. " · ") or "") .. #pool.lines .. "|r")
+        local slot = role and IC.Personas.Slot(role)
+        row:SetText(pool.name); row.right:SetText("|cff888888" .. (IC.Personas.IsShared(id) and "shared · " or "") .. (slot and (slot.label .. " · ") or "") .. #pool.lines .. "|r")
         U.SetIcon(row.icon, pool.icon, IC.Icons[1]); row:SetSelected(id == E.poolID); row:Show()
     end
     p.list:SetContentHeight(#ids * ROW)
     local missing = {}
-    for _, role in ipairs(IC.Personas.ROLES) do if not IC.Personas.RolePool(role.id) then missing[#missing + 1] = role.label end end
-    p.missingRoles:SetText(#missing > 0 and ("No " .. table.concat(missing, ", ") .. " yet: create a pool and give it that role.") or "")
+    for _, role in ipairs(IC.Personas.Slots()) do if not IC.Personas.RolePool(role.id) then missing[#missing + 1] = role.label end end
+    p.missingRoles:SetText(#missing > 0 and ("No " .. table.concat(missing, ", ") .. " yet: pick a pool and give it that slot.") or "")
     E.poolIDs = ids
 end
 function E.RefreshLines()
@@ -494,14 +515,43 @@ local function createLines(p)
     local f = p.form
     p.icon = U.IconButton(f, 36, false); p.icon:SetPoint("TOPLEFT", 0, -2)
     p.icon:SetScript("OnClick", function() E.PickIcon(p.iconValue, setFormIcon) end)
-    U.Muted(f, "Name", 46, 0); p.name = U.Input(f, 46, -14, FW - 46)
-    U.Muted(f, "Role", 0, -44)
-    p.role = U.Dropdown(f, 0, -58, 170, ROLE_OPTIONS, function(value)
+    U.Muted(f, "Name", 46, 0); p.name = U.Input(f, 46, -14, FW - 46 - 196)
+    U.Muted(f, "Used by", FW - 190, 0)
+    p.owner = U.Dropdown(f, FW - 190, -14, 190, {}, function(value)
         if E.poolID then
-            if value == "" then IC.Personas.ClearRole(E.poolID)
-            else IC.Personas.SetRole(value, E.poolID) end
-            E.RefreshPoolList()
+            E.StoreDraft(); IC.Personas.SetShared(E.poolID, value == "shared"); E.formID = nil; E.SelectPool(E.poolID)
+            status(value == "shared" and "Shared: every character without its own pool for this slot uses it." or ("Now only " .. IC.Personas.Name() .. "'s."))
         end
+    end)
+    U.Muted(f, "Slot", 0, -44)
+    p.role = U.Dropdown(f, 0, -58, 170, {}, function(value)
+        local id = E.poolID; if not id then return end
+        local current = IC.Personas.RoleOf(id)
+        local function done() E.StoreDraft(); E.formID = nil; E.SelectPool(id) end
+        if value == "+new" then
+            E.AskName("New slot (for example Joke)", "", function(name)
+                local slot, problem = IC.Personas.CreateSlot(name)
+                if slot then IC.Personas.SetRole(slot.id, id); status(slot.label .. " is now a slot on every character's RP list.") else status(problem) end
+                done()
+            end)
+            done(); return
+        elseif value == "+rename" then
+            local slot = IC.Personas.Slot(current or "")
+            E.AskName("Rename slot", slot and slot.label or "", function(name)
+                local ok, problem = IC.Personas.RenameSlot(current, name); status(ok and "Slot renamed." or problem); done()
+            end)
+            done(); return
+        elseif value == "+delete" then
+            if E.pendingSlotDelete == current then
+                E.pendingSlotDelete = nil; IC.Personas.DeleteSlot(current); status("Slot deleted; its buttons were removed. The pools are kept.")
+            else
+                E.pendingSlotDelete = current; status("Choose Delete again to delete this slot for every character. Pools are kept.")
+            end
+            done(); return
+        end
+        E.pendingSlotDelete = nil
+        if value == "" then IC.Personas.ClearRole(id) else IC.Personas.SetRole(value, id) end
+        E.RefreshPoolList()
     end)
     U.Muted(f, "Sent as", 176, -44)
     p.channel = U.Dropdown(f, 176, -58, 150, {

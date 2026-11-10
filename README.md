@@ -16,7 +16,7 @@ World of Warcraft/_forever_/Interface/AddOns/InCharacter/
 
 ## Playing in character
 
-Pick your RP character once. Every character has the same three roles: **Greeting**, **Quote** and **Farewell**, plus any extra pools you add. Bars, the menu, the wheel and `/ic greet | quote | bye` always use the loaded character's roles, so switching character keeps your layout and only changes what is said. Buttons show the role word; where a preset came from appears only as a dimmed line in the tooltip.
+Pick your RP character once. Every character shares the same **slots**: **Greeting**, **Quote** and **Farewell**, plus any you add yourself (Joke, Sarcastic farewell, ...). A slot plays the loaded character's own pool for it, or, if the character has none, the **shared** pool for it. A preset character can be fully customised or lean on your shared lines, and you can mix both. Bars, the menu, the wheel, `/ic greet | quote | bye` and `/ic say <slot>` always use the slot, so switching character keeps your layout and only changes what is said. Buttons show the slot name; where a preset came from appears only as a dimmed line in the tooltip.
 
 Switch character from the first row of the RP list (on the bar, in the menu or in the wheel), or with `/ic character <name>`.
 
@@ -24,8 +24,8 @@ Switch character from the first row of the RP list (on the bar, in the menu or i
 
 | Surface | How it works |
 | --- | --- |
-| **Bars** | Choose **one bar** (favorites, the five emote categories as groups, and your RP character) or **separate bars** (favorites, one bar per category, and an RP bar). Each layout keeps its own positions. Bars are icons only, with no titles; tooltips name things. Click an emote to do it. Click a group to open its list. Click a role or pool to say its next line; its small arrow (or right-click) lists the exact lines. |
-| **Lists (flyouts)** | Open away from the screen edge, sized to their names. Pointing at a group or role opens it beside the list and never sends; the tooltip appears on the other side, so it never covers that list. Right-click an emote or line to pin or unpin it as a favorite (gold `*`). Click elsewhere or press Esc to close. |
+| **Bars** | Choose **one bar** (favorites, the five emote categories as groups, and your RP character) or **separate bars** (favorites, one bar per category, and an RP bar). Each layout keeps its own positions. Bars are icons only, with no titles; tooltips name things. Click an emote to do it. Click a group to open its list. Click a slot or pool to say its next line; its small arrow (or right-click) lists the exact lines. |
+| **Lists (flyouts)** | Open away from the screen edge, sized to their names. Pointing at a group or slot opens it beside the list and never sends; the tooltip appears on the other side, so it never covers that list. Right-click an emote or line to pin or unpin it as a favorite (gold `*`). Click elsewhere or press Esc to close. |
 | **Launcher** | Left-click: emote menu. Right-click: settings. Shift-drag: move. Its tooltip names the character you're playing. |
 | **Radial wheel** | Press its key: 7 slices under the cursor (Favorites, the five categories, your RP character). Point anywhere in a slice's direction; its full name appears beside the ring, never squeezed into the centre. Choosing a group zooms into it as its own ring (at most 8 slices; scroll pages). The centre goes back, or closes at the top. Only a click, or releasing the key in hold mode, sends. |
 | **Emote menu key** | The same list as the launcher menu, opened at the cursor. |
@@ -35,7 +35,7 @@ Play controls work in combat; the client may still restrict chat or emotes. Sett
 ## Settings (`/ic`, Options → AddOns, or right-click the launcher)
 
 - **Emotes & lists:** your lists on the left, what is in the selected list in the middle (Up / Down / Remove), and a searchable library on the right (every emote, a category, or your character's lines). Right-click a library row to add or remove it. Select an entry to try it, favorite it, rename it or change its icon. **Advanced** adds the testing tools: wiki sound/animation filters, emotes this client lacks, recording what you and others saw and heard, and nesting one list inside another.
-- **RP lines:** choose or create the character you're playing. Edit its pools: name, role (Greeting / Quote / Farewell / none), Say, Yell or Emote text, shuffle, random or in order, one line per row with a byte counter. Individual messages keep their button IDs when edited. **Play as this character** turns a preset (Stanley, Mastermovies / Michael Nicht, other Office characters, everyday Dutch; see [LIBRARY.md](LIBRARY.md)) into your own editable copy.
+- **RP lines:** choose or create the character you're playing. Edit its pools: name, **Used by** (only this character, or shared by all characters), **Slot** (Greeting / Quote / Farewell / your own / none; the same menu creates, renames and deletes your own slots), Say, Yell or Emote text, shuffle, random or in order, one line per row with a byte counter. Individual messages keep their button IDs when edited. **Play as this character** turns a preset (Stanley, Mastermovies / Michael Nicht, other Office characters, everyday Dutch; see [LIBRARY.md](LIBRARY.md)) into your own editable copy.
 - **Layout & keys:** one bar or separate bars, Move & edit bars, hide bars; the launcher (shown, size); the wheel (key, click or hold, which list, icon size); the emote menu (key, which list); favorite keys 1–4.
 - **Profiles:** shared or per-character data and layouts, and reset.
 
@@ -53,6 +53,7 @@ Sound and animation labels come from the [Warcraft Wiki emote table](https://war
 /ic bars                  hide / show bars    /ic lines      RP lines page
 /ic bars one | separate   switch bar layout   /ic <pool>     play a named pool
 /ic greet | quote | bye   your character's Greeting / Quote / Farewell
+/ic say <slot>          any slot by name, e.g. /ic say joke
 /ic play random|shuffle|sequential <pool>     /ic character <name>
 /ic message <pool ID> <message ID>            /ic help
 ```

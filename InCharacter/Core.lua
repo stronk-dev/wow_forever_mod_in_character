@@ -55,7 +55,7 @@ end
 
 function IC.Help()
     IC.Print("/ic settings · /ic wheel · /ic menu · /ic edit moves bars · /ic bars hides or shows bars · /ic bars one|separate")
-    IC.Print("/ic greet | quote | bye (your character's roles) · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
+    IC.Print("/ic greet | quote | bye · /ic say <slot> (your character's slots) · /ic character <name> · /ic <pool name> · /ic play random|shuffle|sequential <pool>")
 end
 
 function IC.Slash(input)
@@ -91,9 +91,17 @@ function IC.Slash(input)
         if poolID and lineID then IC.Actions.Dispatch("line:" .. poolID .. ":" .. lineID)
         else IC.Print("Use /ic message <pool ID> <message ID>, or choose a message in the menu.") end
     else
-        -- /ic greet | quote | bye: that role of the loaded RP character.
+        -- /ic greet | quote | bye, or /ic say <slot name>: that slot for the loaded character.
         local aliases = { greet = "greetings", quote = "quotes", bye = "farewells" }
         if aliases[command] then IC.Actions.Dispatch("role:" .. aliases[command]); return end
+        if command == "say" and IC.Personas then
+            local wanted = IC.Trim(rest or ""):lower()
+            for _, slot in ipairs(IC.Personas.Slots()) do
+                if slot.label:lower() == wanted or slot.id == wanted then IC.Actions.Dispatch("role:" .. slot.id); return end
+            end
+            local names = {}; for _, slot in ipairs(IC.Personas.Slots()) do names[#names + 1] = slot.label end
+            IC.Print("Use /ic say <slot>. Slots: " .. table.concat(names, ", ") .. "."); return
+        end
         local requested = input
         local pool, problem
         if IC.Personas then pool, problem = IC.Personas.FindPool(command == "pool" and rest or requested)
