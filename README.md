@@ -9,7 +9,7 @@ Emotes and roleplay lines for **WoW Forever (interface 16001)**, kept small enou
 
 ## Install
 
-Install it from [CurseForge](https://www.curseforge.com/projects/1798109) with your addon manager to get updates automatically, or download **InCharacter-0.15.2.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
+Install it from [CurseForge](https://www.curseforge.com/projects/1798109) with your addon manager to get updates automatically, or download **InCharacter-0.15.3.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/InCharacter/
