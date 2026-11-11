@@ -1,3 +1,9 @@
+This dedication covers original addon code and original documentation.
+Character quotations, show names, and game assets retain their respective
+owners' rights; no ownership or additional license over those materials is
+claimed. The small parts that follow Charades remain under its MIT license;
+see InCharacter/THIRD_PARTY_NOTICES.txt for that notice.
+
 Warcraft Wiki — https://warcraft.wiki.gg/wiki/List_of_emotes
 
 Data/EmoteCatalog.lua records facts from the wiki's emote table: each emote's
