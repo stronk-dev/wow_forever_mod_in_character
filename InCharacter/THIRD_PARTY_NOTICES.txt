@@ -1,8 +1,8 @@
-This dedication covers original addon code and original documentation.
+The Unlicense dedication in LICENSE covers original addon code and original documentation.
 Character quotations, show names, and game assets retain their respective
 owners' rights; no ownership or additional license over those materials is
 claimed. The small parts that follow Charades remain under its MIT license;
-see InCharacter/THIRD_PARTY_NOTICES.txt for that notice.
+its notice follows below.
 
 Warcraft Wiki — https://warcraft.wiki.gg/wiki/List_of_emotes
 
