@@ -1,10 +1,12 @@
 # In Character
 
+<p align="center"><img src="assets/logo.png" alt="In Character logo" width="320"></p>
+
 Emotes and roleplay lines for **WoW Forever (interface 16001)**, kept small enough to stay out of the way while you play. Native Lua, no libraries.
 
 ## Install
 
-Download **InCharacter-0.15.2.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
+Install it from [CurseForge](https://www.curseforge.com/projects/1798109) with your addon manager to get updates automatically, or download **InCharacter-0.15.2.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/InCharacter/

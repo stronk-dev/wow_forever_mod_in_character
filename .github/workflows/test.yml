@@ -73,4 +73,38 @@ jobs:
             dist/InCharacter-layout.svg
           fail_on_unmatched_files: true
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
+      # Tagged builds also go to CurseForge as Release files, so addon managers update them.
+      # Skipped until the repository has the CF_API_TOKEN secret and the CURSEFORGE_PROJECT_ID variable.
+      - name: Upload to CurseForge
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          VERSION: ${{ needs.test.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$PROJECT_ID" ]; then
+            echo "::notice::CurseForge upload skipped: CF_API_TOKEN secret or CURSEFORGE_PROJECT_ID variable not set"
+            exit 0
+          fi
+          zip="dist/InCharacter-${VERSION#v}.zip"
+          test -f "$zip"
+          curl -fsS -H "X-Api-Token: $CF_API_TOKEN" https://wow.curseforge.com/api/game/versions -o versions.json
+          # WoW Forever is game version 1.60.1 (interface 16001) on CurseForge.
+          python3 - "$VERSION" "$REPO" > metadata.json <<'PY'
+          import json, sys
+          version, repo = sys.argv[1], sys.argv[2]
+          ids = [v["id"] for v in json.load(open("versions.json")) if v.get("name") == "1.60.1"]
+          assert len(ids) == 1, f"expected one CurseForge game version named 1.60.1, found {ids}"
+          print(json.dumps({
+              "displayName": f"In Character {version}",
+              "gameVersions": ids,
+              "releaseType": "release",
+              "changelogType": "markdown",
+              "changelog": f"See the [GitHub release](https://github.com/{repo}/releases/tag/{version}).",
+          }))
+          PY
+          curl -fsS -H "X-Api-Token: $CF_API_TOKEN" \
+            -F "metadata=<metadata.json" -F "file=@$zip" \
+            "https://wow.curseforge.com/api/projects/$PROJECT_ID/upload-file"

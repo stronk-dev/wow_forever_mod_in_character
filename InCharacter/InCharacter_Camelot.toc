@@ -9,6 +9,7 @@
 ## AddonCompartmentFuncOnEnter: InCharacter_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: InCharacter_OnAddonCompartmentLeave
 ## X-License: MIT
+## X-Curse-Project-ID: 1798109
 
 Platform.lua
 Core.lua
