@@ -8,7 +8,7 @@
 ## AddonCompartmentFunc: InCharacter_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: InCharacter_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: InCharacter_OnAddonCompartmentLeave
-## X-License: MIT
+## X-License: Unlicense
 ## X-Curse-Project-ID: 1798109
 
 Platform.lua
