@@ -4,6 +4,9 @@
 
 Emotes and roleplay lines for **WoW Forever (interface 16001)**, kept small enough to stay out of the way while you play. Native Lua, no libraries.
 
+> [!NOTE]
+> **This addon is vibe coded.** It was written mostly by AI coding assistants (Claude Code and Codex), directed and play-tested by a human. It has automated tests, but those run outside the game. Expect rough edges, and please [open an issue](https://github.com/stronk-dev/wow_forever_mod_in_character/issues) if something breaks. Provided as is under the MIT license.
+
 ## Install
 
 Install it from [CurseForge](https://www.curseforge.com/projects/1798109) with your addon manager to get updates automatically, or download **InCharacter-0.15.2.zip** from [GitHub Releases](https://github.com/stronk-dev/wow_forever_mod_in_character/releases), or build it with `python3 scripts/package.py`. Extract it into:
